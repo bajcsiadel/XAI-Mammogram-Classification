@@ -1,0 +1,7 @@
+.idea/
+
+**/__pycache__/
+runs/
+pretrained_models/
+
+.env
