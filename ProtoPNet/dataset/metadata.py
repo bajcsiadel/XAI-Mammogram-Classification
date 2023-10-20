@@ -13,6 +13,7 @@ empty_dataset = {
     "COLOR_CHANNELS": 0,
     "CLASSES": [],
     "NUMBER_OF_CLASSES": 0,
+    "AUGMENTATIONS": [],
 }
 
 # dataset configs
@@ -26,7 +27,7 @@ DATASETS["MIAS"]["DATASET_DIR"] = os.path.join(DATA_DIR, "MIAS")
 DATASETS["MIAS"]["ORIGINAL_IMAGE_DIR"] = os.path.join(DATASETS["MIAS"]["DATASET_DIR"], "pngs")
 DATASETS["MIAS"]["PREPROCESSED_IMAGE_DIR"] = os.path.join(DATASETS["MIAS"]["DATASET_DIR"], "masked_images")
 DATASETS["MIAS"]["SPLIT_FILE"] = os.path.join(DATASETS["MIAS"]["DATASET_DIR"], "split.npz")
-DATASETS["MIAS"]["METADATA_FILE"] = os.path.join(DATASETS["MIAS"]["DATASET_DIR"], "data.csv")
+DATASETS["MIAS"]["METADATA_FILE"] = os.path.join(DATASETS["MIAS"]["DATASET_DIR"], "extended_data.csv")
 
 DATASETS["MIAS"]["IMAGE_SHAPE"] = (1024, 1024)
 DATASETS["MIAS"]["COLOR_CHANNELS"] = 1
@@ -39,7 +40,7 @@ DATASETS["DDSM"]["DATASET_DIR"] = os.path.join(DATA_DIR, "DDSM")
 DATASETS["DDSM"]["ORIGINAL_IMAGE_DIR"] = os.path.join(DATASETS["DDSM"]["DATASET_DIR"], "images")
 DATASETS["DDSM"]["PREPROCESSED_IMAGE_DIR"] = os.path.join(DATASETS["DDSM"]["DATASET_DIR"], "masked_images")
 DATASETS["DDSM"]["SPLIT_FILE"] = os.path.join(DATASETS["DDSM"]["DATASET_DIR"], "split.npz")
-DATASETS["DDSM"]["METADATA_FILE"] = os.path.join(DATASETS["DDSM"]["DATASET_DIR"], "data.csv")
+DATASETS["DDSM"]["METADATA_FILE"] = os.path.join(DATASETS["DDSM"]["DATASET_DIR"], "extended_data.csv")
 
 DATASETS["DDSM"]["IMAGE_SHAPE"] = (1024, 1024)
 DATASETS["DDSM"]["COLOR_CHANNELS"] = 1

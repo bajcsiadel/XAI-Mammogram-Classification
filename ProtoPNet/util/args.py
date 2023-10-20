@@ -4,7 +4,7 @@ import numpy as np
 import os
 import pickle
 
-from ProtoPNet.config.datasets import DATASETS
+from ProtoPNet.dataset.metadata import DATASETS
 from ProtoPNet.config.backbone_features import BACKBONE_MODELS
 
 from ProtoPNet.util import helpers
@@ -38,6 +38,21 @@ def get_args():
         type=str,
         choices=DATASETS.keys(),
         help="Dataset used to train the network",
+    )
+    parser.add_argument(
+        "--target",
+        type=str,
+        help="Name of the column from the csv containing the target labels"
+    )
+    parser.add_argument(
+        "--preprocessed",
+        action="store_true",
+        help="If set, use preprocessed data",
+    )
+    parser.add_argument(
+        "--augmentation",
+        action="store_true",
+        help="If set, use data augmentation during training",
     )
     parser.add_argument(
         "--prototypes-per-classes",
@@ -159,6 +174,7 @@ def get_args():
         "--batch-size-pretrain",
         type=int,
         default=128,
+        action=__PowerOfTwo,
         help="Batch size when pretraining the prototypes (first training stage)",
     )
     parser.add_argument(
@@ -204,6 +220,11 @@ def get_args():
         type=str,
         default="./runs/train_protopnet",
         help="The directory in which train progress should be logged",
+    )
+    parser.add_argument(
+        "--args",
+        type=str,
+        help="The path to a file containing the arguments to be used for training",
     )
 
     args = parser.parse_args()

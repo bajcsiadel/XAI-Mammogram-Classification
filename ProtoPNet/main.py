@@ -29,7 +29,7 @@ def main(args, logger):
     # set used GPU id
     torch.cuda.set_device(args.gpu_id)
     logger.log_info(f"Visible devices set to: {torch.cuda.current_device()}")
-    exit()
+
     # create result directory
     log_source_dir = os.path.join(
         args.log_dir,
