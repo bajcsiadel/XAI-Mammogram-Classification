@@ -2,6 +2,7 @@ import argparse
 import json
 import numpy as np
 import os
+import pandas as pd
 import pickle
 
 from ProtoPNet.dataset.metadata import DATASETS
@@ -9,6 +10,7 @@ from ProtoPNet.config.backbone_features import BACKBONE_MODELS
 
 from ProtoPNet.util import helpers
 from ProtoPNet.util import errors
+
 
 def get_args():
     """
@@ -29,6 +31,13 @@ def get_args():
         help="If set, only train the backbone without prototype layer",
     )
     parser.add_argument(
+        "--add-on-layers-type",
+        type=str,
+        default="regular",
+        choices=["regular", "bottleneck"],
+        help="The type of add-on layers to use",
+    )
+    parser.add_argument(
         "--pretrained",
         action="store_true",
         help="If set, use pretrained weights for the backbone",
@@ -45,6 +54,11 @@ def get_args():
         help="Name of the column from the csv containing the target labels"
     )
     parser.add_argument(
+        "--masked",
+        action="store_true",
+        help="If set, use masked data",
+    )
+    parser.add_argument(
         "--preprocessed",
         action="store_true",
         help="If set, use preprocessed data",
@@ -55,15 +69,38 @@ def get_args():
         help="If set, use data augmentation during training",
     )
     parser.add_argument(
-        "--prototypes-per-classes",
+        "--cross-validation-folds",
+        type=int,
+        default=5,
+        help="Number of folds for cross validation",
+    )
+    parser.add_argument(
+        "--stratified-cross-validation",
+        action="store_true",
+        help="Use stratified cross-validation"
+    )
+    parser.add_argument(
+        "--grouped-cross-validation",
+        action="store_true",
+        help="Use grouped cross-validation"
+    )
+    parser.add_argument(
+        "--prototypes-per-class",
         type=int,
         default=10,
         help="Number of prototypes per class",
     )
     parser.add_argument(
+        "--prototype-size",
+        type=int,
+        default=256,
+        help="Size of the prototype vectors",
+    )
+    parser.add_argument(
         "--prototype-activation-function",
         type=str,
         default="log",
+        choices=["log", "linear", "relu", "sigmoid", "tanh"],
         help="Activation function used for the prototypes",
     )
     # warm optimizer learning rates
@@ -160,8 +197,14 @@ def get_args():
         "--separation-type",
         type=str,
         choices=["max", "avg", "margin"],
-        default="max",
+        default="avg",
         help="The type of separation loss to use",
+    )
+    parser.add_argument(
+        "--num-workers",
+        type=int,
+        default=4,
+        help="Number of workers used to load the data",
     )
     parser.add_argument(
         "--batch-size",
@@ -176,6 +219,13 @@ def get_args():
         default=128,
         action=__PowerOfTwo,
         help="Batch size when pretraining the prototypes (first training stage)",
+    )
+    parser.add_argument(
+        "--batch-size-push",
+        type=int,
+        default=64,
+        action=__PowerOfTwo,
+        help="Batch size when pushing back the prototypes"
     )
     parser.add_argument(
         "--epochs",
@@ -204,9 +254,10 @@ def get_args():
         help="Epoch from which prototypes should be pushed to the database",
     )
     parser.add_argument(
-        "--push-epochs",
+        "--push-intervals",
         type=int,
-        help="Differnece between epochs in which prototypes should be "
+        default=5,
+        help="Difference between epochs in which prototypes should be "
              "pushed to the database",
     )
     parser.add_argument(
@@ -220,6 +271,12 @@ def get_args():
         type=str,
         default="./runs/train_protopnet",
         help="The directory in which train progress should be logged",
+    )
+    parser.add_argument(
+        "--seed",
+        type=int,
+        default=42,
+        help="The seed used for random number generators",
     )
     parser.add_argument(
         "--args",
@@ -248,25 +305,100 @@ def save_args(args, location):
     helpers.makedir(location)
     # Save the args in a json file
     with open(os.path.join(location, "args.json"), "w") as fd:
-        json.dump(vars(args), fd)
+        json.dump(vars(args), fd, indent=4, cls=helpers.EnhancedJSONEncoder)
     # Pickle the args for possible reuse
     with open(os.path.join(location, "args.pickle"), "wb") as fd:
         pickle.dump(args, fd)
 
 
 def __process_agrs(args):
-    dataset_config = DATASETS[args.dataset]
-    args.img_shape = dataset_config["IMAGE_SHAPE"]
-    args.channels = dataset_config["COLOR_CHANNELS"]
+    args.dataset_config = DATASETS[args.dataset]
+    args.used_images = __get_used_images_key(args)
 
-    args.classes = dataset_config["CLASSES"]
-    args.number_of_classes = dataset_config["NUMBER_OF_CLASSES"]
-    assert args.classes != [] and args.number_of_classes == len(args.classes), \
-        "Number of classes does not match length of classes list"
+    assert args.used_images in args.dataset_config.VERSIONS.keys()
+    args.dataset_config.USED_IMAGES = args.dataset_config.VERSIONS[args.used_images]
 
-    args.prototype_shape = (args.prototypes_per_classes * args.number_of_classes, 256, 1, 1)
+    args.classes = pd.read_csv(
+        args.dataset_config.METADATA.FILE,
+        **args.dataset_config.METADATA.PARAMETERS,
+    )[(args.target, "label")].unique().tolist()
+    args.number_of_classes = len(args.classes)
 
-    args.push_epochs = [ i for i in np.arange(args.epochs) + args.push_start if i % args.push_epochs == 0 ]
+    args.prototype_shape = (args.prototypes_per_class * args.number_of_classes, args.prototype_size, 1, 1)
+
+    args.push_epochs = [ i + args.push_start for i in range(args.epochs) if i % args.push_intervals == 0 ]
+
+    args.loss_coefficients = {
+        "cross_entropy": args.cross_entropy_coefficient,
+        "clustering": args.clustering_coefficient,
+        "separation": args.separation_coefficient,
+        "separation_margin": args.separation_margin_coefficient,
+        "l1": args.l1_coefficient,
+        "l2": args.l2_coefficient,
+    }
+
+
+def __get_used_images_key(args):
+    if args.masked and args.preprocessed:
+        return "masked_preprocessed"
+    elif args.masked:
+        return "masked"
+    else:
+        return "original"
+
+
+def generate_gin_config(args, location):
+    """
+    Generate a gin config file from the given arguments
+    :param args: The arguments to generate the gin config file from
+    :type args: argparse.Namespace
+    :param location: The path to the directory where the gin config file should be saved
+    :type location: str
+    :returns: name of the config file
+    :rtype: str
+    """
+    match args.dataset.upper():
+        case "MIAS":
+            data_module = "MIASDataModule"
+        case "DDSM":
+            data_module = "DDSMDataModule"
+        case _:
+            raise ValueError(f"Unknown dataset ({args.dataset})")
+
+    config_file = os.path.join(location, "config.gin")
+    # Generate the gin config
+    with open(config_file, "w") as fd:
+        fd.write(f"{data_module}.used_images = '{args.used_images}'\n")
+        fd.write(f"{data_module}.classification = '{args.target}'\n")
+        fd.write(f"{data_module}.batch_size = {args.batch_size}\n")
+        fd.write(f"{data_module}.cross_validation_folds = {args.cross_validation_folds}\n")
+        fd.write(f"{data_module}.stratified = {args.stratified_cross_validation}\n")
+        fd.write(f"{data_module}.groups = {args.grouped_cross_validation}\n")
+        fd.write(f"{data_module}.push_batch_size = {args.batch_size_push}\n")
+        fd.write(f"{data_module}.num_workers = {args.num_workers}\n")
+        fd.write(f"{data_module}.seed = {args.seed}\n")
+        fd.write(f"\n")
+        fd.write(f"preprocess.mean = {args.dataset_config.USED_IMAGES.MEAN}\n")
+        fd.write(f"preprocess.std = {args.dataset_config.USED_IMAGES.STD}\n")
+        fd.write(f"preprocess.number_of_channels = {args.dataset_config.IMAGE_PROPERTIES.COLOR_CHANNELS}\n")
+        fd.write(f"\n")
+        fd.write(f"undo_preprocess.mean = {args.dataset_config.USED_IMAGES.MEAN}\n")
+        fd.write(f"undo_preprocess.std = {args.dataset_config.USED_IMAGES.STD}\n")
+        fd.write(f"undo_preprocess.number_of_channels = {args.dataset_config.IMAGE_PROPERTIES.COLOR_CHANNELS}\n")
+        fd.write(f"\n")
+        fd.write(f"ResNet_features.color_channels = {args.dataset_config.IMAGE_PROPERTIES.COLOR_CHANNELS}\n")
+        fd.write(f"\n")
+        fd.write(f"construct_PPNet.base_architecture = '{args.backbone}'\n")
+        fd.write(f"construct_PPNet.pretrained = {args.pretrained}\n")
+        fd.write(f"construct_PPNet.img_shape = {args.dataset_config.IMAGE_PROPERTIES.SHAPE}\n")
+        fd.write(f"construct_PPNet.num_classes = {args.number_of_classes}\n")
+        fd.write(f"construct_PPNet.prototype_activation_function = '{args.prototype_activation_function}'\n")
+        fd.write(f"construct_PPNet.add_on_layers_type = '{args.add_on_layers_type}'\n")
+        fd.write(f"construct_PPNet.backbone_only = {args.backbone_only}\n")
+        fd.write(f"\n")
+        fd.write(f"main.dataset_module = @{data_module}()\n")
+
+    return config_file
 
 
 def load_args(arg_file):
@@ -291,6 +423,7 @@ def load_args(arg_file):
         raise errors.UnsupportedExtensionError(f"Unknown file extension ({file_ext}) to load arguments from!\n"
                                                f"Use a .json or .pickle file instead.")
     return args
+
 
 class __PowerOfTwo(argparse.Action):
     @staticmethod

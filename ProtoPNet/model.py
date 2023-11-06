@@ -1,4 +1,4 @@
-import math
+import gin
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
@@ -26,7 +26,6 @@ from ProtoPNet.config.backbone_features.vgg_features import (
     vgg19_bn_features,
     vgg19_features,
 )
-from ProtoPNet.config.settings import in_channels
 from ProtoPNet.receptive_field import compute_proto_layer_rf_info_v2
 
 base_architecture_to_features = {
@@ -463,7 +462,8 @@ class BBNet(nn.Module):
                 nn.Sigmoid(),
             )
 
-        x = torch.randn(1, in_channels, *img_shape)
+        # TODO: change second 1 to the number of channels
+        x = torch.randn(1, 1, *img_shape)
         x = self.features(x)
         x = self.add_on_layers(x)
         n, d, w, h = x.size()
@@ -496,6 +496,7 @@ class BBNet(nn.Module):
         )
 
 
+@gin.configurable
 def construct_PPNet(
     base_architecture,
     pretrained=True,

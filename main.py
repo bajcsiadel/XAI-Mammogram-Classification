@@ -1,35 +1,39 @@
-import json
+import gin
+import numpy as np
 import os
-import pprint
 import re
 import shutil
 import torch
 
-# import model as model
-# import push as push
-# import train_and_test as tnt
-# import util.save as save
-# import torch
-# from database.dataloader import (
-#     train_batch_size,
-#     train_loader,
-#     train_push_loader,
-#     valid_loader,
-# )
+from dotenv import load_dotenv
+load_dotenv()
 
-# from ProtoPNet import model
+from ProtoPNet import model
+from ProtoPNet import push
+from ProtoPNet import train_and_test as tnt
 
-from ProtoPNet.util import helpers
+from ProtoPNet.dataset.metadata import DATASETS
+from ProtoPNet.dataset.dataloaders.MIAS import MIASDataModule
+from ProtoPNet.dataset.dataloaders.DDSM import DDSMDataModule
+
 from ProtoPNet.util import args
+from ProtoPNet.util import helpers
 from ProtoPNet.util.log import Log
-# from ProtoPNet.util.preprocess import preprocess_input_function
+from ProtoPNet.util import save
+
+from ProtoPNet.util.preprocess import preprocess
 
 
-def main(args, logger):
+@gin.configurable
+def main(args, logger, dataset_module):
+    # set seeds
+    np.random.seed(args.seed)
+    torch.manual_seed(args.seed)
+    torch.cuda.manual_seed(args.seed)
     # set used GPU id
     torch.cuda.set_device(args.gpu_id)
     logger.log_info(f"Visible devices set to: {torch.cuda.current_device()}")
-    exit()
+
     # create result directory
     log_source_dir = os.path.join(
         args.log_dir,
@@ -37,14 +41,15 @@ def main(args, logger):
     )
     helpers.makedir(log_source_dir)
 
-    json.dump(settings, open(os.path.join(log_source_dir, "settings.json"), "w"), indent=4)
+    dataset_information = DATASETS[args.dataset]
+
+    shutil.copy(dataset_information.METADATA.FILE, logger.metadata_dir)
 
     # copy code to result directory
-    shutil.copy(src=os.path.join(os.getcwd(), __file__), dst=log_source_dir)
-    base_architecture_type = re.match("^[a-z]*", settings["base_architecture"]).group(0)
+    base_architecture_type = re.match("^[a-z]*", args.backbone).group(0)
     shutil.copy(
         src=os.path.join(
-            os.getcwd(),
+            os.getenv("PROJECT_ROOT"),
             "ProtoPNet",
             "config",
             "backbone_features",
@@ -52,10 +57,23 @@ def main(args, logger):
         ),
         dst=log_source_dir,
     )
-    shutil.copy(src=os.path.join(os.getcwd(), "ProtoPNet", "model.py"), dst=log_source_dir)
     shutil.copy(
-        src=os.path.join(os.getcwd(), "ProtoPNet", "train_and_test.py"), dst=log_source_dir
+        src=os.path.join(
+            os.getenv("PROJECT_ROOT"),
+            "ProtoPNet",
+            "model.py"
+        ),
+        dst=log_source_dir
     )
+    shutil.copy(
+        src=os.path.join(
+            os.getenv("PROJECT_ROOT"),
+            "ProtoPNet",
+            "train_and_test.py"
+        ),
+        dst=log_source_dir
+    )
+
     model_dir = os.path.join(args.log_dir, "model")
     helpers.makedir(model_dir)
     img_dir = os.path.join(args.log_dir, "img")
@@ -66,26 +84,27 @@ def main(args, logger):
     prototype_self_act_filename_prefix = "prototype-self-act"
     proto_bound_boxes_filename_prefix = "bb"
 
-    # we should look into distributed sampler more carefully
-    # at torch.utils.data.distributed.DistributedSampler(train_dataset)
-    logger.log_info(f"training set size: {len(train_loader.dataset)}")
-    logger.log_info(f"push set size: {len(train_push_loader.dataset)}")
-    logger.log_info(f"test set size: {len(valid_loader.dataset)}")
-    logger.log_info(f"batch size: {train_batch_size}")
-    logger.log_info(f"number of prototypes per class: {settings['num_prototypes_per_class']}")
+    if args.cross_validation_folds > 1:
+        logger.log_info("using cross-validation with:"
+                        f"\t{args.cross_validation_folds} folds")
+        if args.stratified_cross_validation:
+            logger.log_info(f"\tstratified")
+        if args.grouped_cross_validation:
+            logger.log_info(f"\tgrouped")
+
+    full_train_loader = dataset_module.train_dataloader()
+    push_loader = dataset_module.push_dataloader()
+    test_loader = dataset_module.test_dataloader()
+
+    logger.log_info(f"training set size: {len(full_train_loader)}")
+    logger.log_info(f"push set size: {len(push_loader)}")
+    logger.log_info(f"test set size: {len(test_loader)}")
+    logger.log_info(f"batch size: {args.batch_size}")
+    logger.log_info(f"number of prototypes per class: {args.prototypes_per_class}")
 
     # construct the model
-    ppnet = model.construct_PPNet(
-        base_architecture=settings["base_architecture"],
-        pretrained=settings["use_pretrain"],
-        img_shape=dataset_config["img_shape"],
-        prototype_shape=settings["prototype_shape"],
-        num_classes=num_classes,
-        prototype_activation_function=prototype_activation_function,
-        add_on_layers_type=add_on_layers_type,
-        backbone_only=backbone_only,
-        positive_weights_in_classifier=args.pos_weights_in_classifier
-    )
+    # parameters will set from the gin config file
+    ppnet = model.construct_PPNet()
     # if prototype_activation_function == 'linear':
     #    ppnet.set_last_layer_incorrect_connection(incorrect_strength=0)
     ppnet = ppnet.cuda()
@@ -95,183 +114,204 @@ def main(args, logger):
     joint_optimizer_specs = [
         {
             "params": ppnet.features.parameters(),
-            "lr": joint_optimizer_lrs["features"],
+            "lr": args.joint_lr_features,
             "weight_decay": 1e-3,
         },  # bias are now also being regularized
         {
             "params": ppnet.add_on_layers.parameters(),
-            "lr": joint_optimizer_lrs["add_on_layers"],
+            "lr": args.joint_lr_add_on_layers,
             "weight_decay": 1e-3,
         },
     ]
-    if not backbone_only:
+    if not args.backbone_only:
         joint_optimizer_specs += [
             {
                 "params": ppnet.prototype_vectors,
-                "lr": joint_optimizer_lrs["prototype_vectors"],
+                "lr": args.joint_lr_prototype_vectors,
             },
         ]
 
     joint_optimizer = torch.optim.Adam(joint_optimizer_specs)
     joint_lr_scheduler = torch.optim.lr_scheduler.StepLR(
-        joint_optimizer, step_size=joint_lr_step_size, gamma=0.1
+        joint_optimizer, step_size=args.joint_lr_step_size, gamma=0.1
     )
-
-    from ProtoPNet.config.settings import warm_optimizer_lrs
 
     warm_optimizer_specs = [
         {
             "params": ppnet.add_on_layers.parameters(),
-            "lr": warm_optimizer_lrs["add_on_layers"],
+            "lr": args.warm_lr_add_on_layers,
             "weight_decay": 1e-3,
         },
     ]
-    if not backbone_only:
+    if not args.backbone_only:
         warm_optimizer_specs += [
             {
                 "params": ppnet.prototype_vectors,
-                "lr": warm_optimizer_lrs["prototype_vectors"],
+                "lr": args.warm_lr_prototype_vectors,
             },
         ]
     warm_optimizer = torch.optim.Adam(warm_optimizer_specs)
 
-    from ProtoPNet.config.settings import last_layer_optimizer_lr
-
     last_layer_optimizer_specs = [
         {
             "params": ppnet.last_layer.parameters(),
-            "lr": last_layer_optimizer_lr,
+            "lr": args.last_layer_lr,
         }
     ]
     last_layer_optimizer = torch.optim.Adam(last_layer_optimizer_specs)
 
     # train the model
-    log("start training")
+    logger.log_info("start training")
 
-    for epoch in range(num_train_epochs):
-        log("epoch: \t{0}".format(epoch))
+    for fold, (train_loader, validation_loader) in full_train_loader:
+        logger.log_info(f"\tFOLD {fold + 1}")
+        logger.log_info(f"\t\ttrain set size: {len(train_loader)}")
+        logger.log_info(f"\t\tvalidation set size: {len(validation_loader)}")
 
-        if not backbone_only and epoch < num_warm_epochs:
-            tnt.warm_only(
-                model=ppnet_multi, log=log, backbone_only=backbone_only
-            )
-            _ = tnt.train(
-                model=ppnet_multi,
-                dataloader=train_loader,
-                optimizer=warm_optimizer,
-                class_specific=class_specific,
-                coefs=coefs,
-                use_bce=use_binary_cross_entropy,
-                log=log,
-                backbone_only=backbone_only,
-            )
-        else:
-            tnt.joint(model=ppnet_multi, log=log, backbone_only=backbone_only)
-            if epoch > 0:
-                joint_lr_scheduler.step()
-            _ = tnt.train(
-                model=ppnet_multi,
-                dataloader=train_loader,
-                optimizer=joint_optimizer,
-                class_specific=class_specific,
-                coefs=coefs,
-                use_bce=use_binary_cross_entropy,
-                log=log,
-                backbone_only=backbone_only,
-            )
+        for epoch in range(args.epochs):
+            logger.log_info("\t\tepoch: \t{0}".format(epoch))
 
-        accu = tnt.test(
-            model=ppnet_multi,
-            dataloader=valid_loader,
-            class_specific=class_specific,
-            coefs=coefs,
-            use_bce=use_binary_cross_entropy,
-            log=log,
-            backbone_only=backbone_only,
-        )
-        save.save_model_w_condition(
-            model=ppnet,
-            model_dir=model_dir,
-            model_name=str(epoch) + "nopush",
-            accu=accu,
-            target_accu=0.60,
-            log=log,
-        )
+            if not args.backbone_only and epoch < args.epochs_pretrain:
+                tnt.warm_only(
+                    model=ppnet_multi, log=logger, backbone_only=args.backbone_only
+                )
+                _ = tnt.train(
+                    model=ppnet_multi,
+                    dataloader=train_loader,
+                    prototype_shape=args.prototype_shape,
+                    separation_type=args.separation_type,
+                    number_of_classes=args.number_of_classes,
+                    optimizer=warm_optimizer,
+                    class_specific=class_specific,
+                    loss_coefficients=args.loss_coefficients,
+                    use_bce=args.binary_cross_entropy,
+                    log=logger,
+                    backbone_only=args.backbone_only,
+                )
+            else:
+                tnt.joint(model=ppnet_multi, log=logger, backbone_only=args.backbone_only)
+                if epoch > 0:
+                    joint_lr_scheduler.step()
+                _ = tnt.train(
+                    model=ppnet_multi,
+                    dataloader=train_loader,
+                    prototype_shape=args.prototype_shape,
+                    separation_type=args.separation_type,
+                    number_of_classes=args.number_of_classes,
+                    optimizer=joint_optimizer,
+                    class_specific=class_specific,
+                    loss_coefficients=args.loss_coefficients,
+                    use_bce=args.binary_cross_entropy,
+                    log=logger,
+                    backbone_only=args.backbone_only,
+                )
 
-        if not backbone_only and epoch >= push_start and epoch in push_epochs:
-            push.push_prototypes(
-                train_push_loader,  # pytorch dataloader (must be unnormalized in [0,1])
-                prototype_network_parallel=ppnet_multi,
-                # pytorch network with prototype_vectors
-                class_specific=class_specific,
-                preprocess_input_function=preprocess_input_function,  # normalize
-                prototype_layer_stride=1,
-                root_dir_for_saving_prototypes=img_dir,
-                # if not None, prototypes will be saved here
-                epoch_number=epoch,
-                # if not provided, prototypes saved previously will be overwritten
-                prototype_img_filename_prefix=prototype_img_filename_prefix,
-                prototype_self_act_filename_prefix=prototype_self_act_filename_prefix,
-                proto_bound_boxes_filename_prefix=proto_bound_boxes_filename_prefix,
-                save_prototype_class_identity=True,
-                log=log,
-            )
             accu = tnt.test(
                 model=ppnet_multi,
-                dataloader=valid_loader,
+                dataloader=validation_loader,
+                prototype_shape=args.prototype_shape,
+                separation_type=args.separation_type,
+                number_of_classes=args.number_of_classes,
                 class_specific=class_specific,
-                coefs=coefs,
-                use_bce=use_binary_cross_entropy,
-                log=log,
+                loss_coefficients=args.loss_coefficients,
+                use_bce=args.binary_cross_entropy,
+                log=logger,
+                backbone_only=args.backbone_only,
             )
             save.save_model_w_condition(
                 model=ppnet,
                 model_dir=model_dir,
-                model_name=str(epoch) + "push",
+                model_name=str(epoch) + "_nopush",
                 accu=accu,
                 target_accu=0.60,
-                log=log,
+                log=logger,
             )
 
-            if prototype_activation_function != "linear":
-                tnt.last_only(model=ppnet_multi, log=log)
-                for i in range(num_last_layer_train_epochs):
-                    log("iteration: \t{0}".format(i))
-                    _ = tnt.train(
-                        model=ppnet_multi,
-                        dataloader=train_loader,
-                        optimizer=last_layer_optimizer,
-                        class_specific=class_specific,
-                        coefs=coefs,
-                        use_bce=use_binary_cross_entropy,
-                        log=log,
-                    )
-                    accu = tnt.test(
-                        model=ppnet_multi,
-                        dataloader=valid_loader,
-                        class_specific=class_specific,
-                        coefs=coefs,
-                        use_bce=use_binary_cross_entropy,
-                        log=log,
-                    )
-                    save.save_model_w_condition(
-                        model=ppnet,
-                        model_dir=model_dir,
-                        model_name=str(epoch) + "_" + str(i) + "push",
-                        accu=accu,
-                        target_accu=0.60,
-                        log=log,
-                    )
+            if not args.backbone_only and epoch in args.push_epochs:
+                push.push_prototypes(
+                    push_loader,  # pytorch dataloader (must be unnormalized in [0,1])
+                    prototype_network_parallel=ppnet_multi,
+                    # pytorch network with prototype_vectors
+                    class_specific=class_specific,
+                    preprocess_input_function=preprocess,  # normalize
+                    prototype_layer_stride=1,
+                    root_dir_for_saving_prototypes=img_dir,
+                    # if not None, prototypes will be saved here
+                    epoch_number=epoch,
+                    # if not provided, prototypes saved previously will be overwritten
+                    prototype_img_filename_prefix=prototype_img_filename_prefix,
+                    prototype_self_act_filename_prefix=prototype_self_act_filename_prefix,
+                    proto_bound_boxes_filename_prefix=proto_bound_boxes_filename_prefix,
+                    save_prototype_class_identity=True,
+                    log=logger,
+                )
+                accu = tnt.test(
+                    model=ppnet_multi,
+                    dataloader=validation_loader,
+                    prototype_shape=args.prototype_shape,
+                    separation_type=args.separation_type,
+                    number_of_classes=args.number_of_classes,
+                    class_specific=class_specific,
+                    loss_coefficients=args.loss_coefficients,
+                    use_bce=args.binary_cross_entropy,
+                    log=logger,
+                )
+                save.save_model_w_condition(
+                    model=ppnet,
+                    model_dir=model_dir,
+                    model_name=str(epoch) + "_push",
+                    accu=accu,
+                    target_accu=0.60,
+                    log=logger,
+                )
 
-    logclose()
+                if args.prototype_activation_function != "linear":
+                    tnt.last_only(model=ppnet_multi, log=logger)
+                    for i in range(args.epochs_finetune):
+                        logger.log_info(f"iteration: \t{i}")
+                        _ = tnt.train(
+                            model=ppnet_multi,
+                            dataloader=train_loader,
+                            prototype_shape=args.prototype_shape,
+                            separation_type=args.separation_type,
+                            number_of_classes=args.number_of_classes,
+                            optimizer=last_layer_optimizer,
+                            class_specific=class_specific,
+                            loss_coefficients=args.loss_coefficients,
+                            use_bce=args.binary_cross_entropy,
+                            log=logger,
+                        )
+                        accu = tnt.test(
+                            model=ppnet_multi,
+                            dataloader=validation_loader,
+                            prototype_shape=args.prototype_shape,
+                            separation_type=args.separation_type,
+                            number_of_classes=args.number_of_classes,
+                            class_specific=class_specific,
+                            loss_coefficients=args.loss_coefficients,
+                            use_bce=args.binary_cross_entropy,
+                            log=logger,
+                        )
+                        save.save_model_w_condition(
+                            model=ppnet,
+                            model_dir=model_dir,
+                            model_name=str(epoch) + "_" + str(i) + "_push",
+                            accu=accu,
+                            target_accu=0.60,
+                            log=logger,
+                        )
 
 
 if __name__ == "__main__":
+    # python main.py --pretrained --dataset MIAS --target normal_vs_abnormal --stratified-cross-validation --grouped-cross-validation
     command_line_params = args.get_args()
     logger = Log(command_line_params.log_dir)
-    args.save_args(command_line_params, logger.metadata_dir)
-
     try:
+        config_file = args.generate_gin_config(command_line_params, logger.metadata_dir)
+        gin.parse_config_file(config_file)
+
+        args.save_args(command_line_params, logger.metadata_dir)
+
         main(command_line_params, logger)
     except Exception as e:
         logger.log_exception(e)

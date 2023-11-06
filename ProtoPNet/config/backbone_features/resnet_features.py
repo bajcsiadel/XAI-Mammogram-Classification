@@ -1,5 +1,6 @@
 import os
 
+import gin
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
@@ -148,6 +149,7 @@ class DownsampleLayer(nn.Module):
         )
 
 
+@gin.configurable
 class ResNet_features(nn.Module):
     """
     the convolutional layers of ResNet

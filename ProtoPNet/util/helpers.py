@@ -1,3 +1,5 @@
+import dataclasses
+import json
 import numpy as np
 import os
 import subprocess
@@ -74,3 +76,10 @@ def get_last_commit_hash():
     """
     process = subprocess.Popen(['git', 'rev-parse', 'HEAD'], shell=False, stdout=subprocess.PIPE)
     return process.communicate()[0].strip()
+
+
+class EnhancedJSONEncoder(json.JSONEncoder):
+    def default(self, o):
+        if dataclasses.is_dataclass(o):
+            return dataclasses.asdict(o)
+        return super().default(o)

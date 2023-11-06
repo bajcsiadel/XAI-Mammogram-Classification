@@ -2,11 +2,6 @@ import time
 
 import numpy as np
 import torch
-from ProtoPNet.config.settings import (
-    prototype_shape,
-    separation_type,
-    num_classes,
-)
 from ProtoPNet.util.helpers import list_of_distances
 from sklearn.metrics import f1_score
 
@@ -14,18 +9,32 @@ from sklearn.metrics import f1_score
 def _train_or_test(
     model,
     dataloader,
+    prototype_shape,
+    separation_type,
+    number_of_classes,
     optimizer=None,
     class_specific=True,
     use_l1_mask=True,
-    coefs=None,
+    loss_coefficients=None,
     use_bce=False,
     log=print,
     backbone_only=False,
 ):
     """
-    model: the multi-gpu model
-    dataloader:
-    optimizer: if None, will be test evaluation
+
+    :param model: the multi-gpu model
+    :param dataloader:
+    :param prototype_shape:
+    :param separation_type:
+    :param number_of_classes:
+    :param optimizer: if None, will be test evaluation
+    :param class_specific:
+    :param use_l1_mask:
+    :param loss_coefficients:
+    :param use_bce:
+    :param log:
+    :param backbone_only:
+    :return:
     """
     is_train = optimizer is not None
     start = time.time()
@@ -59,7 +68,7 @@ def _train_or_test(
             # compute loss
             if use_bce:
                 one_hot_target = torch.nn.functional.one_hot(
-                    target, num_classes
+                    target, number_of_classes
                 )
                 cross_entropy = (
                     torch.nn.functional.binary_cross_entropy_with_logits(
@@ -168,7 +177,7 @@ def _train_or_test(
                         # max(d(a, p) - d(a, n) + margin, 0)
                         separation_cost = torch.mean(
                             torch.maximum(
-                                distance_pos_neg + coefs["sep_margin"],
+                                distance_pos_neg + loss_coefficients["separation_margin"],
                                 torch.tensor(
                                     0.0, device=distance_pos_neg.device
                                 ),
@@ -218,23 +227,23 @@ def _train_or_test(
         # compute gradient and do SGD step
         if is_train:
             if backbone_only:
-                if coefs is not None:
-                    loss = coefs["crs_ent"] * cross_entropy + coefs["l1"] * l1
+                if loss_coefficients is not None:
+                    loss = loss_coefficients["cross_entropy"] * cross_entropy + loss_coefficients["l1"] * l1
                 else:
                     loss = cross_entropy + 1e-4 * l1
             else:
                 if class_specific:
-                    if coefs is not None:
+                    if loss_coefficients is not None:
                         loss = (
-                            coefs["crs_ent"] * cross_entropy
-                            + coefs["clst"] * cluster_cost
-                            + coefs["sep"] * separation_cost
-                            + (
-                                coefs["l2"] * l2
+                                loss_coefficients["cross_entropy"] * cross_entropy
+                                + loss_coefficients["clustering"] * cluster_cost
+                                + loss_coefficients["separation"] * separation_cost
+                                + (
+                                    loss_coefficients["l2"] * l2
                                 if separation_type == "avg"
                                 else 0
                             )
-                            + coefs["l1"] * l1
+                                + loss_coefficients["l1"] * l1
                         )
                     else:
                         loss = (
@@ -244,11 +253,11 @@ def _train_or_test(
                             + 1e-4 * l1
                         )
                 else:
-                    if coefs is not None:
+                    if loss_coefficients is not None:
                         loss = (
-                            coefs["crs_ent"] * cross_entropy
-                            + coefs["clst"] * cluster_cost
-                            + coefs["l1"] * l1
+                                loss_coefficients["cross_entropy"] * cross_entropy
+                                + loss_coefficients["clustering"] * cluster_cost
+                                + loss_coefficients["l1"] * l1
                         )
                     else:
                         loss = cross_entropy + 0.8 * cluster_cost + 1e-4 * l1
@@ -267,33 +276,23 @@ def _train_or_test(
 
     end = time.time()
 
-    log("\ttime: \t{0}".format(end - start))
-    log("\tcross ent: \t{0}".format(total_cross_entropy / n_batches))
+    log(f"INFO: \t\t\t\t{'time: ':<13}{end - start}")
+    log(f"INFO: \t\t\t\t{'cross ent: ':<13}{total_cross_entropy / n_batches}")
     if not backbone_only:
-        log("\tcluster: \t{0}".format(total_cluster_cost / n_batches))
+        log(f"INFO: \t\t\t\t{'cluster: ':<13}{total_cluster_cost / n_batches}")
         if class_specific:
-            log("\tseparation:\t{0}".format(total_separation_cost / n_batches))
-    log("\taccu: \t\t{0}%".format(n_correct / n_examples * 100))
-    log(
-        "\tmicro f1: \t\t{0}".format(
-            f1_score(true_labels, predicted_labels, average="micro")
-        )
-    )
-    log(
-        "\tmacro f1: \t\t{0}".format(
-            f1_score(true_labels, predicted_labels, average="macro")
-        )
-    )
-    log(
-        "\tl1: \t\t{0}".format(model.module.last_layer.weight.norm(p=1).item())
-    )
+            log(f"INFO: \t\t\t\t{'separation: ':<13}{total_separation_cost / n_batches}")
+    log(f"INFO: \t\t\t\t{'accu: ':<13}{n_correct / n_examples * 100}%")
+    log(f"INFO: \t\t\t\t{'micro f1: ':<13}{f1_score(true_labels, predicted_labels, average='micro')}")
+    log(f"INFO: \t\t\t\t{'macro f1: ':<13}{f1_score(true_labels, predicted_labels, average='macro')}")
+    log(f"INFO: \t\t\t\t{'l1: ':<13}{model.module.last_layer.weight.norm(p=1).item()}")
     if not backbone_only:
         p = model.module.prototype_vectors.view(
             model.module.num_prototypes, -1
         ).cpu()
         with torch.no_grad():
             p_avg_pair_dist = torch.mean(list_of_distances(p, p))
-        log("\tp dist pair: \t{0}".format(p_avg_pair_dist.item()))
+        log(f"INFO: \t\t\t\t{'p dist pair: ':<13}{p_avg_pair_dist.item()}")
 
     return n_correct / n_examples
 
@@ -301,23 +300,29 @@ def _train_or_test(
 def train(
     model,
     dataloader,
+    prototype_shape,
+    separation_type,
+    number_of_classes,
     optimizer,
     class_specific=False,
-    coefs=None,
+    loss_coefficients=None,
     use_bce=False,
     log=print,
     backbone_only=False,
 ):
     assert optimizer is not None
 
-    log("\ttrain")
+    log("INFO: \t\t\ttrain")
     model.train()
     return _train_or_test(
         model=model,
         dataloader=dataloader,
+        prototype_shape=prototype_shape,
+        separation_type=separation_type,
+        number_of_classes=number_of_classes,
         optimizer=optimizer,
         class_specific=class_specific,
-        coefs=coefs,
+        loss_coefficients=loss_coefficients,
         use_bce=use_bce,
         log=log,
         backbone_only=backbone_only,
@@ -327,20 +332,26 @@ def train(
 def test(
     model,
     dataloader,
+    prototype_shape,
+    separation_type,
+    number_of_classes,
     class_specific=False,
-    coefs=None,
+    loss_coefficients=None,
     use_bce=False,
     log=print,
     backbone_only=False,
 ):
-    log("\ttest")
+    log("INFO: \t\t\ttest")
     model.eval()
     return _train_or_test(
         model=model,
         dataloader=dataloader,
+        prototype_shape=prototype_shape,
+        separation_type=separation_type,
+        number_of_classes=number_of_classes,
         optimizer=None,
         class_specific=class_specific,
-        coefs=coefs,
+        loss_coefficients=loss_coefficients,
         use_bce=use_bce,
         log=log,
         backbone_only=backbone_only,
@@ -357,7 +368,7 @@ def last_only(model, log=print, backbone_only=False):
     for p in model.module.last_layer.parameters():
         p.requires_grad = True
 
-    log("\tlast layer")
+    log("INFO: \t\t\tlast layer")
 
 
 def warm_only(model, log=print, backbone_only=False):
@@ -370,7 +381,7 @@ def warm_only(model, log=print, backbone_only=False):
     for p in model.module.last_layer.parameters():
         p.requires_grad = True
 
-    log("\twarm")
+    log("INFO: \t\t\twarm")
 
 
 def joint(model, log=print, backbone_only=False):
@@ -383,4 +394,4 @@ def joint(model, log=print, backbone_only=False):
     for p in model.module.last_layer.parameters():
         p.requires_grad = True
 
-    log("\tjoint")
+    log("INFO: \t\t\tjoint")

@@ -1,48 +1,120 @@
 import os
 
+import dataclasses as dc
+import typing as typ
+
 DATA_DIR = os.getenv("DATASET_LOCATION")
 assert DATA_DIR is not None, "Please set the environment variable DATASET_LOCATION in .env file"
 
-empty_dataset = {
-    "DATASET_DIR": "",
-    "ORIGINAL_IMAGE_DIR": "",
-    "PREPROCESSED_IMAGE_DIR": "",
-    "SPLIT_FILE": "",
-    "METADATA_FILE": "",
-    "IMAGE_SHAPE": (0, 0),
-    "COLOR_CHANNELS": 0,
-    "CLASSES": [],
-    "NUMBER_OF_CLASSES": 0,
-    "AUGMENTATIONS": [],
-}
+
+@dc.dataclass(frozen=True)
+class _DataVersion:
+    NAME: str
+    DIR: str
+    MEAN: typ.Tuple[float] = (0.0, )
+    STD: typ.Tuple[float] = (0.0, )
+
+
+@dc.dataclass(frozen=True)
+class _MetadataInformation:
+    FILE: str
+    PARAMETERS: typ.Dict[str, typ.Any] = dc.field(default_factory=dict)  # set default to empty dict
+
+
+@dc.dataclass(frozen=True)
+class _ImageInformation:
+    EXTENSION: str
+    SHAPE: typ.Tuple[int, int]
+    COLOR_CHANNELS: int
+    MAX_VALUE: int = 255
+    AUGMENTATIONS: typ.List[typ.Any] = dc.field(default_factory=list)
+
+
+@dc.dataclass
+class DatasetInformation:
+    __MUTABLE_ATTRS: typ.ClassVar[typ.List[str]] = ["USED_IMAGES"]
+    ROOT_DIR: str
+    VERSIONS: typ.Dict[str, _DataVersion]
+    METADATA: _MetadataInformation
+    IMAGE_PROPERTIES: _ImageInformation
+    NAME: str = ""
+    USED_IMAGES: _DataVersion | None = None
+
+    def __setattr__(self, key, value):
+        # freeze all attributes except IMAGE_DIR
+        if key in DatasetInformation.__MUTABLE_ATTRS or key not in self.__dict__:
+            super().__setattr__(key, value)
+        else:
+            raise dc.FrozenInstanceError(f"cannot assign to field '{key}'")
+
 
 # dataset configs
-DATASETS = {
-    "MIAS": empty_dataset.copy(),
-    "DDSM": empty_dataset.copy(),
+MIAS_ROOT_DIR = os.path.join(DATA_DIR, "MIAS")
+DDSM_ROOT_DIR = os.path.join(DATA_DIR, "DDSM")
+DATASETS: typ.Dict[str, DatasetInformation] = {
+    "MIAS": DatasetInformation(
+        NAME="MIAS",
+        ROOT_DIR=MIAS_ROOT_DIR,
+        VERSIONS={
+            "original": _DataVersion(
+                NAME="original",
+                DIR=os.path.join(MIAS_ROOT_DIR, "pngs"),
+                MEAN=(0.2192, ),
+                STD=(0.2930, ),
+            ),
+            "masked": _DataVersion(
+                NAME="masked",
+                DIR=os.path.join(MIAS_ROOT_DIR, "masked_images", "original"),
+                MEAN=(0.1651, ),
+                STD=(0.2741, ),
+            ),
+            "masked_preprocessed": _DataVersion(
+                NAME="masked_preprocessed",
+                DIR=os.path.join(MIAS_ROOT_DIR, "masked_images", "clahe"),
+                MEAN=(0.1497, ),
+                STD=(0.2639, ),
+            ),
+        },
+        METADATA=_MetadataInformation(
+            FILE=os.path.join(MIAS_ROOT_DIR, "extended_data.csv"),
+            PARAMETERS={
+                "header": [0, 1],
+                "index_col": [0, 1],
+            },
+        ),
+        IMAGE_PROPERTIES=_ImageInformation(
+            EXTENSION=".npz",
+            SHAPE=(1024, 1024),
+            COLOR_CHANNELS=1,
+            # MAX_VALUE=255,
+        ),
+    ),
+    "DDSM": DatasetInformation(
+        NAME="DDSM",
+        ROOT_DIR=DDSM_ROOT_DIR,
+        VERSIONS={
+            "original": _DataVersion(
+                NAME="original",
+                DIR=os.path.join(DDSM_ROOT_DIR, "images"),
+            ),
+            "masked": _DataVersion(
+                NAME="masked",
+                DIR=os.path.join(DDSM_ROOT_DIR, "masked_images", "original"),
+            ),
+            "masked_preprocessed": _DataVersion(
+                NAME="masked_preprocessed",
+                DIR=os.path.join(DDSM_ROOT_DIR, "masked_images", "clahe"),
+            ),
+        },
+        METADATA=_MetadataInformation(
+            FILE=os.path.join(DDSM_ROOT_DIR, "extended_data.csv"),
+            # PARAMETERS={}
+        ),
+        IMAGE_PROPERTIES=_ImageInformation(
+            EXTENSION=".png",
+            SHAPE=(1024, 1024),
+            COLOR_CHANNELS=1,
+            # MAX_VALUE=255,
+        ),
+    ),
 }
-
-# MIAS
-DATASETS["MIAS"]["DATASET_DIR"] = os.path.join(DATA_DIR, "MIAS")
-DATASETS["MIAS"]["ORIGINAL_IMAGE_DIR"] = os.path.join(DATASETS["MIAS"]["DATASET_DIR"], "pngs")
-DATASETS["MIAS"]["PREPROCESSED_IMAGE_DIR"] = os.path.join(DATASETS["MIAS"]["DATASET_DIR"], "masked_images")
-DATASETS["MIAS"]["SPLIT_FILE"] = os.path.join(DATASETS["MIAS"]["DATASET_DIR"], "split.npz")
-DATASETS["MIAS"]["METADATA_FILE"] = os.path.join(DATASETS["MIAS"]["DATASET_DIR"], "extended_data.csv")
-
-DATASETS["MIAS"]["IMAGE_SHAPE"] = (1024, 1024)
-DATASETS["MIAS"]["COLOR_CHANNELS"] = 1
-DATASETS["MIAS"]["CLASSES"] = ["B", "M", "N"]
-DATASETS["MIAS"]["NUMBER_OF_CLASSES"] = len(DATASETS["MIAS"]["CLASSES"])
-
-
-# DDSM
-DATASETS["DDSM"]["DATASET_DIR"] = os.path.join(DATA_DIR, "DDSM")
-DATASETS["DDSM"]["ORIGINAL_IMAGE_DIR"] = os.path.join(DATASETS["DDSM"]["DATASET_DIR"], "images")
-DATASETS["DDSM"]["PREPROCESSED_IMAGE_DIR"] = os.path.join(DATASETS["DDSM"]["DATASET_DIR"], "masked_images")
-DATASETS["DDSM"]["SPLIT_FILE"] = os.path.join(DATASETS["DDSM"]["DATASET_DIR"], "split.npz")
-DATASETS["DDSM"]["METADATA_FILE"] = os.path.join(DATASETS["DDSM"]["DATASET_DIR"], "extended_data.csv")
-
-DATASETS["DDSM"]["IMAGE_SHAPE"] = (1024, 1024)
-DATASETS["DDSM"]["COLOR_CHANNELS"] = 1
-DATASETS["DDSM"]["CLASSES"] = ["B", "M", "N"]
-DATASETS["DDSM"]["NUMBER_OF_CLASSES"] = len(DATASETS["DDSM"]["CLASSES"])

@@ -188,7 +188,7 @@ if optimize_last_layer:
             dataloader=train_loader,
             optimizer=last_layer_optimizer,
             class_specific=class_specific,
-            coefs=coefs,
+            loss_coefficients=coefs,
             log=log,
         )
         accu = tnt.test(

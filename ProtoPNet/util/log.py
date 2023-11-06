@@ -39,7 +39,7 @@ class Log:
     def log_file(self):
         return os.path.join(self.__log_dir, "log.txt")
 
-    def log_message(self, msg, level="INFO"):
+    def log_message(self, msg="", level="INFO"):
         """
         Write a message to the log file
         :param msg: the message string to be written to the log file
@@ -49,9 +49,10 @@ class Log:
             # make log file empty if it already exists
             open(self.log_file, "w").close()
         with open(self.log_file, "a") as f:
-            f.write(f"[{datetime.now().strftime('%Y-%m-%d %H:%M:%S')} {level}] {msg}\n")
+            for line in msg.splitlines():
+                f.write(f"[{datetime.now().strftime('%Y-%m-%d %H:%M:%S')} {level}] {line}\n")
 
-    def log_info(self, msg):
+    def log_info(self, msg=""):
         """
         Log a info message
         :param msg:
@@ -59,7 +60,7 @@ class Log:
         """
         self.log_message(msg, level="INFO")
 
-    def log_warning(self, msg):
+    def log_warning(self, msg=""):
         """
         Log a warning message
         :param msg:
@@ -67,7 +68,7 @@ class Log:
         """
         self.log_message(msg, level="WARNING")
 
-    def log_error(self, msg):
+    def log_error(self, msg=""):
         """
         Log an error message
         :param msg:
@@ -82,8 +83,24 @@ class Log:
         :type ex: Exception
         """
         self.log_error(f"{type(ex).__name__}: {ex}")
-        for lines in traceback.format_exc().split("\n"):
-            self.log_error(lines)
+        self.log_error(traceback.format_exc())
+
+    def __call__(self, message):
+        """
+        Log a message
+        :param message:
+        :type message: str
+        """
+        level, msg = message.split(": ", 1)
+        match level:
+            case "INFO":
+                self.log_info(msg)
+            case "WARNING":
+                self.log_warning(msg)
+            case "ERROR":
+                self.log_error(msg)
+            case _:
+                self.log_message(message)
 
     def create_log(self, log_name: str, key_name: str, *value_names):
         """

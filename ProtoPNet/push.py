@@ -1,9 +1,9 @@
-import os
-import time
-
 import cv2
 import numpy as np
+import os
+import time
 import torch
+
 from ProtoPNet.receptive_field import compute_rf_prototype
 from ProtoPNet.util.helpers import find_high_activation_crop, makedir
 from ProtoPNet.util.save import save_image
@@ -27,7 +27,7 @@ def push_prototypes(
     prototype_activation_function_in_np=None,
 ):
     prototype_network_parallel.eval()
-    log("\tpush")
+    log("INFO: \t\t\tpush")
 
     start = time.time()
     prototype_shape = prototype_network_parallel.module.prototype_shape
@@ -123,7 +123,7 @@ def push_prototypes(
             proto_bound_boxes,
         )
 
-    log("\tExecuting push ...")
+    log("INFO: \t\t\t\tExecuting push ...")
     prototype_update = np.reshape(
         global_min_fmap_patches, tuple(prototype_shape)
     )
@@ -132,7 +132,7 @@ def push_prototypes(
     )
     # prototype_network_parallel.cuda()
     end = time.time()
-    log("\tpush time: \t{0}".format(end - start))
+    log(f"INFO: \t\t\t\t{'push time: ':<13}{end - start}")
 
 
 # update each prototype for current search batch
