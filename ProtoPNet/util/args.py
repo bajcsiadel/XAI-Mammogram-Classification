@@ -370,11 +370,9 @@ def generate_gin_config(args, location):
     with open(config_file, "w") as fd:
         fd.write(f"{data_module}.used_images = '{args.used_images}'\n")
         fd.write(f"{data_module}.classification = '{args.target}'\n")
-        fd.write(f"{data_module}.batch_size = {args.batch_size}\n")
         fd.write(f"{data_module}.cross_validation_folds = {args.cross_validation_folds}\n")
         fd.write(f"{data_module}.stratified = {args.stratified_cross_validation}\n")
         fd.write(f"{data_module}.groups = {args.grouped_cross_validation}\n")
-        fd.write(f"{data_module}.push_batch_size = {args.batch_size_push}\n")
         fd.write(f"{data_module}.num_workers = {args.num_workers}\n")
         fd.write(f"{data_module}.seed = {args.seed}\n")
         fd.write(f"\n")

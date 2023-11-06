@@ -6,6 +6,7 @@ import shutil
 import torch
 
 from dotenv import load_dotenv
+
 load_dotenv()
 
 from ProtoPNet import model
@@ -93,14 +94,6 @@ def main(args, logger, dataset_module):
         if args.grouped_cross_validation:
             logger.log_info(f"\tgrouped")
 
-    full_train_loader = dataset_module.train_dataloader()
-    push_loader = dataset_module.push_dataloader()
-    test_loader = dataset_module.test_dataloader()
-
-    logger.log_info(f"training set size: {len(full_train_loader)}")
-    logger.log_info(f"push set size: {len(push_loader.dataset)}")
-    logger.log_info(f"test set size: {len(test_loader.dataset)}")
-    logger.log_info(f"batch size: {args.batch_size}")
     logger.log_info(f"number of prototypes per class: {args.prototypes_per_class}")
 
     # construct the model
@@ -173,18 +166,27 @@ def main(args, logger, dataset_module):
     # train the model
     logger.log_info("start training")
 
-    for fold, (train_loader, validation_loader) in full_train_loader:
+    for fold, (train_sampler, validation_sampler) in dataset_module.folds:
         logger.log_info(f"\tFOLD {fold + 1}")
-        logger.log_info(f"\t\ttrain set size: {len(train_loader.dataset)}")
-        logger.log_info(f"\t\tvalidation set size: {len(validation_loader.dataset)}")
+        logger.log_info(f"\t\ttrain set size: {len(train_sampler)}")
+        logger.log_info(f"\t\tvalidation set size: {len(validation_sampler)}")
 
-        for epoch in range(args.epochs):
-            logger.log_info("\t\tepoch: \t{0}".format(epoch))
+        if not args.backbone_only:
+            logger.log_info(f"\t\tbatch size: {args.batch_size_pretrain}")
+            tnt.warm_only(model=ppnet_multi, log=logger, backbone_only=args.backbone_only)
 
-            if not args.backbone_only and epoch < args.epochs_pretrain:
-                tnt.warm_only(
-                    model=ppnet_multi, log=logger, backbone_only=args.backbone_only
-                )
+            train_loader = dataset_module.train_dataloader(
+                sampler=train_sampler,
+                batch_size=args.batch_size_pretrain,
+            )
+            validation_loader = dataset_module.train_dataloader(
+                sampler=validation_sampler,
+                batch_size=args.batch_size_pretrain,
+            )
+
+            for epoch in range(args.epochs_pretrain):
+                logger.log_info(f"\t\twarm epoch: \t{epoch + 1}")
+                logger.csv_log_index("train_model", (fold + 1, epoch + 1, "warm train"))
                 _ = tnt.train(
                     model=ppnet_multi,
                     dataloader=train_loader,
@@ -198,24 +200,65 @@ def main(args, logger, dataset_module):
                     log=logger,
                     backbone_only=args.backbone_only,
                 )
-            else:
-                tnt.joint(model=ppnet_multi, log=logger, backbone_only=args.backbone_only)
-                if epoch > 0:
-                    joint_lr_scheduler.step()
-                _ = tnt.train(
+
+                logger.csv_log_index("train_model", (fold + 1, epoch + 1, "warm validation"))
+                accu = tnt.test(
                     model=ppnet_multi,
-                    dataloader=train_loader,
+                    dataloader=validation_loader,
                     prototype_shape=args.prototype_shape,
                     separation_type=args.separation_type,
                     number_of_classes=args.number_of_classes,
-                    optimizer=joint_optimizer,
                     class_specific=class_specific,
                     loss_coefficients=args.loss_coefficients,
                     use_bce=args.binary_cross_entropy,
                     log=logger,
                     backbone_only=args.backbone_only,
                 )
+                save.save_model_w_condition(
+                    model=ppnet,
+                    model_dir=model_dir,
+                    model_name=str(epoch) + "_warm",
+                    accu=accu,
+                    target_accu=0.60,
+                    log=logger,
+                )
 
+        tnt.joint(model=ppnet_multi, log=logger, backbone_only=args.backbone_only)
+
+        train_loader = dataset_module.train_dataloader(
+            sampler=train_sampler,
+            batch_size=args.batch_size,
+        )
+        validation_loader = dataset_module.train_dataloader(
+            sampler=validation_sampler,
+            batch_size=args.batch_size,
+        )
+        push_loader = dataset_module.push_dataloader(
+            sampler=train_sampler,
+            batch_size=args.batch_size_push,
+        )
+
+        for epoch in range(args.epochs):
+            logger.log_info(f"\t\twarm epoch: \t{epoch + 1 + args.epochs_pretrain}")
+            if epoch > 0:
+                joint_lr_scheduler.step()
+
+            logger.csv_log_index("train_model", (fold + 1, epoch + 1 + args.epochs_pretrain, "train"))
+            _ = tnt.train(
+                model=ppnet_multi,
+                dataloader=train_loader,
+                prototype_shape=args.prototype_shape,
+                separation_type=args.separation_type,
+                number_of_classes=args.number_of_classes,
+                optimizer=joint_optimizer,
+                class_specific=class_specific,
+                loss_coefficients=args.loss_coefficients,
+                use_bce=args.binary_cross_entropy,
+                log=logger,
+                backbone_only=args.backbone_only,
+            )
+
+            logger.csv_log_index("train_model", (fold + 1, epoch + 1 + args.epochs_pretrain, "validation"))
             accu = tnt.test(
                 model=ppnet_multi,
                 dataloader=validation_loader,
@@ -231,12 +274,11 @@ def main(args, logger, dataset_module):
             save.save_model_w_condition(
                 model=ppnet,
                 model_dir=model_dir,
-                model_name=str(epoch) + "_nopush",
+                model_name=str(epoch) + "_no_push",
                 accu=accu,
                 target_accu=0.60,
                 log=logger,
             )
-
             if not args.backbone_only and epoch in args.push_epochs:
                 push.push_prototypes(
                     push_loader,  # pytorch dataloader (must be unnormalized in [0,1])
@@ -255,6 +297,8 @@ def main(args, logger, dataset_module):
                     save_prototype_class_identity=True,
                     log=logger,
                 )
+
+                logger.csv_log_index("train_model", (fold + 1, epoch + 1 + args.epochs_pretrain, "push validation"))
                 accu = tnt.test(
                     model=ppnet_multi,
                     dataloader=validation_loader,
@@ -278,7 +322,9 @@ def main(args, logger, dataset_module):
                 if args.prototype_activation_function != "linear":
                     tnt.last_only(model=ppnet_multi, log=logger)
                     for i in range(args.epochs_finetune):
-                        logger.log_info(f"iteration: \t{i}")
+                        logger.log_info(f"\t\t\t\titeration: \t{i}")
+
+                        logger.csv_log_index("train_model", (fold + 1, epoch + 1 + args.epochs_pretrain, f"last layer {i} train"))
                         _ = tnt.train(
                             model=ppnet_multi,
                             dataloader=train_loader,
@@ -291,6 +337,8 @@ def main(args, logger, dataset_module):
                             use_bce=args.binary_cross_entropy,
                             log=logger,
                         )
+
+                        logger.csv_log_index("train_model", (fold + 1, epoch + 1 + args.epochs_pretrain, f"last layer {i} validation"))
                         accu = tnt.test(
                             model=ppnet_multi,
                             dataloader=validation_loader,
@@ -319,6 +367,10 @@ if __name__ == "__main__":
     try:
         config_file = args.generate_gin_config(command_line_params, logger.metadata_dir)
         gin.parse_config_file(config_file)
+
+        logger.create_csv_log("train_model", ("fold", "epoch", "phase"),
+                              "time", "cross entropy", "cluster_loss", "separation_loss",
+                              "accuracy", "micro_f1", "macro_f1", "l1", "prototype_distances")
 
         args.save_args(command_line_params, logger.metadata_dir)
 

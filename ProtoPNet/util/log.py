@@ -1,6 +1,7 @@
 import os
 from datetime import datetime
 import traceback
+import typing as typ
 
 from ProtoPNet.util import errors
 from ProtoPNet.util import helpers
@@ -102,35 +103,67 @@ class Log:
             case _:
                 self.log_message(message)
 
-    def create_log(self, log_name: str, key_name: str, *value_names):
+    def create_csv_log(self, log_name, key_name, *value_names):
         """
         Create a csv for logging information
         :param log_name: The name of the log. The log filename will be <log_name>.csv.
+        :type log_name: str
         :param key_name: The name of the attribute that is used as key
             (e.g. epoch number)
+        :type key_name: str|typ.Iterable[str]
         :param value_names: The names of the attributes that are logged
+        :type value_names: str
         """
         if log_name in self.__logs.keys():
             raise Exception("Log already exists!")
+        if type(key_name) is str:
+            key_name = (key_name,)
         # Add to existing logs
         self.__logs[log_name] = (key_name, value_names)
         # Create log file. Create columns
         with open(self.log_dir + f"/{log_name}.csv", "w") as fd:
-            fd.write(",".join((key_name,) + value_names) + "\n")
+            fd.write(",".join(key_name + value_names) + "\n")
 
-    def log_values(self, log_name, key, *values):
+    def csv_log_index(self, log_name, key):
+        if log_name not in self.__logs.keys():
+            raise FileNotFoundError("Log does not exist!")
+        if type(key) is str:
+            key = (key,)
+        if len(key) != len(self.__logs[log_name][0]):
+            raise errors.CsvMismatchedColumnsError("Not all indices are logged!")
+        with open(os.path.join(self.log_dir, f"{log_name}.csv"), "a") as f:
+            f.write(",".join(str(v) for v in key) + ",")
+
+    def csv_log_values(self, log_name, *values):
         """
-        Log values in an existent log file
+        Log values in an existent log file. The key should be specified in advance by calling create_csv_log
         :param log_name: The name of the log file
-        :param key: The key attribute for logging these values
+        :type log_name: str
         :param values: value attributes that will be stored in the log
+        :type values: str
         :raises FileNotFoundError: If the log file does not exist
         :raises errors.CsvMismatchedColumnsError: If the number of values does not match the number of columns
         """
         if log_name not in self.__logs.keys():
-            raise FileNotFoundError("Log not existent!")
+            raise FileNotFoundError("Log does not exist!")
         if len(values) != len(self.__logs[log_name][1]):
-            raise errors.CsvMismatchedColumnsError("Not all required values are logged!")
+            raise errors.CsvMismatchedColumnsError(f"Not all required values are logged! "
+                                                   f"Expected {len(self.__logs[log_name][1])}, got {len(values)}")
         # Write a new line with the given values
         with open(os.path.join(self.log_dir, f"{log_name}.csv"), "a") as f:
-            f.write(",".join(str(v) for v in (key,) + values) + "\n")
+            f.write(",".join(str(v) for v in values) + "\n")
+
+    def csv_log_line(self, log_name, key, *values):
+        """
+        Log the given line in an existent log file
+        :param log_name: The name of the log file
+        :type log_name: str
+        :param key: The key attribute for logging these values
+        :type key: str|typ.Iterable[str]
+        :param values: value attributes that will be stored in the log
+        :type values: str
+        :raises FileNotFoundError: If the log file does not exist
+        :raises errors.CsvMismatchedColumnsError: If the number of values does not match the number of columns
+        """
+        self.csv_log_index(log_name, key)
+        self.csv_log_values(log_name, *values)

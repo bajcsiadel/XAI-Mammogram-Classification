@@ -276,23 +276,39 @@ def _train_or_test(
 
     end = time.time()
 
-    log(f"INFO: \t\t\t\t{'time: ':<13}{end - start}")
-    log(f"INFO: \t\t\t\t{'cross ent: ':<13}{total_cross_entropy / n_batches}")
-    if not backbone_only:
-        log(f"INFO: \t\t\t\t{'cluster: ':<13}{total_cluster_cost / n_batches}")
-        if class_specific:
-            log(f"INFO: \t\t\t\t{'separation: ':<13}{total_separation_cost / n_batches}")
-    log(f"INFO: \t\t\t\t{'accu: ':<13}{n_correct / n_examples * 100}%")
-    log(f"INFO: \t\t\t\t{'micro f1: ':<13}{f1_score(true_labels, predicted_labels, average='micro')}")
-    log(f"INFO: \t\t\t\t{'macro f1: ':<13}{f1_score(true_labels, predicted_labels, average='macro')}")
-    log(f"INFO: \t\t\t\t{'l1: ':<13}{model.module.last_layer.weight.norm(p=1).item()}")
+    total_time = end - start
+    cross_entropy = total_cross_entropy / n_batches
+    cluster_cost = total_cluster_cost / n_batches if not backbone_only else None
+    separation_cost = total_separation_cost / n_batches if not backbone_only and class_specific else None
+    accuracy = n_correct / n_examples * 100
+    micro_f1 = f1_score(true_labels, predicted_labels, average='micro')
+    macro_f1 = f1_score(true_labels, predicted_labels, average='macro')
+    l1_norm = model.module.last_layer.weight.norm(p=1).item()
+
+    p_avg_pair_dist = None
     if not backbone_only:
         p = model.module.prototype_vectors.view(
             model.module.num_prototypes, -1
         ).cpu()
         with torch.no_grad():
-            p_avg_pair_dist = torch.mean(list_of_distances(p, p))
-        log(f"INFO: \t\t\t\t{'p dist pair: ':<13}{p_avg_pair_dist.item()}")
+            p_avg_pair_dist = torch.mean(list_of_distances(p, p)).item()
+
+    log(f"INFO: \t\t\t\t{'time: ':<13}{total_time}")
+    log(f"INFO: \t\t\t\t{'cross ent: ':<13}{cross_entropy}")
+    if not backbone_only:
+        log(f"INFO: \t\t\t\t{'cluster: ':<13}{cluster_cost}")
+        if class_specific:
+            log(f"INFO: \t\t\t\t{'separation: ':<13}{separation_cost}")
+    log(f"INFO: \t\t\t\t{'accu: ':<13}{accuracy}%")
+    log(f"INFO: \t\t\t\t{'micro f1: ':<13}{micro_f1}")
+    log(f"INFO: \t\t\t\t{'macro f1: ':<13}{macro_f1}")
+    log(f"INFO: \t\t\t\t{'l1: ':<13}{l1_norm}")
+    if not backbone_only:
+        log(f"INFO: \t\t\t\t{'p dist pair: ':<13}{p_avg_pair_dist}")
+
+    if hasattr(log, "csv_log_values"):
+        log.csv_log_values("train_model", total_time, cross_entropy, cluster_cost, separation_cost,
+                           accuracy, micro_f1, macro_f1, l1_norm, p_avg_pair_dist)
 
     return n_correct / n_examples
 

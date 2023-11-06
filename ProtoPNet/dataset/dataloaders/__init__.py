@@ -166,75 +166,6 @@ class CustomVisionDataset(datasets.VisionDataset):
         return image, self.__current_target
 
 
-class CustomTrainDataLoader:
-    def __init__(
-            self,
-            dataset,
-            cross_validation_folds,
-            stratified=True,
-            groups=True,
-            seed=None,
-            **kwargs
-    ):
-        self.__dataset = dataset
-        self.__targets = dataset.targets
-        self.__groups = dataset.metadata.index.get_level_values("patient_id").to_numpy() if groups else None
-
-        self.__data_loader_kwargs = kwargs
-
-        self.__cross_validation_folds = cross_validation_folds
-
-        if cross_validation_folds <= 1:
-            raise ValueError(f"cross_validation_folds must be greater than 1, not {cross_validation_folds}")
-
-        if stratified and groups:
-            from sklearn.model_selection import StratifiedGroupKFold
-            cross_validator_class = StratifiedGroupKFold
-            self.__cv_kwargs = {
-                "y": self.__targets,
-                "groups": self.__groups
-            }
-        elif stratified and not groups:
-            from sklearn.model_selection import StratifiedKFold
-            cross_validator_class = StratifiedKFold
-            self.__cv_kwargs = {
-                "y": self.__targets
-            }
-        elif not stratified and groups:
-            from sklearn.model_selection import GroupKFold
-            cross_validator_class = GroupKFold
-            self.__cv_kwargs = {
-                "groups": self.__groups
-            }
-        else:
-            # not stratified and not groups
-            from sklearn.model_selection import KFold
-            cross_validator_class = KFold
-            self.__cv_kwargs = {}
-
-        self.__cross_validator = cross_validator_class(
-            n_splits=cross_validation_folds,
-            shuffle=True,
-            random_state=seed
-        )
-
-    @property
-    def cross_validation_folds(self):
-        return self.__cross_validation_folds
-
-    def __len__(self):
-        return len(self.__dataset)
-
-    def __iter__(self):
-        for fold, (train_idx, val_idx) in enumerate(self.__cross_validator.split(self.__dataset, **self.__cv_kwargs)):
-            train_sampler = SubsetRandomSampler(train_idx)
-            validation_sampler = SubsetRandomSampler(val_idx)
-            yield fold, (
-                DataLoader(self.__dataset, sampler=train_sampler, **self.__data_loader_kwargs),
-                DataLoader(self.__dataset, sampler=validation_sampler, **self.__data_loader_kwargs)
-            )
-
-
 class CustomDataModule:
     """
     DataModule to define data loaders.
@@ -245,16 +176,12 @@ class CustomDataModule:
     :type used_images: str
     :param classification:
     :type classification: str
-    :param batch_size: Number of samples in a batch
-    :type batch_size: int
     :param cross_validation_folds: Number of cross validation folds
     :type cross_validation_folds: int
     :param stratified:
     :type stratified: bool
     :param groups:
     :type groups: bool
-    :param push_batch_size:
-    :type push_batch_size: int
     :param num_workers:
     :type num_workers: int
     :param seed:
@@ -266,14 +193,12 @@ class CustomDataModule:
             data,
             used_images,
             classification,
-            batch_size,
             cross_validation_folds,
             stratified=True,
             groups=True,
-            push_batch_size=None,
             num_workers=0,
             seed=None,
-            dataset_class=None,
+            dataset_class=CustomVisionDataset,
     ):
         assert issubclass(dataset_class, CustomVisionDataset), f"dataset_class must be a subclass of CustomVisionDataset, not {type(dataset_class)}"
 
@@ -284,11 +209,7 @@ class CustomDataModule:
             else:
                 raise ValueError(f"'used_images' must be one of {list(data.VERSIONS.keys())}, not {used_images}")
 
-        if push_batch_size is None:
-            push_batch_size = batch_size
-
-        if dataset_class is None:
-            dataset_class = CustomVisionDataset
+        if dataset_class is CustomVisionDataset:
             dataset_params = {
                 "dataset_meta": self.__data,
                 "classification": classification,
@@ -297,40 +218,106 @@ class CustomDataModule:
             dataset_params = {
                 "classification": classification,
             }
-        train_data = dataset_class(**dataset_params, subset="train")
-        push_data = dataset_class(**dataset_params, normalize=False, subset="train")
-        test_data = dataset_class(**dataset_params, subset="test")
+        self.__train_data = dataset_class(**dataset_params, subset="train")
+        self.__push_data = dataset_class(**dataset_params, normalize=False, subset="train")
+        self.__test_data = dataset_class(**dataset_params, subset="test")
 
-        self.__train_loader = CustomTrainDataLoader(
-            train_data,
-            cross_validation_folds,
-            stratified,
-            groups,
-            seed=seed,
+        self.__number_of_workers = num_workers
+
+        self.__init_cross_validation(cross_validation_folds, stratified, groups, seed)
+
+    def __init_cross_validation(self, cross_validation_folds, stratified=True, groups=True, seed=None):
+        if cross_validation_folds <= 1:
+            raise ValueError(f"cross_validation_folds must be greater than 1, not {cross_validation_folds}")
+
+        targets = self.__train_data.targets
+        sample_groups = self.__train_data.metadata.index.get_level_values("patient_id").to_numpy() if groups else None
+
+        if stratified and groups:
+            from sklearn.model_selection import StratifiedGroupKFold
+            cross_validator_class = StratifiedGroupKFold
+            self.__cv_kwargs = {
+                "y": targets,
+                "groups": sample_groups
+            }
+        elif stratified and not groups:
+            from sklearn.model_selection import StratifiedKFold
+            cross_validator_class = StratifiedKFold
+            self.__cv_kwargs = {
+                "y": targets
+            }
+        elif not stratified and groups:
+            from sklearn.model_selection import GroupKFold
+            cross_validator_class = GroupKFold
+            self.__cv_kwargs = {
+                "groups": sample_groups
+            }
+        else:
+            # not stratified and not groups
+            from sklearn.model_selection import KFold
+            cross_validator_class = KFold
+            self.__cv_kwargs = {}
+
+        cross_validator = cross_validator_class(
+            n_splits=cross_validation_folds,
+            shuffle=True,
+            random_state=seed
+        )
+
+        self.__folds = {fold: (
+            SubsetRandomSampler(train_idx),
+            SubsetRandomSampler(validation_idx)
+        ) for fold, (train_idx, validation_idx) in enumerate(cross_validator.split(self.__train_data, **self.__cv_kwargs))}
+        self.__current_fold = 0
+
+    @property
+    def folds(self):
+        yield from self.__folds.items()
+
+    def __get_data_loader(self, dataset, **kwargs):
+        return DataLoader(
+            dataset,
+            num_workers=self.__number_of_workers,
+            shuffle=False,
+            **kwargs
+        )
+
+    def train_dataloader(self, batch_size, sampler=None):
+        if sampler is None:
+            param = {
+                "shuffle": True,
+            }
+        else:
+            param = {
+                "sampler": sampler,
+            }
+        return self.__get_data_loader(
+            self.__train_data,
             batch_size=batch_size,
-            num_workers=num_workers,
+            **param,
         )
-        self.__push_loader = DataLoader(
-            push_data,
-            batch_size=push_batch_size,
-            num_workers=num_workers,
-            shuffle=False
-        )
-        self.__test_loader = DataLoader(
-            test_data,
+
+    def push_dataloader(self, batch_size, sampler=None):
+        if sampler is None:
+            param = {
+                "shuffle": False,
+            }
+        else:
+            param = {
+                "sampler": sampler,
+            }
+        return self.__get_data_loader(
+            self.__push_data,
             batch_size=batch_size,
-            num_workers=num_workers,
-            shuffle=False
+            **param,
         )
 
-    def train_dataloader(self):
-        return self.__train_loader
-
-    def push_dataloader(self):
-        return self.__push_loader
-
-    def test_dataloader(self):
-        return self.__test_loader
+    def test_dataloader(self, batch_size):
+        return self.__get_data_loader(
+            self.__push_data,
+            batch_size=batch_size,
+            shuffle=False,
+        )
 
 
 if __name__ == '__main__':
@@ -340,8 +327,8 @@ if __name__ == '__main__':
     ds = DATASETS["MIAS"]
     ds.USED_IMAGES = ds.VERSIONS["original"]
 
-    module = CustomDataModule(ds, "original", "normal_vs_abnormal", 32, 5)
-    for fold, (tr, vl) in module.train_dataloader():
+    module = CustomDataModule(ds, "original", "normal_vs_abnormal", 5)
+    for fold, (tr, vl) in module.folds:
         print(fold)
         print(tr)
         print(vl)
