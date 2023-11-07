@@ -262,8 +262,8 @@ def get_args():
     )
     parser.add_argument(
         "--gpu-id",
-        type=int,
-        default=0,
+        type=str,
+        default="0",
         help="The id of the GPU that should be used to train ProtoPNet",
     )
     parser.add_argument(
@@ -365,9 +365,18 @@ def generate_gin_config(args, location):
         case _:
             raise ValueError(f"Unknown dataset ({args.dataset})")
 
+    constants_config_file = os.path.join(location, "constants.gin")
+    with open(constants_config_file, "w") as fd:
+        fd.write(f"image_mean     = {args.dataset_config.USED_IMAGES.MEAN}\n")
+        fd.write(f"image_std      = {args.dataset_config.USED_IMAGES.STD}\n")
+        fd.write(f"image_shape    = {args.dataset_config.IMAGE_PROPERTIES.SHAPE}\n")
+        fd.write(f"image_channels = {args.dataset_config.IMAGE_PROPERTIES.COLOR_CHANNELS}\n")
     config_file = os.path.join(location, "config.gin")
     # Generate the gin config
     with open(config_file, "w") as fd:
+        fd.write("# include constants\n")
+        fd.write(f"include '{constants_config_file}'\n")
+        fd.write("\n")
         fd.write(f"{data_module}.used_images = '{args.used_images}'\n")
         fd.write(f"{data_module}.classification = '{args.target}'\n")
         fd.write(f"{data_module}.cross_validation_folds = {args.cross_validation_folds}\n")
@@ -376,25 +385,27 @@ def generate_gin_config(args, location):
         fd.write(f"{data_module}.num_workers = {args.num_workers}\n")
         fd.write(f"{data_module}.seed = {args.seed}\n")
         fd.write(f"\n")
-        fd.write(f"preprocess.mean = {args.dataset_config.USED_IMAGES.MEAN}\n")
-        fd.write(f"preprocess.std = {args.dataset_config.USED_IMAGES.STD}\n")
-        fd.write(f"preprocess.number_of_channels = {args.dataset_config.IMAGE_PROPERTIES.COLOR_CHANNELS}\n")
+        fd.write(f"preprocess.mean = %image_mean\n")
+        fd.write(f"preprocess.std = %image_std\n")
+        fd.write(f"preprocess.number_of_channels = %image_channels\n")
         fd.write(f"\n")
-        fd.write(f"undo_preprocess.mean = {args.dataset_config.USED_IMAGES.MEAN}\n")
-        fd.write(f"undo_preprocess.std = {args.dataset_config.USED_IMAGES.STD}\n")
-        fd.write(f"undo_preprocess.number_of_channels = {args.dataset_config.IMAGE_PROPERTIES.COLOR_CHANNELS}\n")
+        fd.write(f"undo_preprocess.mean = %image_mean\n")
+        fd.write(f"undo_preprocess.std = %image_std\n")
+        fd.write(f"undo_preprocess.number_of_channels = %image_channels\n")
         fd.write(f"\n")
-        fd.write(f"ResNet_features.color_channels = {args.dataset_config.IMAGE_PROPERTIES.COLOR_CHANNELS}\n")
+        fd.write(f"ResNet_features.color_channels = %image_channels\n")
         fd.write(f"\n")
         fd.write(f"construct_PPNet.base_architecture = '{args.backbone}'\n")
         fd.write(f"construct_PPNet.pretrained = {args.pretrained}\n")
-        fd.write(f"construct_PPNet.img_shape = {args.dataset_config.IMAGE_PROPERTIES.SHAPE}\n")
+        fd.write(f"construct_PPNet.img_shape = %image_shape\n")
         fd.write(f"construct_PPNet.num_classes = {args.number_of_classes}\n")
         fd.write(f"construct_PPNet.prototype_activation_function = '{args.prototype_activation_function}'\n")
         fd.write(f"construct_PPNet.add_on_layers_type = '{args.add_on_layers_type}'\n")
         fd.write(f"construct_PPNet.backbone_only = {args.backbone_only}\n")
+        fd.write(f"construct_PPNet.positive_weights_in_classifier = False\n")
         fd.write(f"\n")
         fd.write(f"main.dataset_module = @{data_module}()\n")
+        fd.write(f"\n")
 
     return config_file
 

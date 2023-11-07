@@ -14,8 +14,6 @@ from ProtoPNet import push
 from ProtoPNet import train_and_test as tnt
 
 from ProtoPNet.dataset.metadata import DATASETS
-from ProtoPNet.dataset.dataloaders.MIAS import MIASDataModule
-from ProtoPNet.dataset.dataloaders.DDSM import DDSMDataModule
 
 from ProtoPNet.util import args
 from ProtoPNet.util import helpers
@@ -32,7 +30,7 @@ def main(args, logger, dataset_module):
     torch.manual_seed(args.seed)
     torch.cuda.manual_seed(args.seed)
     # set used GPU id
-    os.environ["CUDA_VISIBLE_DEVICES"] = str(args.gpu_id)
+    os.environ["CUDA_VISIBLE_DEVICES"] = args.gpu_id
 
     logger.log_info(f"Visible devices set to: {torch.cuda.current_device()}")
 
@@ -96,77 +94,65 @@ def main(args, logger, dataset_module):
 
     logger.log_info(f"number of prototypes per class: {args.prototypes_per_class}")
 
-    # construct the model
-    ppnet = model.construct_PPNet(
-        base_architecture=args.backbone,
-        pretrained=args.pretrained,
-        img_shape=args.dataset_config.IMAGE_PROPERTIES.SHAPE,
-        prototype_shape=args.prototype_shape,
-        num_classes=args.number_of_classes,
-        prototype_activation_function=args.prototype_activation_function,
-        add_on_layers_type=args.add_on_layers_type,
-        backbone_only=args.backbone_only,
-        # positive_weights_in_classifier=args.pos_weights_in_classifier,
-    )
-    # if prototype_activation_function == 'linear':
-    #    ppnet.set_last_layer_incorrect_connection(incorrect_strength=0)
-    ppnet = ppnet.cuda()
-    ppnet_multi = torch.nn.DataParallel(ppnet)
-    class_specific = True
-
-    joint_optimizer_specs = [
-        {
-            "params": ppnet.features.parameters(),
-            "lr": args.joint_lr_features,
-            "weight_decay": 1e-3,
-        },  # bias are now also being regularized
-        {
-            "params": ppnet.add_on_layers.parameters(),
-            "lr": args.joint_lr_add_on_layers,
-            "weight_decay": 1e-3,
-        },
-    ]
-    if not args.backbone_only:
-        joint_optimizer_specs += [
-            {
-                "params": ppnet.prototype_vectors,
-                "lr": args.joint_lr_prototype_vectors,
-            },
-        ]
-
-    joint_optimizer = torch.optim.Adam(joint_optimizer_specs)
-    joint_lr_scheduler = torch.optim.lr_scheduler.StepLR(
-        joint_optimizer, step_size=args.joint_lr_step_size, gamma=0.1
-    )
-
-    warm_optimizer_specs = [
-        {
-            "params": ppnet.add_on_layers.parameters(),
-            "lr": args.warm_lr_add_on_layers,
-            "weight_decay": 1e-3,
-        },
-    ]
-    if not args.backbone_only:
-        warm_optimizer_specs += [
-            {
-                "params": ppnet.prototype_vectors,
-                "lr": args.warm_lr_prototype_vectors,
-            },
-        ]
-    warm_optimizer = torch.optim.Adam(warm_optimizer_specs)
-
-    last_layer_optimizer_specs = [
-        {
-            "params": ppnet.last_layer.parameters(),
-            "lr": args.last_layer_lr,
-        }
-    ]
-    last_layer_optimizer = torch.optim.Adam(last_layer_optimizer_specs)
-
     # train the model
     logger.log_info("start training")
 
     for fold, (train_sampler, validation_sampler) in dataset_module.folds:
+        # construct the model
+        ppnet = model.construct_PPNet()
+        ppnet = ppnet.cuda()
+        ppnet_multi = torch.nn.DataParallel(ppnet)
+        class_specific = True
+
+        joint_optimizer_specs = [
+            {
+                "params": ppnet.features.parameters(),
+                "lr": args.joint_lr_features,
+                "weight_decay": 1e-3,
+            },  # bias are now also being regularized
+            {
+                "params": ppnet.add_on_layers.parameters(),
+                "lr": args.joint_lr_add_on_layers,
+                "weight_decay": 1e-3,
+            },
+        ]
+        if not args.backbone_only:
+            joint_optimizer_specs += [
+                {
+                    "params": ppnet.prototype_vectors,
+                    "lr": args.joint_lr_prototype_vectors,
+                },
+            ]
+
+        joint_optimizer = torch.optim.Adam(joint_optimizer_specs)
+        joint_lr_scheduler = torch.optim.lr_scheduler.StepLR(
+            joint_optimizer, step_size=args.joint_lr_step_size, gamma=0.1
+        )
+
+        warm_optimizer_specs = [
+            {
+                "params": ppnet.add_on_layers.parameters(),
+                "lr": args.warm_lr_add_on_layers,
+                "weight_decay": 1e-3,
+            },
+        ]
+        if not args.backbone_only:
+            warm_optimizer_specs += [
+                {
+                    "params": ppnet.prototype_vectors,
+                    "lr": args.warm_lr_prototype_vectors,
+                },
+            ]
+        warm_optimizer = torch.optim.Adam(warm_optimizer_specs)
+
+        last_layer_optimizer_specs = [
+            {
+                "params": ppnet.last_layer.parameters(),
+                "lr": args.last_layer_lr,
+            }
+        ]
+        last_layer_optimizer = torch.optim.Adam(last_layer_optimizer_specs)
+
         logger.log_info(f"\tFOLD {fold + 1}")
         logger.log_info(f"\t\ttrain set size: {len(train_sampler)}")
         logger.log_info(f"\t\tvalidation set size: {len(validation_sampler)}")

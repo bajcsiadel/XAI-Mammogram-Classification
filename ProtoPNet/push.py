@@ -109,7 +109,7 @@ def push_prototypes(
             os.path.join(
                 proto_epoch_dir,
                 proto_bound_boxes_filename_prefix
-                + "-receptive_field"
+                + "-receptive_field-"
                 + str(epoch_number)
                 + ".npy",
             ),
@@ -118,7 +118,7 @@ def push_prototypes(
         np.save(
             os.path.join(
                 proto_epoch_dir,
-                proto_bound_boxes_filename_prefix + str(epoch_number) + ".npy",
+                proto_bound_boxes_filename_prefix + "-" + str(epoch_number) + ".npy",
             ),
             proto_bound_boxes,
         )
@@ -336,7 +336,7 @@ def update_prototypes_on_batch(
                         os.path.join(
                             dir_for_saving_prototypes,
                             prototype_self_act_filename_prefix
-                            + str(j)
+                            + "-" + str(j)
                             + ".npy",
                         ),
                         proto_act_img_j,
@@ -347,7 +347,7 @@ def update_prototypes_on_batch(
                         os.path.join(
                             dir_for_saving_prototypes,
                             prototype_img_filename_prefix
-                            + "-original"
+                            + "-original-"
                             + str(j)
                             + ".png",
                         ),
@@ -373,7 +373,7 @@ def update_prototypes_on_batch(
                         os.path.join(
                             dir_for_saving_prototypes,
                             prototype_img_filename_prefix
-                            + "-original_with_self_act"
+                            + "-original_with_self_act-"
                             + str(j)
                             + ".png",
                         ),
@@ -391,7 +391,7 @@ def update_prototypes_on_batch(
                             os.path.join(
                                 dir_for_saving_prototypes,
                                 prototype_img_filename_prefix
-                                + "-receptive_field"
+                                + "-receptive_field-"
                                 + str(j)
                                 + ".png",
                             ),
@@ -405,7 +405,7 @@ def update_prototypes_on_batch(
                             os.path.join(
                                 dir_for_saving_prototypes,
                                 prototype_img_filename_prefix
-                                + "-receptive_field_with_self_act"
+                                + "-receptive_field_with_self_act-"
                                 + str(j)
                                 + ".png",
                             ),
@@ -417,7 +417,7 @@ def update_prototypes_on_batch(
                     save_image(
                         os.path.join(
                             dir_for_saving_prototypes,
-                            prototype_img_filename_prefix + str(j) + ".png",
+                            prototype_img_filename_prefix + "-" + str(j) + ".png",
                         ),
                         proto_img_j,
                     )
