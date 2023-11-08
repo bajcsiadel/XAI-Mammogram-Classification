@@ -83,7 +83,7 @@ def find_k_nearest_patches_to_prototypes(
     full_save=False will only return the class identity of the closest
     patches, but it will not save anything.
     """
-    log("find nearest patches")
+    log("INFO: find nearest patches")
     start = time.time()
     n_prototypes = prototype_network_parallel.module.num_prototypes
 
@@ -367,6 +367,6 @@ def find_k_nearest_patches_to_prototypes(
         )
 
     end = time.time()
-    log("\tfind nearest patches time: \t{0}".format(end - start))
+    log(f"INFO: \tfind nearest patches time: \t{end - start}")
 
     return labels_all_prototype

@@ -18,7 +18,7 @@ def save_model_w_condition(
         # )
         torch.save(
             obj=model,
-            f=os.path.join(model_dir, f"{model_name}{accu:.4f}.pth"),
+            f=os.path.join(model_dir, f"{model_name}-{accu:.4f}.pth"),
         )
 
 

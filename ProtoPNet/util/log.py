@@ -10,10 +10,14 @@ from ProtoPNet.util import helpers
 class Log:
     """
     Object for managing the log directory
+    :param log_dir: The directory where the log will be stored
+    :type log_dir: str
+    :param log_file: The name of the log file
+    :type log_file: str
     """
-
-    def __init__(self, log_dir: str):  # Store log in log_dir
+    def __init__(self, log_dir, log_file="log.txt"):  # Store log in log_dir
         self.__log_dir = log_dir
+        self.__log_file = os.path.join(log_dir, log_file)
         self.__logs = dict()
 
         # Ensure the directories exist
@@ -38,7 +42,7 @@ class Log:
 
     @property
     def log_file(self):
-        return os.path.join(self.__log_dir, "log.txt")
+        return self.__log_file
 
     def log_message(self, msg="", level="INFO"):
         """

@@ -1,10 +1,3 @@
-if __name__ == '__main__':
-    from dotenv import load_dotenv
-
-    load_dotenv()
-
-    from ProtoPNet.dataset.metadata import DATASETS
-
 import albumentations as A
 from albumentations.pytorch import ToTensorV2
 
@@ -12,6 +5,7 @@ import cv2
 import numpy as np
 import os
 import pandas as pd
+import typing as typ
 
 import torch
 from torch.utils.data import DataLoader, SubsetRandomSampler
@@ -27,7 +21,6 @@ def _target_transform(target):
 class CustomVisionDataset(datasets.VisionDataset):
     """
     Custom Vision Dataset class for PyTorch.
-
     :param dataset_meta: Dataset metadata
     :type dataset_meta: DatasetInformation
     :param classification: Classification type
@@ -39,7 +32,6 @@ class CustomVisionDataset(datasets.VisionDataset):
     :param target_transform: Transform to apply to the targets
     :type target_transform: callable
     """
-
     def __init__(
             self,
             dataset_meta,
@@ -60,6 +52,7 @@ class CustomVisionDataset(datasets.VisionDataset):
 
         transform = A.Compose([
             A.ToFloat(max_value=dataset_meta.IMAGE_PROPERTIES.MAX_VALUE),
+            A.Resize(width=dataset_meta.IMAGE_PROPERTIES.SHAPE[0], height=dataset_meta.IMAGE_PROPERTIES.SHAPE[1]),
             *transform,  # unpack list of transforms
             ToTensorV2(),
         ])
@@ -104,13 +97,28 @@ class CustomVisionDataset(datasets.VisionDataset):
 
     @property
     def targets(self):
-        return self.__meta_information[(self.__classification, "label")].copy()
+        """
+        Get the targets of the dataset
+        :return:
+        :rtype: np.ndarray
+        """
+        return self.__meta_information[(self.__classification, "label")].to_numpy().copy()
 
     @property
     def metadata(self):
+        """
+        Get metadata of the dataset
+        :return:
+        :rtype: pd.DataFrame
+        """
         return self.__meta_information.copy()
 
     def __repr__(self):
+        """
+        Get the representation of the dataset
+        :return:
+        :rtype: str
+        """
         formatted_transform = "\n\t".join(str(self.__transform).split("\n"))
         return (
             f"Dataset {self.__dataset_meta.NAME if self.__dataset_meta.NAME != '' else 'CustomVisionDataset'}\n"
@@ -123,7 +131,6 @@ class CustomVisionDataset(datasets.VisionDataset):
     def __len__(self):
         """
         Get the number of images in the dataset
-
         :return: number of images
         :rtype: int
         """
@@ -133,7 +140,6 @@ class CustomVisionDataset(datasets.VisionDataset):
     def __getitem__(self, index):
         """
         Get sample at a specific index from the dataset
-
         :param index: Index of the sample
         :type index: int
         :return: Return the image and its label at a given index
@@ -169,7 +175,6 @@ class CustomVisionDataset(datasets.VisionDataset):
 class CustomDataModule:
     """
     DataModule to define data loaders.
-
     :param data:
     :type data: DatasetInformation
     :param used_images:
@@ -193,7 +198,7 @@ class CustomDataModule:
             data,
             used_images,
             classification,
-            cross_validation_folds,
+            cross_validation_folds=None,
             stratified=True,
             groups=True,
             num_workers=0,
@@ -218,17 +223,43 @@ class CustomDataModule:
             dataset_params = {
                 "classification": classification,
             }
-        self.__train_data = dataset_class(**dataset_params, subset="train")
-        self.__push_data = dataset_class(**dataset_params, normalize=False, subset="train")
-        self.__test_data = dataset_class(**dataset_params, subset="test")
+
+        # define datasets
+        self.__train_data = dataset_class(
+            **dataset_params,
+            transform=self.__data.IMAGE_PROPERTIES.AUGMENTATIONS.TRAIN,
+            subset="train")
+        self.__push_data = dataset_class(
+            **dataset_params,
+            transform=self.__data.IMAGE_PROPERTIES.AUGMENTATIONS.PUSH,
+            normalize=False,
+            subset="train"
+        )
+        self.__test_data = dataset_class(
+            **dataset_params,
+            transform=self.__data.IMAGE_PROPERTIES.AUGMENTATIONS.TEST,
+            subset="test"
+        )
 
         self.__number_of_workers = num_workers
 
         self.__init_cross_validation(cross_validation_folds, stratified, groups, seed)
 
     def __init_cross_validation(self, cross_validation_folds, stratified=True, groups=True, seed=None):
-        if cross_validation_folds <= 1:
-            raise ValueError(f"cross_validation_folds must be greater than 1, not {cross_validation_folds}")
+        """
+        Initialize cross validation folds
+        :param cross_validation_folds: number of cross validation folds
+        :type cross_validation_folds: int
+        :param stratified:
+        :type stratified: bool
+        :param groups:
+        :type groups: bool
+        :param seed:
+        :type seed: int
+        """
+        if cross_validation_folds in [None, 0, 1]:
+            self.__folds = {}
+            return
 
         targets = self.__train_data.targets
         sample_groups = self.__train_data.metadata.index.get_level_values("patient_id").to_numpy() if groups else None
@@ -264,25 +295,48 @@ class CustomDataModule:
             random_state=seed
         )
 
-        self.__folds = {fold: (
+        self.__folds = {fold + 1: (
             SubsetRandomSampler(train_idx),
             SubsetRandomSampler(validation_idx)
         ) for fold, (train_idx, validation_idx) in enumerate(cross_validator.split(self.__train_data, **self.__cv_kwargs))}
-        self.__current_fold = 0
 
     @property
     def folds(self):
+        """
+        Generate the folds and the corresponding samplers
+        :return: fold number, (train sampler, validation sampler)
+        :rtype: typ.Generator[int, typ.Tuple[SubsetRandomSampler, SubsetRandomSampler]]
+        """
         yield from self.__folds.items()
 
     def __get_data_loader(self, dataset, **kwargs):
+        """
+        Get a data loader for a given dataset
+        :param dataset:
+        :type dataset: CustomVisionDataset
+        :param kwargs:
+        :type kwargs: typ.Dict[str, typ.Any]
+        :return: data loader
+        :rtype: DataLoader
+        """
         return DataLoader(
             dataset,
             num_workers=self.__number_of_workers,
-            shuffle=False,
             **kwargs
         )
 
-    def train_dataloader(self, batch_size, sampler=None):
+    def train_dataloader(self, batch_size, sampler=None, **kwargs):
+        """
+        Get a data loader for the training set
+        :param batch_size:
+        :type batch_size: int
+        :param sampler:
+        :type sampler: torch.utils.data.Sampler | typ.Iterable[int] | None
+        :param kwargs:
+        :type kwargs: typ.Dict[str, typ.Any]
+        :return: train data loader
+        :rtype: DataLoader
+        """
         if sampler is None:
             param = {
                 "shuffle": True,
@@ -291,13 +345,28 @@ class CustomDataModule:
             param = {
                 "sampler": sampler,
             }
+
+        kwargs = kwargs | param | {
+            "batch_size": batch_size
+        }
+
         return self.__get_data_loader(
             self.__train_data,
-            batch_size=batch_size,
-            **param,
+            **kwargs,
         )
 
-    def push_dataloader(self, batch_size, sampler=None):
+    def push_dataloader(self, batch_size, sampler=None, **kwargs):
+        """
+        Get a data loader for the training push set
+        :param batch_size:
+        :type batch_size: int
+        :param sampler:
+        :type sampler: torch.utils.data.Sampler | typ.Iterable[int] | None
+        :param kwargs:
+        :type kwargs: typ.Dict[str, typ.Any]
+        :return: push data loader
+        :rtype: DataLoader
+        """
         if sampler is None:
             param = {
                 "shuffle": False,
@@ -306,17 +375,34 @@ class CustomDataModule:
             param = {
                 "sampler": sampler,
             }
+
+        kwargs = kwargs | param | {
+            "batch_size": batch_size,
+        }
+
         return self.__get_data_loader(
             self.__push_data,
-            batch_size=batch_size,
-            **param,
+            **kwargs,
         )
 
-    def test_dataloader(self, batch_size):
+    def test_dataloader(self, batch_size, **kwargs):
+        """
+        Get a data loader for the testing set
+        :param batch_size:
+        :type batch_size: int
+        :param kwargs:
+        :type kwargs: typ.Dict[str, typ.Any]
+        :return: test data loader
+        :rtype: DataLoader
+        """
+        kwargs = kwargs | {
+            "batch_size": batch_size,
+            "shuffle": False
+        }
+
         return self.__get_data_loader(
-            self.__push_data,
-            batch_size=batch_size,
-            shuffle=False,
+            self.__test_data,
+            **kwargs,
         )
 
 
@@ -324,6 +410,9 @@ if __name__ == '__main__':
     from dotenv import load_dotenv
 
     load_dotenv()
+
+    from ProtoPNet.dataset.metadata import DATASETS
+
     ds = DATASETS["MIAS"]
     ds.USED_IMAGES = ds.VERSIONS["original"]
 

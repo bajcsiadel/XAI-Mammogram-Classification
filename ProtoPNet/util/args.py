@@ -269,7 +269,7 @@ def get_args():
     parser.add_argument(
         "--log-dir",
         type=str,
-        default="./runs/train_protopnet",
+        default="train_protopnet",
         help="The directory in which train progress should be logged",
     )
     parser.add_argument(
@@ -337,6 +337,8 @@ def __process_agrs(args):
         "l2": args.l2_coefficient,
     }
 
+    args.log_dir = os.path.join(os.getenv("PROJECT_ROOT"), "runs", args.log_dir)
+
 
 def __get_used_images_key(args):
     if args.masked and args.preprocessed:
@@ -367,45 +369,74 @@ def generate_gin_config(args, location):
 
     constants_config_file = os.path.join(location, "constants.gin")
     with open(constants_config_file, "w") as fd:
-        fd.write(f"image_mean     = {args.dataset_config.USED_IMAGES.MEAN}\n")
-        fd.write(f"image_std      = {args.dataset_config.USED_IMAGES.STD}\n")
-        fd.write(f"image_shape    = {args.dataset_config.IMAGE_PROPERTIES.SHAPE}\n")
-        fd.write(f"image_channels = {args.dataset_config.IMAGE_PROPERTIES.COLOR_CHANNELS}\n")
+        fd.write(f"# IMAGE PROPERTIES\n")
+        fd.write(f"const_image_mean     = {args.dataset_config.USED_IMAGES.MEAN}\n")
+        fd.write(f"const_image_std      = {args.dataset_config.USED_IMAGES.STD}\n")
+        fd.write(f"const_image_max      = {args.dataset_config.IMAGE_PROPERTIES.MAX_VALUE}\n")
+        fd.write(f"const_image_shape    = {args.dataset_config.IMAGE_PROPERTIES.SHAPE}\n")
+        fd.write(f"const_image_channels = {args.dataset_config.IMAGE_PROPERTIES.COLOR_CHANNELS}\n")
+        fd.write(f"\n")
+        fd.write(f"# DATASET PROPERTIES\n")
+        fd.write(f"const_dataset_number_of_classes = {args.number_of_classes}\n")
+        fd.write(f"\n")
+        fd.write(f"# PROTOTYPE PROPERTIES\n")
+        fd.write(f"const_prototype_number_per_class = {args.prototypes_per_class}\n")
+        fd.write(f"const_prototype_shape            = {args.prototype_size}\n")
+        fd.write(f"\n")
+        fd.write(f"# PROTOPNET PROPERTIES\n")
+        fd.write(f"const_protopnet_separation_type = '{args.separation_type}'\n")
+
+    prune_config_file = os.path.join(location, "prune.gin")
+    with open(prune_config_file, "w") as fd:
+        fd.write("# include constants\n")
+        fd.write(f"include '{constants_config_file}'\n")
+        fd.write(f"\n")
+        fd.write(f"train.prototype_shape   = %const_prototype_shape\n")
+        fd.write(f"train.separation_type   = %const_protopnet_separation_type\n")
+        fd.write(f"train.number_of_classes = %const_dataset_number_of_classes\n")
+        fd.write(f"train.class_specific    = True\n")
+        fd.write(f"train.loss_coefficients = ")
+        json.dump(args.loss_coefficients, fd, indent=4)
+        fd.write(f"\n")
+        fd.write(f"test.prototype_shape   = %const_prototype_shape\n")
+        fd.write(f"test.separation_type   = %const_protopnet_separation_type\n")
+        fd.write(f"test.number_of_classes = %const_dataset_number_of_classes\n")
+        fd.write(f"test.class_specific    = True\n")
+
     config_file = os.path.join(location, "config.gin")
     # Generate the gin config
     with open(config_file, "w") as fd:
         fd.write("# include constants\n")
         fd.write(f"include '{constants_config_file}'\n")
         fd.write("\n")
-        fd.write(f"{data_module}.used_images = '{args.used_images}'\n")
-        fd.write(f"{data_module}.classification = '{args.target}'\n")
+        fd.write(f"{data_module}.used_images            = '{args.used_images}'\n")
+        fd.write(f"{data_module}.classification         = '{args.target}'\n")
         fd.write(f"{data_module}.cross_validation_folds = {args.cross_validation_folds}\n")
-        fd.write(f"{data_module}.stratified = {args.stratified_cross_validation}\n")
-        fd.write(f"{data_module}.groups = {args.grouped_cross_validation}\n")
-        fd.write(f"{data_module}.num_workers = {args.num_workers}\n")
-        fd.write(f"{data_module}.seed = {args.seed}\n")
+        fd.write(f"{data_module}.stratified             = {args.stratified_cross_validation}\n")
+        fd.write(f"{data_module}.groups                 = {args.grouped_cross_validation}\n")
+        fd.write(f"{data_module}.num_workers            = {args.num_workers}\n")
+        fd.write(f"{data_module}.seed                   = {args.seed}\n")
         fd.write(f"\n")
-        fd.write(f"preprocess.mean = %image_mean\n")
-        fd.write(f"preprocess.std = %image_std\n")
-        fd.write(f"preprocess.number_of_channels = %image_channels\n")
+        fd.write(f"preprocess.mean               = %const_image_mean\n")
+        fd.write(f"preprocess.std                = %const_image_std\n")
+        fd.write(f"preprocess.number_of_channels = %const_image_channels\n")
         fd.write(f"\n")
-        fd.write(f"undo_preprocess.mean = %image_mean\n")
-        fd.write(f"undo_preprocess.std = %image_std\n")
-        fd.write(f"undo_preprocess.number_of_channels = %image_channels\n")
+        fd.write(f"undo_preprocess.mean               = %const_image_mean\n")
+        fd.write(f"undo_preprocess.std                = %const_image_std\n")
+        fd.write(f"undo_preprocess.number_of_channels = %const_image_channels\n")
         fd.write(f"\n")
-        fd.write(f"ResNet_features.color_channels = %image_channels\n")
+        fd.write(f"ResNet_features.color_channels = %const_image_channels\n")
         fd.write(f"\n")
-        fd.write(f"construct_PPNet.base_architecture = '{args.backbone}'\n")
-        fd.write(f"construct_PPNet.pretrained = {args.pretrained}\n")
-        fd.write(f"construct_PPNet.img_shape = %image_shape\n")
-        fd.write(f"construct_PPNet.num_classes = {args.number_of_classes}\n")
-        fd.write(f"construct_PPNet.prototype_activation_function = '{args.prototype_activation_function}'\n")
-        fd.write(f"construct_PPNet.add_on_layers_type = '{args.add_on_layers_type}'\n")
-        fd.write(f"construct_PPNet.backbone_only = {args.backbone_only}\n")
+        fd.write(f"construct_PPNet.base_architecture              = '{args.backbone}'\n")
+        fd.write(f"construct_PPNet.pretrained                     = {args.pretrained}\n")
+        fd.write(f"construct_PPNet.img_shape                      = %const_image_shape\n")
+        fd.write(f"construct_PPNet.num_classes                    = {args.number_of_classes}\n")
+        fd.write(f"construct_PPNet.prototype_activation_function  = '{args.prototype_activation_function}'\n")
+        fd.write(f"construct_PPNet.add_on_layers_type             = '{args.add_on_layers_type}'\n")
+        fd.write(f"construct_PPNet.backbone_only                  = {args.backbone_only}\n")
         fd.write(f"construct_PPNet.positive_weights_in_classifier = False\n")
         fd.write(f"\n")
         fd.write(f"main.dataset_module = @{data_module}()\n")
-        fd.write(f"\n")
 
     return config_file
 

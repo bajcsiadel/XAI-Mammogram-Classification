@@ -153,7 +153,7 @@ def main(args, logger, dataset_module):
         ]
         last_layer_optimizer = torch.optim.Adam(last_layer_optimizer_specs)
 
-        logger.log_info(f"\tFOLD {fold + 1}")
+        logger.log_info(f"\tFOLD {fold}")
         logger.log_info(f"\t\ttrain set size: {len(train_sampler)}")
         logger.log_info(f"\t\tvalidation set size: {len(validation_sampler)}")
 
@@ -172,7 +172,7 @@ def main(args, logger, dataset_module):
 
             for epoch in range(args.epochs_pretrain):
                 logger.log_info(f"\t\twarm epoch: \t{epoch + 1}")
-                logger.csv_log_index("train_model", (fold + 1, epoch + 1, "warm train"))
+                logger.csv_log_index("train_model", (fold, epoch + 1, "warm train"))
                 _ = tnt.train(
                     model=ppnet_multi,
                     dataloader=train_loader,
@@ -187,7 +187,7 @@ def main(args, logger, dataset_module):
                     backbone_only=args.backbone_only,
                 )
 
-                logger.csv_log_index("train_model", (fold + 1, epoch + 1, "warm validation"))
+                logger.csv_log_index("train_model", (fold, epoch + 1, "warm validation"))
                 accu = tnt.test(
                     model=ppnet_multi,
                     dataloader=validation_loader,
@@ -203,7 +203,7 @@ def main(args, logger, dataset_module):
                 save.save_model_w_condition(
                     model=ppnet,
                     model_dir=model_dir,
-                    model_name=str(epoch) + "_warm",
+                    model_name=f"{epoch}-warm",
                     accu=accu,
                     target_accu=0.60,
                     log=logger,
@@ -229,7 +229,7 @@ def main(args, logger, dataset_module):
             if epoch > 0:
                 joint_lr_scheduler.step()
 
-            logger.csv_log_index("train_model", (fold + 1, epoch + 1 + args.epochs_pretrain, "train"))
+            logger.csv_log_index("train_model", (fold, epoch + 1 + args.epochs_pretrain, "train"))
             _ = tnt.train(
                 model=ppnet_multi,
                 dataloader=train_loader,
@@ -244,7 +244,7 @@ def main(args, logger, dataset_module):
                 backbone_only=args.backbone_only,
             )
 
-            logger.csv_log_index("train_model", (fold + 1, epoch + 1 + args.epochs_pretrain, "validation"))
+            logger.csv_log_index("train_model", (fold, epoch + 1 + args.epochs_pretrain, "validation"))
             accu = tnt.test(
                 model=ppnet_multi,
                 dataloader=validation_loader,
@@ -260,7 +260,7 @@ def main(args, logger, dataset_module):
             save.save_model_w_condition(
                 model=ppnet,
                 model_dir=model_dir,
-                model_name=str(epoch) + "_no_push",
+                model_name=f"{epoch}-no_push",
                 accu=accu,
                 target_accu=0.60,
                 log=logger,
@@ -284,7 +284,7 @@ def main(args, logger, dataset_module):
                     log=logger,
                 )
 
-                logger.csv_log_index("train_model", (fold + 1, epoch + 1 + args.epochs_pretrain, "push validation"))
+                logger.csv_log_index("train_model", (fold, epoch + 1 + args.epochs_pretrain, "push validation"))
                 accu = tnt.test(
                     model=ppnet_multi,
                     dataloader=validation_loader,
@@ -299,7 +299,7 @@ def main(args, logger, dataset_module):
                 save.save_model_w_condition(
                     model=ppnet,
                     model_dir=model_dir,
-                    model_name=str(epoch) + "_push",
+                    model_name=f"{epoch}-push",
                     accu=accu,
                     target_accu=0.60,
                     log=logger,
@@ -310,7 +310,7 @@ def main(args, logger, dataset_module):
                     for i in range(args.epochs_finetune):
                         logger.log_info(f"\t\t\t\titeration: \t{i}")
 
-                        logger.csv_log_index("train_model", (fold + 1, epoch + 1 + args.epochs_pretrain, f"last layer {i} train"))
+                        logger.csv_log_index("train_model", (fold, epoch + 1 + args.epochs_pretrain, f"last layer {i} train"))
                         _ = tnt.train(
                             model=ppnet_multi,
                             dataloader=train_loader,
@@ -324,7 +324,7 @@ def main(args, logger, dataset_module):
                             log=logger,
                         )
 
-                        logger.csv_log_index("train_model", (fold + 1, epoch + 1 + args.epochs_pretrain, f"last layer {i} validation"))
+                        logger.csv_log_index("train_model", (fold, epoch + 1 + args.epochs_pretrain, f"last layer {i} validation"))
                         accu = tnt.test(
                             model=ppnet_multi,
                             dataloader=validation_loader,
@@ -339,7 +339,7 @@ def main(args, logger, dataset_module):
                         save.save_model_w_condition(
                             model=ppnet,
                             model_dir=model_dir,
-                            model_name=str(epoch) + "_" + str(i) + "_push",
+                            model_name=f"{epoch}-{i}-push",
                             accu=accu,
                             target_accu=0.60,
                             log=logger,
@@ -351,14 +351,16 @@ if __name__ == "__main__":
     command_line_params = args.get_args()
     logger = Log(command_line_params.log_dir)
     try:
+        args.save_args(command_line_params, logger.metadata_dir)
+
         config_file = args.generate_gin_config(command_line_params, logger.metadata_dir)
+        exit()
         gin.parse_config_file(config_file)
 
         logger.create_csv_log("train_model", ("fold", "epoch", "phase"),
                               "time", "cross entropy", "cluster_loss", "separation_loss",
                               "accuracy", "micro_f1", "macro_f1", "l1", "prototype_distances")
 
-        args.save_args(command_line_params, logger.metadata_dir)
 
         main(command_line_params, logger)
     except Exception as e:

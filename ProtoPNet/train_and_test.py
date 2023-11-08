@@ -1,9 +1,10 @@
-import time
-
+import gin
 import numpy as np
+import time
 import torch
-from ProtoPNet.util.helpers import list_of_distances
 from sklearn.metrics import f1_score
+
+from ProtoPNet.util.helpers import list_of_distances
 
 
 def _train_or_test(
@@ -313,6 +314,7 @@ def _train_or_test(
     return n_correct / n_examples
 
 
+@gin.configurable(denylist=["model", "dataloader", "optimizer", "log"])
 def train(
     model,
     dataloader,
@@ -345,6 +347,7 @@ def train(
     )
 
 
+@gin.configurable(denylist=["model", "dataloader", "log"])
 def test(
     model,
     dataloader,

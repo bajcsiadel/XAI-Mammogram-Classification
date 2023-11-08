@@ -1,3 +1,5 @@
+import albumentations as A
+
 import os
 
 import dataclasses as dc
@@ -6,6 +8,12 @@ import typing as typ
 DATA_DIR = os.getenv("DATASET_LOCATION")
 assert DATA_DIR is not None, "Please set the environment variable DATASET_LOCATION in .env file"
 
+
+@dc.dataclass(frozen=True)
+class _Augmentations:
+    TRAIN: typ.List[A.ImageOnlyTransform] = dc.field(default_factory=list)
+    PUSH: typ.List[A.ImageOnlyTransform] = dc.field(default_factory=list)
+    TEST: typ.List[A.ImageOnlyTransform] = dc.field(default_factory=list)
 
 @dc.dataclass(frozen=True)
 class _DataVersion:
@@ -27,7 +35,7 @@ class _ImageInformation:
     SHAPE: typ.Tuple[int, int]
     COLOR_CHANNELS: int
     MAX_VALUE: int = 255
-    AUGMENTATIONS: typ.List[typ.Any] = dc.field(default_factory=list)
+    AUGMENTATIONS: _Augmentations = dc.field(default_factory=_Augmentations)
 
 
 @dc.dataclass
@@ -87,6 +95,11 @@ DATASETS: typ.Dict[str, DatasetInformation] = {
             SHAPE=(1024, 1024),
             COLOR_CHANNELS=1,
             # MAX_VALUE=255,
+            AUGMENTATIONS=_Augmentations(
+                TRAIN=[],
+                PUSH=[],
+                TEST=[],
+            ),
         ),
     ),
     "DDSM": DatasetInformation(
@@ -115,6 +128,11 @@ DATASETS: typ.Dict[str, DatasetInformation] = {
             SHAPE=(1024, 1024),
             COLOR_CHANNELS=1,
             # MAX_VALUE=255,
+            # AUGMENTATIONS=_Augmentations(
+            #     TRAIN=[],
+            #     PUSH=[],
+            #     TEST=[],
+            # ),
         ),
     ),
 }

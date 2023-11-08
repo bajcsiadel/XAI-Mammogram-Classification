@@ -13,7 +13,7 @@ class MIASDataset(dl.CustomVisionDataset):
 @gin.configurable
 class MIASDataModule(dl.CustomDataModule):
     """
-    DataModule to define data loaders for MIAS dataset.
+    DataModule to define data loaders for MIAS dataset
 
     :param used_images:
     :type used_images: str
@@ -34,11 +34,12 @@ class MIASDataModule(dl.CustomDataModule):
             self,
             used_images,
             classification,
-            cross_validation_folds,
-            stratified,
-            groups,
-            num_workers,
-            seed):
+            cross_validation_folds=5,
+            stratified=True,
+            groups=True,
+            num_workers=4,
+            seed=0,
+    ):
         super().__init__(
             DATASETS["MIAS"],
             used_images,
