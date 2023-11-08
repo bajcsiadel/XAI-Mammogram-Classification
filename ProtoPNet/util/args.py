@@ -1,6 +1,5 @@
 import argparse
 import json
-import numpy as np
 import os
 import pandas as pd
 import pickle
@@ -326,7 +325,7 @@ def __process_agrs(args):
 
     args.prototype_shape = (args.prototypes_per_class * args.number_of_classes, args.prototype_size, 1, 1)
 
-    args.push_epochs = [ i + args.push_start for i in range(args.epochs) if i % args.push_intervals == 0 ]
+    args.push_epochs = [i + args.push_start for i in range(args.epochs) if i % args.push_intervals == 0]
 
     args.loss_coefficients = {
         "cross_entropy": args.cross_entropy_coefficient,
@@ -472,5 +471,5 @@ class __PowerOfTwo(argparse.Action):
 
     def __call__(self, parser, namespace, values, option_string=None):
         if not self.__is_power_of_two(values):
-            raise argparse.ArgumentError("Given number should be a power of two!")
+            raise argparse.ArgumentError(self, "Given number should be a power of two!")
         setattr(namespace, self.dest, values)
