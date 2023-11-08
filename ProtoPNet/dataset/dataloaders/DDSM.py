@@ -1,3 +1,4 @@
+import albumentations as A
 import gin
 
 import ProtoPNet.dataset.dataloaders as dl
@@ -6,8 +7,8 @@ from ProtoPNet.dataset.metadata import DATASETS
 
 
 class DDSMDataset(dl.CustomVisionDataset):
-    def __init__(self, classification, subset="train"):
-        super().__init__(DATASETS["DDSM"], classification, subset=subset)
+    def __init__(self, classification, subset="train", normalize=True, transform=A.NoOp()):
+        super().__init__(DATASETS["DDSM"], classification, subset=subset, normalize=normalize, transform=transform)
 
 
 @gin.configurable
