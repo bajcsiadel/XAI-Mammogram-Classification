@@ -14,6 +14,9 @@ from ProtoPNet import push
 from ProtoPNet import train_and_test as tnt
 
 from ProtoPNet.dataset.metadata import DATASETS
+# needed to configure dataset using gin
+from ProtoPNet.dataset.dataloaders.MIAS import MIASDataModule
+from ProtoPNet.dataset.dataloaders.DDSM import DDSMDataModule
 
 from ProtoPNet.util import args
 from ProtoPNet.util import helpers
@@ -176,29 +179,15 @@ def main(args, logger, dataset_module):
                 _ = tnt.train(
                     model=ppnet_multi,
                     dataloader=train_loader,
-                    prototype_shape=args.prototype_shape,
-                    separation_type=args.separation_type,
-                    number_of_classes=args.number_of_classes,
                     optimizer=warm_optimizer,
-                    class_specific=class_specific,
-                    loss_coefficients=args.loss_coefficients,
-                    use_bce=args.binary_cross_entropy,
                     log=logger,
-                    backbone_only=args.backbone_only,
                 )
 
                 logger.csv_log_index("train_model", (fold, epoch + 1, "warm validation"))
                 accu = tnt.test(
                     model=ppnet_multi,
                     dataloader=validation_loader,
-                    prototype_shape=args.prototype_shape,
-                    separation_type=args.separation_type,
-                    number_of_classes=args.number_of_classes,
-                    class_specific=class_specific,
-                    loss_coefficients=args.loss_coefficients,
-                    use_bce=args.binary_cross_entropy,
                     log=logger,
-                    backbone_only=args.backbone_only,
                 )
                 save.save_model_w_condition(
                     model=ppnet,
@@ -233,29 +222,15 @@ def main(args, logger, dataset_module):
             _ = tnt.train(
                 model=ppnet_multi,
                 dataloader=train_loader,
-                prototype_shape=args.prototype_shape,
-                separation_type=args.separation_type,
-                number_of_classes=args.number_of_classes,
                 optimizer=joint_optimizer,
-                class_specific=class_specific,
-                loss_coefficients=args.loss_coefficients,
-                use_bce=args.binary_cross_entropy,
                 log=logger,
-                backbone_only=args.backbone_only,
             )
 
             logger.csv_log_index("train_model", (fold, epoch + 1 + args.epochs_pretrain, "validation"))
             accu = tnt.test(
                 model=ppnet_multi,
                 dataloader=validation_loader,
-                prototype_shape=args.prototype_shape,
-                separation_type=args.separation_type,
-                number_of_classes=args.number_of_classes,
-                class_specific=class_specific,
-                loss_coefficients=args.loss_coefficients,
-                use_bce=args.binary_cross_entropy,
                 log=logger,
-                backbone_only=args.backbone_only,
             )
             save.save_model_w_condition(
                 model=ppnet,
@@ -288,12 +263,6 @@ def main(args, logger, dataset_module):
                 accu = tnt.test(
                     model=ppnet_multi,
                     dataloader=validation_loader,
-                    prototype_shape=args.prototype_shape,
-                    separation_type=args.separation_type,
-                    number_of_classes=args.number_of_classes,
-                    class_specific=class_specific,
-                    loss_coefficients=args.loss_coefficients,
-                    use_bce=args.binary_cross_entropy,
                     log=logger,
                 )
                 save.save_model_w_condition(
@@ -314,13 +283,7 @@ def main(args, logger, dataset_module):
                         _ = tnt.train(
                             model=ppnet_multi,
                             dataloader=train_loader,
-                            prototype_shape=args.prototype_shape,
-                            separation_type=args.separation_type,
-                            number_of_classes=args.number_of_classes,
                             optimizer=last_layer_optimizer,
-                            class_specific=class_specific,
-                            loss_coefficients=args.loss_coefficients,
-                            use_bce=args.binary_cross_entropy,
                             log=logger,
                         )
 
@@ -328,12 +291,6 @@ def main(args, logger, dataset_module):
                         accu = tnt.test(
                             model=ppnet_multi,
                             dataloader=validation_loader,
-                            prototype_shape=args.prototype_shape,
-                            separation_type=args.separation_type,
-                            number_of_classes=args.number_of_classes,
-                            class_specific=class_specific,
-                            loss_coefficients=args.loss_coefficients,
-                            use_bce=args.binary_cross_entropy,
                             log=logger,
                         )
                         save.save_model_w_condition(
@@ -347,20 +304,18 @@ def main(args, logger, dataset_module):
 
 
 if __name__ == "__main__":
-    # python main.py --pretrained --dataset MIAS --target normal_vs_abnormal --stratified-cross-validation --grouped-cross-validation
+    # python main.py --pretrained --batch-size-pretrain 32 --batch-size 8 --batch-size-push 16 --epochs-pretrain 4 --epochs-finetune 4 --epochs 10 --dataset MIAS --target normal_vs_abnormal --stratified-cross-validation --grouped-cross-validation --gpu-id 1 --log-dir original-n-v-a
     command_line_params = args.get_args()
     logger = Log(command_line_params.log_dir)
     try:
         args.save_args(command_line_params, logger.metadata_dir)
 
         config_file = args.generate_gin_config(command_line_params, logger.metadata_dir)
-        exit()
         gin.parse_config_file(config_file)
 
         logger.create_csv_log("train_model", ("fold", "epoch", "phase"),
                               "time", "cross entropy", "cluster_loss", "separation_loss",
                               "accuracy", "micro_f1", "macro_f1", "l1", "prototype_distances")
-
 
         main(command_line_params, logger)
     except Exception as e:

@@ -42,7 +42,7 @@ class CustomVisionDataset(datasets.VisionDataset):
             target_transform=_target_transform
     ):
         has_transforms = True
-        if isinstance(transform, A.NoOp):
+        if isinstance(transform, A.NoOp) or transform == []:
             has_transforms = False
 
         if isinstance(transform, A.BasicTransform):

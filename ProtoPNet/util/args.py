@@ -317,10 +317,12 @@ def __process_agrs(args):
     assert args.used_images in args.dataset_config.VERSIONS.keys()
     args.dataset_config.USED_IMAGES = args.dataset_config.VERSIONS[args.used_images]
 
-    args.classes = pd.read_csv(
+    dataset_meta = pd.read_csv(
         args.dataset_config.METADATA.FILE,
         **args.dataset_config.METADATA.PARAMETERS,
-    )[(args.target, "label")].notna().unique().tolist()
+    )
+
+    args.classes = dataset_meta[(args.target, "label")][~dataset_meta[(args.target, "label")].isna()].unique().tolist()
     args.number_of_classes = len(args.classes)
 
     args.prototype_shape = (args.prototypes_per_class * args.number_of_classes, args.prototype_size, 1, 1)
@@ -380,7 +382,7 @@ def generate_gin_config(args, location):
         fd.write(f"\n")
         fd.write(f"# PROTOTYPE PROPERTIES\n")
         fd.write(f"const_prototype_number_per_class = {args.prototypes_per_class}\n")
-        fd.write(f"const_prototype_shape            = {args.prototype_size}\n")
+        fd.write(f"const_prototype_shape            = {args.prototype_shape}\n")
         fd.write(f"\n")
         fd.write(f"# PROTOPNET PROPERTIES\n")
         fd.write(f"const_protopnet_separation_type = '{args.separation_type}'\n")
@@ -432,6 +434,7 @@ def generate_gin_config(args, location):
         fd.write(f"construct_PPNet.base_architecture              = '{args.backbone}'\n")
         fd.write(f"construct_PPNet.pretrained                     = {args.pretrained}\n")
         fd.write(f"construct_PPNet.img_shape                      = %const_image_shape\n")
+        fd.write(f"construct_PPNet.prototype_shape                = %const_prototype_shape\n")
         fd.write(f"construct_PPNet.num_classes                    = {args.number_of_classes}\n")
         fd.write(f"construct_PPNet.prototype_activation_function  = '{args.prototype_activation_function}'\n")
         fd.write(f"construct_PPNet.add_on_layers_type             = '{args.add_on_layers_type}'\n")
