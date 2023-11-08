@@ -173,9 +173,9 @@ def main(args, logger, dataset_module):
                 batch_size=args.batch_size_pretrain,
             )
 
-            for epoch in range(args.epochs_pretrain):
-                logger.log_info(f"\t\twarm epoch: \t{epoch + 1}")
-                logger.csv_log_index("train_model", (fold, epoch + 1, "warm train"))
+            for epoch in np.arange(args.epochs_pretrain) + 1:
+                logger.log_info(f"\t\twarm epoch: \t{epoch}")
+                logger.csv_log_index("train_model", (fold, epoch, "warm train"))
                 _ = tnt.train(
                     model=ppnet_multi,
                     dataloader=train_loader,
@@ -183,7 +183,7 @@ def main(args, logger, dataset_module):
                     log=logger,
                 )
 
-                logger.csv_log_index("train_model", (fold, epoch + 1, "warm validation"))
+                logger.csv_log_index("train_model", (fold, epoch, "warm validation"))
                 accu = tnt.test(
                     model=ppnet_multi,
                     dataloader=validation_loader,
@@ -213,12 +213,13 @@ def main(args, logger, dataset_module):
             batch_size=args.batch_size_push,
         )
 
-        for epoch in range(args.epochs):
-            logger.log_info(f"\t\twarm epoch: \t{epoch + 1 + args.epochs_pretrain}")
+        for epoch in np.arange(args.epochs) + 1:
+            real_epoch_number = epoch + args.epochs_pretrain
+            logger.log_info(f"\t\tepoch: \t{epoch} ({real_epoch_number})")
             if epoch > 0:
                 joint_lr_scheduler.step()
 
-            logger.csv_log_index("train_model", (fold, epoch + 1 + args.epochs_pretrain, "train"))
+            logger.csv_log_index("train_model", (fold, real_epoch_number, "train"))
             _ = tnt.train(
                 model=ppnet_multi,
                 dataloader=train_loader,
@@ -226,7 +227,7 @@ def main(args, logger, dataset_module):
                 log=logger,
             )
 
-            logger.csv_log_index("train_model", (fold, epoch + 1 + args.epochs_pretrain, "validation"))
+            logger.csv_log_index("train_model", (fold, real_epoch_number, "validation"))
             accu = tnt.test(
                 model=ppnet_multi,
                 dataloader=validation_loader,
@@ -235,7 +236,7 @@ def main(args, logger, dataset_module):
             save.save_model_w_condition(
                 model=ppnet,
                 model_dir=model_dir,
-                model_name=f"{epoch}-no_push",
+                model_name=f"{real_epoch_number}-no_push",
                 accu=accu,
                 target_accu=0.60,
                 log=logger,
@@ -259,7 +260,7 @@ def main(args, logger, dataset_module):
                     log=logger,
                 )
 
-                logger.csv_log_index("train_model", (fold, epoch + 1 + args.epochs_pretrain, "push validation"))
+                logger.csv_log_index("train_model", (fold, real_epoch_number, "push validation"))
                 accu = tnt.test(
                     model=ppnet_multi,
                     dataloader=validation_loader,
@@ -268,7 +269,7 @@ def main(args, logger, dataset_module):
                 save.save_model_w_condition(
                     model=ppnet,
                     model_dir=model_dir,
-                    model_name=f"{epoch}-push",
+                    model_name=f"{real_epoch_number}-push",
                     accu=accu,
                     target_accu=0.60,
                     log=logger,
@@ -276,10 +277,10 @@ def main(args, logger, dataset_module):
 
                 if args.prototype_activation_function != "linear":
                     tnt.last_only(model=ppnet_multi, log=logger)
-                    for i in range(args.epochs_finetune):
+                    for i in np.arange(args.epochs_finetune) + 1:
                         logger.log_info(f"\t\t\t\titeration: \t{i}")
 
-                        logger.csv_log_index("train_model", (fold, epoch + 1 + args.epochs_pretrain, f"last layer {i} train"))
+                        logger.csv_log_index("train_model", (fold, real_epoch_number, f"last layer {i} train"))
                         _ = tnt.train(
                             model=ppnet_multi,
                             dataloader=train_loader,
@@ -287,7 +288,7 @@ def main(args, logger, dataset_module):
                             log=logger,
                         )
 
-                        logger.csv_log_index("train_model", (fold, epoch + 1 + args.epochs_pretrain, f"last layer {i} validation"))
+                        logger.csv_log_index("train_model", (fold, real_epoch_number, f"last layer {i} validation"))
                         accu = tnt.test(
                             model=ppnet_multi,
                             dataloader=validation_loader,
@@ -296,7 +297,7 @@ def main(args, logger, dataset_module):
                         save.save_model_w_condition(
                             model=ppnet,
                             model_dir=model_dir,
-                            model_name=f"{epoch}-{i}-push",
+                            model_name=f"{real_epoch_number}-{i}-push",
                             accu=accu,
                             target_accu=0.60,
                             log=logger,
