@@ -69,7 +69,7 @@ data_module = CustomDataModule(
     train_args.dataset_config,
     train_args.used_images,
     train_args.target,
-    num_workers=train_args.num_workers,
+    num_workers=train_args.number_of_workers,
     seed=train_args.seed
 )
 

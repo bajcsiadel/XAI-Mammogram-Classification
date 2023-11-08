@@ -200,7 +200,7 @@ def get_args():
         help="The type of separation loss to use",
     )
     parser.add_argument(
-        "--num-workers",
+        "--number-of-workers",
         type=int,
         default=4,
         help="Number of workers used to load the data",
@@ -416,7 +416,7 @@ def generate_gin_config(args, location):
         fd.write(f"{data_module}.cross_validation_folds = {args.cross_validation_folds}\n")
         fd.write(f"{data_module}.stratified             = {args.stratified_cross_validation}\n")
         fd.write(f"{data_module}.groups                 = {args.grouped_cross_validation}\n")
-        fd.write(f"{data_module}.num_workers            = {args.num_workers}\n")
+        fd.write(f"{data_module}.num_workers            = {args.number_of_workers}\n")
         fd.write(f"{data_module}.seed                   = {args.seed}\n")
         fd.write(f"\n")
         fd.write(f"preprocess.mean               = %const_image_mean\n")
