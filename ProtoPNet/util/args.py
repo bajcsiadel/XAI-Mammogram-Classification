@@ -320,7 +320,7 @@ def __process_agrs(args):
     args.classes = pd.read_csv(
         args.dataset_config.METADATA.FILE,
         **args.dataset_config.METADATA.PARAMETERS,
-    )[(args.target, "label")].unique().tolist()
+    )[(args.target, "label")].notna().unique().tolist()
     args.number_of_classes = len(args.classes)
 
     args.prototype_shape = (args.prototypes_per_class * args.number_of_classes, args.prototype_size, 1, 1)
@@ -384,29 +384,32 @@ def generate_gin_config(args, location):
         fd.write(f"\n")
         fd.write(f"# PROTOPNET PROPERTIES\n")
         fd.write(f"const_protopnet_separation_type = '{args.separation_type}'\n")
+        fd.write(f"const_protopnet_backbone_only   = {args.backbone_only}\n")
 
-    prune_config_file = os.path.join(location, "prune.gin")
-    with open(prune_config_file, "w") as fd:
+    train_config_file = os.path.join(location, "train.gin")
+    with open(train_config_file, "w") as fd:
         fd.write("# include constants\n")
         fd.write(f"include '{constants_config_file}'\n")
         fd.write(f"\n")
-        fd.write(f"train.prototype_shape   = %const_prototype_shape\n")
-        fd.write(f"train.separation_type   = %const_protopnet_separation_type\n")
-        fd.write(f"train.number_of_classes = %const_dataset_number_of_classes\n")
-        fd.write(f"train.class_specific    = True\n")
-        fd.write(f"train.loss_coefficients = ")
-        json.dump(args.loss_coefficients, fd, indent=4)
-        fd.write(f"\n")
-        fd.write(f"test.prototype_shape   = %const_prototype_shape\n")
-        fd.write(f"test.separation_type   = %const_protopnet_separation_type\n")
-        fd.write(f"test.number_of_classes = %const_dataset_number_of_classes\n")
-        fd.write(f"test.class_specific    = True\n")
+        for fn_name in ["train", "test"]:
+            fd.write(f"{fn_name}.prototype_shape   = %const_prototype_shape\n")
+            fd.write(f"{fn_name}.separation_type   = %const_protopnet_separation_type\n")
+            fd.write(f"{fn_name}.number_of_classes = %const_dataset_number_of_classes\n")
+            fd.write(f"{fn_name}.class_specific    = True\n")
+            fd.write(f"{fn_name}.backbone_only     = %const_protopnet_backbone_only\n")
+            fd.write(f"{fn_name}.use_bce           = {args.binary_cross_entropy}\n")
+            fd.write(f"{fn_name}.loss_coefficients = ")
+            json.dump(args.loss_coefficients, fd, indent=4)
+            fd.write(f"\n")
 
     config_file = os.path.join(location, "config.gin")
     # Generate the gin config
     with open(config_file, "w") as fd:
         fd.write("# include constants\n")
         fd.write(f"include '{constants_config_file}'\n")
+        fd.write("\n")
+        fd.write("# include train parameters\n")
+        fd.write(f"include '{train_config_file}'\n")
         fd.write("\n")
         fd.write(f"{data_module}.used_images            = '{args.used_images}'\n")
         fd.write(f"{data_module}.classification         = '{args.target}'\n")
@@ -432,7 +435,7 @@ def generate_gin_config(args, location):
         fd.write(f"construct_PPNet.num_classes                    = {args.number_of_classes}\n")
         fd.write(f"construct_PPNet.prototype_activation_function  = '{args.prototype_activation_function}'\n")
         fd.write(f"construct_PPNet.add_on_layers_type             = '{args.add_on_layers_type}'\n")
-        fd.write(f"construct_PPNet.backbone_only                  = {args.backbone_only}\n")
+        fd.write(f"construct_PPNet.backbone_only                  = %const_protopnet_backbone_only\n")
         fd.write(f"construct_PPNet.positive_weights_in_classifier = False\n")
         fd.write(f"\n")
         fd.write(f"main.dataset_module = @{data_module}()\n")

@@ -42,7 +42,7 @@ logger = Log(
     log_file="log-prune.txt",
 )
 
-gin.parse_config_file(os.path.join(logger.metadata_dir, "prune.gin"))
+gin.parse_config_file(os.path.join(logger.metadata_dir, "train.gin"))
 
 epoch = original_model_name.split("-push")[0]
 
