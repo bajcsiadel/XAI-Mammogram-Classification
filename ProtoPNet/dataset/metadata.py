@@ -5,15 +5,69 @@ import os
 import dataclasses as dc
 import typing as typ
 
+from ProtoPNet.util import helpers
+
 DATA_DIR = os.getenv("DATASET_LOCATION")
 assert DATA_DIR is not None, "Please set the environment variable DATASET_LOCATION in .env file"
 
 
-@dc.dataclass(frozen=True)
+class _PartiallyFrozenDataClass:
+    _MUTABLE_ATTRS: typ.ClassVar[typ.List[str]] = []
+
+    def __setattr__(self, key, value):
+        # freeze all attributes except the ones in _MUTABLE_ATTRS
+        if key in self._MUTABLE_ATTRS or key not in self.__dict__:
+            super().__setattr__(key, value)
+        else:
+            raise dc.FrozenInstanceError(f"cannot assign to field '{key}'")
+
+
+@dc.dataclass
 class _Augmentations:
-    TRAIN: typ.List[A.ImageOnlyTransform] = dc.field(default_factory=list)
-    PUSH: typ.List[A.ImageOnlyTransform] = dc.field(default_factory=list)
-    TEST: typ.List[A.ImageOnlyTransform] = dc.field(default_factory=list)
+    __TRAIN: typ.List[A.ImageOnlyTransform] = dc.field(default_factory=list)
+    __PUSH: typ.List[A.ImageOnlyTransform] = dc.field(default_factory=list)
+    __TEST: typ.List[A.ImageOnlyTransform] = dc.field(default_factory=list)
+    DISABLED: bool = False
+
+    def __init__(self, TRAIN=None, PUSH=None, TEST=None, DISABLED=False):
+        setattr(self, "__TRAIN", TRAIN or [])
+        setattr(self, "__PUSH", PUSH or [])
+        setattr(self, "__TEST", TEST or [])
+        self.DISABLED = DISABLED
+
+    def __get_property(self, name):
+        if self.DISABLED:
+            return []
+        return getattr(self, f"__{name}")
+
+    def __set_property(self, name):
+        raise dc.FrozenInstanceError(f"cannot assign to field '{name}'")
+
+    @property
+    def TRAIN(self):
+        print(helpers.get_function_name())
+        return self.__get_property(helpers.get_function_name())
+
+    @TRAIN.setter
+    def TRAIN(self, _):
+        self.__set_property(helpers.get_function_name())
+
+    @property
+    def PUSH(self):
+        return self.__get_property(helpers.get_function_name())
+
+    @PUSH.setter
+    def PUSH(self, _):
+        self.__set_property(helpers.get_function_name())
+
+    @property
+    def TEST(self):
+        return self.__get_property(helpers.get_function_name())
+
+    @TEST.setter
+    def TEST(self, _):
+        self.__set_property(helpers.get_function_name())
+
 
 @dc.dataclass(frozen=True)
 class _DataVersion:
@@ -39,21 +93,14 @@ class _ImageInformation:
 
 
 @dc.dataclass
-class DatasetInformation:
-    __MUTABLE_ATTRS: typ.ClassVar[typ.List[str]] = ["USED_IMAGES"]
+class DatasetInformation(_PartiallyFrozenDataClass):
+    _MUTABLE_ATTRS: typ.ClassVar[typ.List[str]] = ["USED_IMAGES"]
     ROOT_DIR: str
     VERSIONS: typ.Dict[str, _DataVersion]
     METADATA: _MetadataInformation
     IMAGE_PROPERTIES: _ImageInformation
     NAME: str = ""
     USED_IMAGES: _DataVersion | None = None
-
-    def __setattr__(self, key, value):
-        # freeze all attributes except IMAGE_DIR
-        if key in DatasetInformation.__MUTABLE_ATTRS or key not in self.__dict__:
-            super().__setattr__(key, value)
-        else:
-            raise dc.FrozenInstanceError(f"cannot assign to field '{key}'")
 
 
 # dataset configs
@@ -99,6 +146,7 @@ DATASETS: typ.Dict[str, DatasetInformation] = {
                 TRAIN=[],
                 PUSH=[],
                 TEST=[],
+                DISABLED=False,
             ),
         ),
     ),
@@ -132,6 +180,7 @@ DATASETS: typ.Dict[str, DatasetInformation] = {
             #     TRAIN=[],
             #     PUSH=[],
             #     TEST=[],
+            #     DISABLED=False,
             # ),
         ),
     ),

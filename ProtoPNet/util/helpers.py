@@ -1,4 +1,5 @@
-import dataclasses
+import dataclasses as dc
+import inspect
 import json
 import numpy as np
 import os
@@ -72,14 +73,25 @@ def iou(m1, m2):
 def get_last_commit_hash():
     """
     Get the hash of the last commit
-    :return: str
+    :return:
+    :rtype: str
     """
     process = subprocess.Popen(['git', 'rev-parse', 'HEAD'], shell=False, stdout=subprocess.PIPE)
     return process.communicate()[0].strip()
 
 
+def get_function_name():
+    """
+    Get the name of the function that called this function. The first index (1) is the
+    function that called this and the second index (3) is the name of that function
+    :return:
+    :rtype: str
+    """
+    return inspect.stack()[1][3]
+
+
 class EnhancedJSONEncoder(json.JSONEncoder):
     def default(self, o):
-        if dataclasses.is_dataclass(o):
-            return dataclasses.asdict(o)
+        if dc.is_dataclass(o):
+            return dc.asdict(o)
         return super().default(o)

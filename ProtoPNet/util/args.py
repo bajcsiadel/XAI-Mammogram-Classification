@@ -63,7 +63,7 @@ def get_args():
         help="If set, use preprocessed data",
     )
     parser.add_argument(
-        "--augmentation",
+        "--augment",
         action="store_true",
         help="If set, use data augmentation during training",
     )
@@ -316,6 +316,9 @@ def __process_agrs(args):
 
     assert args.used_images in args.dataset_config.VERSIONS.keys()
     args.dataset_config.USED_IMAGES = args.dataset_config.VERSIONS[args.used_images]
+
+    if not args.augment:
+        args.dataset_config.IMAGE_PROPERTIES.AUGMENTATIONS.DISABLED = True
 
     dataset_meta = pd.read_csv(
         args.dataset_config.METADATA.FILE,
