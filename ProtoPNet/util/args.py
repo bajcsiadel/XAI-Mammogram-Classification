@@ -63,6 +63,22 @@ def get_args():
         help="If set, use preprocessed data",
     )
     parser.add_argument(
+        "--only-MLO",
+        action=__FilterMLO,
+        dest="data_filters",
+        default=[],
+        nargs=0,
+        help="If set, only use MLO views",
+    )
+    parser.add_argument(
+        "--only-CC",
+        action=__FilterCC,
+        dest="data_filters",
+        default=[],
+        nargs=0,
+        help="If set, only use CC views",
+    )
+    parser.add_argument(
         "--augment",
         action="store_true",
         help="If set, use data augmentation during training",
@@ -484,3 +500,38 @@ class __PowerOfTwo(argparse.Action):
         if not self.__is_power_of_two(values):
             raise argparse.ArgumentError(self, "Given number should be a power of two!")
         setattr(namespace, self.dest, values)
+
+
+class __AppendFilter(argparse.Action):
+    def __call__(self, parser, namespace, values, option_string=None):
+        filters = getattr(namespace, self.dest)
+        filters.append(values)
+        setattr(namespace, self.dest, filters)
+
+
+class __FilterView(__AppendFilter):
+    def __call__(self, parser, namespace, view, option_string=None):
+        class FilterCondition:
+            def __init__(self, value):
+                self.value = value
+
+            def __call__(self, row):
+                return row[("meta", "view")] == self.value
+
+            def __repr__(self):
+                return f"FilterCondition(data[('meta', 'view')] == {self.value})"
+
+            def to_json(self):
+                return str(self)
+
+        super().__call__(parser, namespace, FilterCondition(view), option_string)
+
+
+class __FilterMLO(__FilterView):
+    def __call__(self, parser, namespace, values, option_string=None):
+        super().__call__(parser, namespace, "MLO", option_string)
+
+
+class __FilterCC(__FilterView):
+    def __call__(self, parser, namespace, values, option_string=None):
+        super().__call__(parser, namespace, "CC", option_string)
