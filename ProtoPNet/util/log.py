@@ -1,5 +1,6 @@
 import os
 from datetime import datetime
+import sys
 import traceback
 import typing as typ
 
@@ -89,6 +90,29 @@ class Log:
         """
         self.log_error(f"{type(ex).__name__}: {ex}")
         self.log_error(traceback.format_exc())
+
+    def log_command_line(self):
+        command = " ".join(sys.argv)
+        screen_name = "mam-ppn-" + datetime.now().strftime("%Y-%m-%d-%H-%M-%S")
+        with open(os.path.join(self.metadata_dir, "run-experiment.sh"), mode="w") as fd:
+            fd.write("#!/bin/bash\n")
+            fd.write("\n")
+            fd.write(f"cd {os.getenv('PROJECT_ROOT')}\n")
+            fd.write("\n")
+            fd.write("# check if environment exists\n")
+            fd.write("poetry env list > /dev/null\n")
+            fd.write("if { [ $? -ne 0 ] && [ -f \"pyproject.toml\" ]; }\n")
+            fd.write("then\n")
+            fd.write("\tpoetry install\n")
+            fd.write("else\n")
+            fd.write("\techo \"No pyproject.toml found. Please run this script from the project root.\"\n")
+            fd.write("\texit 1\n")
+            fd.write("fi\n")
+            fd.write("\n")
+            fd.write(f"screen -dmS {screen_name}\n")
+            fd.write(f"screen -S {screen_name} -X stuff \"poetry run python {command}\"\n")
+            fd.write("# attaching the screen\n")
+            fd.write(f"screen -r {screen_name}\n")
 
     def __call__(self, message):
         """

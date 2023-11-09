@@ -315,7 +315,9 @@ if __name__ == "__main__":
     # python main.py --pretrained --batch-size-pretrain 32 --batch-size 8 --batch-size-push 16 --epochs-pretrain 4 --epochs-finetune 4 --epochs 10 --dataset MIAS --target normal_vs_abnormal --stratified-cross-validation --grouped-cross-validation --gpu-id 1 --log-dir original-n-v-a
     command_line_params = args.get_args()
     logger = Log(command_line_params.log_dir)
+
     try:
+        logger.log_command_line()
         args.save_args(command_line_params, logger.metadata_dir)
 
         config_file = args.generate_gin_config(command_line_params, logger.metadata_dir)
