@@ -328,6 +328,8 @@ def __process_agrs(args):
     args.prototype_shape = (args.prototypes_per_class * args.number_of_classes, args.prototype_size, 1, 1)
 
     args.push_epochs = [i + args.push_start for i in range(args.epochs) if i % args.push_intervals == 0]
+    # add push to last epoch
+    args.push_epochs = args.push_epochs + [args.epochs + 1]
 
     args.loss_coefficients = {
         "cross_entropy": args.cross_entropy_coefficient,
