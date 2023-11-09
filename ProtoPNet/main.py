@@ -198,6 +198,8 @@ def main(args, logger, dataset_module):
                     log=logger,
                 )
 
+            logger.log_info("\t\tfinished warmup")
+
         tnt.joint(model=ppnet_multi, log=logger, backbone_only=args.backbone_only)
 
         train_loader = dataset_module.train_dataloader(
@@ -302,6 +304,11 @@ def main(args, logger, dataset_module):
                             target_accu=0.60,
                             log=logger,
                         )
+                    logger.log_info("\t\t\t\tfinished finetuning last layer")
+                logger.log_info("\t\t\tfinished pushing prototypes")
+        logger.log_info(f"\t\tfinished training fold {fold}")
+
+    logger.log_info("finished training")
 
 
 if __name__ == "__main__":
