@@ -22,30 +22,24 @@ class _PartiallyFrozenDataClass:
             raise dc.FrozenInstanceError(f"cannot assign to field '{key}'")
 
 
-@dc.dataclass
 class _Augmentations:
-    __TRAIN: typ.List[A.ImageOnlyTransform] = dc.field(default_factory=list)
-    __PUSH: typ.List[A.ImageOnlyTransform] = dc.field(default_factory=list)
-    __TEST: typ.List[A.ImageOnlyTransform] = dc.field(default_factory=list)
-    DISABLED: bool = False
-
     def __init__(self, TRAIN=None, PUSH=None, TEST=None, DISABLED=False):
-        setattr(self, "__TRAIN", TRAIN or [])
-        setattr(self, "__PUSH", PUSH or [])
-        setattr(self, "__TEST", TEST or [])
+        self.__TRAIN = TRAIN or []
+        self.__PUSH = PUSH or []
+        self.__TEST = TEST or []
         self.DISABLED = DISABLED
 
     def __get_property(self, name):
         if self.DISABLED:
             return []
-        return getattr(self, f"__{name}")
+        attr_name = list(filter(lambda x: x.endswith(f"__{name}"), self.__dict__.keys()))[0]
+        return getattr(self, attr_name)
 
     def __set_property(self, name):
         raise dc.FrozenInstanceError(f"cannot assign to field '{name}'")
 
     @property
     def TRAIN(self):
-        print(helpers.get_function_name())
         return self.__get_property(helpers.get_function_name())
 
     @TRAIN.setter
@@ -67,6 +61,18 @@ class _Augmentations:
     @TEST.setter
     def TEST(self, _):
         self.__set_property(helpers.get_function_name())
+
+    @staticmethod
+    def __augmentations_to_json(augmentations):
+        return list(map(str, augmentations))
+
+    def to_json(self):
+        return {
+            "TRAIN": self.__augmentations_to_json(self.__TRAIN),
+            "PUSH": self.__augmentations_to_json(self.__PUSH),
+            "TEST": self.__augmentations_to_json(self.__TEST),
+            "DISABLED": self.DISABLED,
+        }
 
 
 @dc.dataclass(frozen=True)

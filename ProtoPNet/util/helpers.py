@@ -92,6 +92,8 @@ def get_function_name():
 
 class EnhancedJSONEncoder(json.JSONEncoder):
     def default(self, o):
-        if dc.is_dataclass(o):
+        if hasattr(o, "to_json"):
+            return o.to_json()
+        elif dc.is_dataclass(o):
             return dc.asdict(o)
         return super().default(o)
