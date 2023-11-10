@@ -3,11 +3,13 @@ import numpy as np
 import os
 import re
 import shutil
+import sys
 import torch
 
 from dotenv import load_dotenv
 
 load_dotenv()
+sys.path.append(os.getenv("PROJECT_ROOT"))
 
 from ProtoPNet import model
 from ProtoPNet import push
