@@ -523,7 +523,7 @@ class __AppendFilter(argparse.Action):
 
 class __FilterView(__AppendFilter):
     def __call__(self, parser, namespace, view, option_string=None):
-        super().__call__(parser, namespace, DataFilter(FIELD=("meta", "view"), VALUE=view), option_string)
+        super().__call__(parser, namespace, DataFilter(FIELD=("mammogram_properies", "view"), VALUE=view), option_string)
 
 
 class __FilterMLO(__FilterView):
