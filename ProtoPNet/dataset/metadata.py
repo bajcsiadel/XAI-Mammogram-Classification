@@ -1,5 +1,5 @@
 import albumentations as A
-
+import gin
 import os
 
 import dataclasses as dc
@@ -107,6 +107,45 @@ class DatasetInformation(_PartiallyFrozenDataClass):
     IMAGE_PROPERTIES: _ImageInformation
     NAME: str = ""
     USED_IMAGES: _DataVersion | None = None
+
+
+@gin.configurable
+@dc.dataclass
+class DataFilter(_PartiallyFrozenDataClass):
+    _MUTABLE_ATTRS = ["SCOPE"]
+    FIELD: str | tuple[str, ...]
+    VALUE: typ.Any
+    SCOPE: str = ""
+
+    def __post_init__(self):
+        if self.SCOPE == "":
+            self.SCOPE = "Filter"
+            if type(self.FIELD) is tuple:
+                self.SCOPE += "".join(map(lambda x: x[0].upper() + x[1:].lower(), self.FIELD))
+            match self.VALUE:
+                case float():
+                    self.SCOPE += str(self.VALUE).replace(".", "_")
+                case list():
+                    raise ValueError("DataFilter: List values are not supported for 'VALUE' field")
+                case _:
+                    self.SCOPE += str(self.VALUE)
+        self.SCOPE += "/DataFilter"
+
+    def __call__(self, data):
+        """
+        Apply the filter to the given data
+        :param data:
+        :type data: pandas.DataFrame
+        :return: the filtered data
+        :rtype: pandas.DataFrame
+        :raises ValueError: if the given data does not contain the field specified in the filter
+        """
+        if self.FIELD not in data.columns:
+            raise ValueError(f"The given data does not contain the field '{self.FIELD}'")
+
+        return data[data[self.FIELD] == self.VALUE]
+
+
 
 
 # dataset configs

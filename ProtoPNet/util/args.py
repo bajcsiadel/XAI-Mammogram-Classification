@@ -4,7 +4,7 @@ import os
 import pandas as pd
 import pickle
 
-from ProtoPNet.dataset.metadata import DATASETS
+from ProtoPNet.dataset.metadata import DATASETS, DataFilter
 from ProtoPNet.config.backbone_features import BACKBONE_MODELS
 
 from ProtoPNet.util import helpers
@@ -436,12 +436,24 @@ def generate_gin_config(args, location):
         fd.write("\n")
         fd.write(f"{data_module}.used_images            = '{args.used_images}'\n")
         fd.write(f"{data_module}.classification         = '{args.target}'\n")
+        data_filters = ",\n\t".join(map(lambda data_filter: f"@{data_filter.SCOPE}()", args.data_filters))
+        fd.write(f"{data_module}.data_filters           = [\n\t{data_filters},\n]\n")
         fd.write(f"{data_module}.cross_validation_folds = {args.cross_validation_folds}\n")
         fd.write(f"{data_module}.stratified             = {args.stratified_cross_validation}\n")
         fd.write(f"{data_module}.groups                 = {args.grouped_cross_validation}\n")
         fd.write(f"{data_module}.num_workers            = {args.number_of_workers}\n")
         fd.write(f"{data_module}.seed                   = {args.seed}\n")
         fd.write(f"\n")
+
+        for data_filter in args.data_filters:
+            fd.write(f"{data_filter.SCOPE}.FIELD = {data_filter.FIELD}\n")
+            if type(data_filter.VALUE) is str:
+                value = f"'{data_filter.VALUE}'"
+            else:
+                value = str(data_filter.VALUE)
+            fd.write(f"{data_filter.SCOPE}.VALUE = {value}\n")
+            fd.write(f"\n")
+
         fd.write(f"preprocess.mean               = %const_image_mean\n")
         fd.write(f"preprocess.std                = %const_image_std\n")
         fd.write(f"preprocess.number_of_channels = %const_image_channels\n")
@@ -511,20 +523,7 @@ class __AppendFilter(argparse.Action):
 
 class __FilterView(__AppendFilter):
     def __call__(self, parser, namespace, view, option_string=None):
-        class FilterCondition:
-            def __init__(self, value):
-                self.value = value
-
-            def __call__(self, row):
-                return row[("meta", "view")] == self.value
-
-            def __repr__(self):
-                return f"FilterCondition(data[('meta', 'view')] == {self.value})"
-
-            def to_json(self):
-                return str(self)
-
-        super().__call__(parser, namespace, FilterCondition(view), option_string)
+        super().__call__(parser, namespace, DataFilter(FIELD=("meta", "view"), VALUE=view), option_string)
 
 
 class __FilterMLO(__FilterView):
