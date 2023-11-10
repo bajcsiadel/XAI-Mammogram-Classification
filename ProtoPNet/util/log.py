@@ -82,14 +82,21 @@ class Log:
         """
         self.log_message(msg, level="ERROR")
 
-    def log_exception(self, ex):
+    def log_exception(self, ex, warn_only=False):
         """
         Log an exception
         :param ex:
         :type ex: Exception
+        :param warn_only: Defaults to False
+        :type warn_only: bool
+        :type ex: Exception
         """
-        self.log_error(f"{type(ex).__name__}: {ex}")
-        self.log_error(traceback.format_exc())
+        if warn_only:
+            log_fn = self.log_warning
+        else:
+            log_fn = self.log_error
+        log_fn(f"{type(ex).__name__}: {ex}")
+        log_fn(traceback.format_exc())
 
     def log_command_line(self):
         command = " ".join(sys.argv)
