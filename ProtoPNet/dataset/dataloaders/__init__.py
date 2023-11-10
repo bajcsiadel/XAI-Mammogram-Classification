@@ -27,6 +27,8 @@ class CustomVisionDataset(datasets.VisionDataset):
     :type classification: str
     :param subset: Subset to use
     :type subset: str
+    :param data_filters: Filters to apply to the data
+    :type data_filters: typ.List[typ.Callable[[pd.DataFrame], pd.DataFrame]] | None
     :param transform: Transform to apply to the images
     :type transform: albumentations.BasicTransform | list[albumentations.BasicTransform]
     :param target_transform: Transform to apply to the targets
@@ -37,6 +39,7 @@ class CustomVisionDataset(datasets.VisionDataset):
             dataset_meta,
             classification,
             subset="train",
+            data_filters=None,
             normalize=True,
             transform=A.NoOp(),
             target_transform=_target_transform
@@ -68,6 +71,12 @@ class CustomVisionDataset(datasets.VisionDataset):
             dataset_meta.METADATA.FILE,
             **dataset_meta.METADATA.PARAMETERS
         )
+
+        if data_filters is not None:
+            for data_filter in data_filters:
+                self.__meta_information = data_filter(self.__meta_information)
+
+            assert len(self.__meta_information) > 0, "no data left after filtering"
 
         assert isinstance(self.__meta_information.columns, pd.MultiIndex), "metadata does not have split information"
         cls_types = list(filter(lambda column: "_vs_" in column, self.__meta_information.columns.get_level_values(0)))
@@ -181,6 +190,8 @@ class CustomDataModule:
     :type used_images: str
     :param classification:
     :type classification: str
+    :param data_filters: Filters to apply to the data
+    :type data_filters: typ.List[typ.Callable[[pd.DataFrame], pd.DataFrame]] | None
     :param cross_validation_folds: Number of cross validation folds
     :type cross_validation_folds: int
     :param stratified:
@@ -198,6 +209,7 @@ class CustomDataModule:
             data,
             used_images,
             classification,
+            data_filters=None,
             cross_validation_folds=None,
             stratified=True,
             groups=True,
@@ -223,6 +235,10 @@ class CustomDataModule:
             dataset_params = {
                 "classification": classification,
             }
+
+        dataset_params = dataset_params | {
+            "data_filters": data_filters,
+        }
 
         # define datasets
         self.__train_data = dataset_class(
