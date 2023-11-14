@@ -284,7 +284,7 @@ def get_args():
     parser.add_argument(
         "--log-dir",
         type=str,
-        default="train_protopnet",
+        default="",
         help="The directory in which train progress should be logged",
     )
     parser.add_argument(
@@ -358,6 +358,8 @@ def __process_agrs(args):
         "l2": args.l2_coefficient,
     }
 
+    if args.log_dir == "":
+        args.log_dir = f"{args.dataset}-{args.used_images}-{args.backbone}-{args.target}"
     args.log_dir = os.path.join(os.getenv("PROJECT_ROOT"), "runs", args.log_dir)
 
 
