@@ -274,7 +274,10 @@ DATASETS: typ.Dict[str, DatasetInformation] = {
         # },
         METADATA=_MetadataInformation(
             FILE=os.path.join(DDSM_ROOT_DIR, "extended_data.csv"),
-            # PARAMETERS={}
+            PARAMETERS={
+                "header": [0, 1],
+                "index_col": [0, 1],
+            },
         ),
         IMAGE_PROPERTIES=_ImageInformation(
             EXTENSION=".png",
