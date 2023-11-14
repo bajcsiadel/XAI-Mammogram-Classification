@@ -90,6 +90,24 @@ def get_function_name():
     return inspect.stack()[1][3]
 
 
+def set_used_images(dataset_config, used_images, target):
+    """
+    Set the used images for the given dataset config and target
+    :param dataset_config:
+    :type dataset_config: ProtoPNet.dataset.metadata.DatasetInformation
+    :param used_images:
+    :type used_images: str
+    :param target:
+    :type target: str
+    """
+    assert target in dataset_config.TARGET_TO_VERSION.keys(), "Target does not exist in dataset!"
+    versions_key = dataset_config.TARGET_TO_VERSION[target]
+
+    assert used_images in dataset_config.VERSIONS[versions_key].keys(), \
+        f"Used images does not exist in dataset for target {target}!"
+    dataset_config.USED_IMAGES = dataset_config.VERSIONS[versions_key][used_images]
+
+
 class EnhancedJSONEncoder(json.JSONEncoder):
     def default(self, o):
         if hasattr(o, "to_json"):

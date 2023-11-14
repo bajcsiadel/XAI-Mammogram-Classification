@@ -330,8 +330,7 @@ def __process_agrs(args):
     args.dataset_config = DATASETS[args.dataset]
     args.used_images = __get_used_images_key(args)
 
-    assert args.used_images in args.dataset_config.VERSIONS.keys()
-    args.dataset_config.USED_IMAGES = args.dataset_config.VERSIONS[args.used_images]
+    helpers.set_used_images(args.dataset_config, args.used_images, args.target)
 
     if not args.augment:
         args.dataset_config.IMAGE_PROPERTIES.AUGMENTATIONS.DISABLED = True

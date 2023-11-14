@@ -12,6 +12,7 @@ from torch.utils.data import DataLoader, SubsetRandomSampler
 from torchvision import datasets
 
 from ProtoPNet.dataset.metadata import DatasetInformation
+from ProtoPNet.util import helpers
 
 
 def _target_transform(target):
@@ -62,7 +63,7 @@ class CustomVisionDataset(datasets.VisionDataset):
 
         super().__init__(dataset_meta.USED_IMAGES.DIR, transform=transform, target_transform=target_transform)
 
-        # assert subset in ["train", "test"], "subset must be one of 'train' or 'test'"
+        assert subset in ["train", "test", "all"], "subset must be one of 'train', 'test' or 'all'"
         self.__subset = subset
 
         self.__dataset_meta = dataset_meta
@@ -221,10 +222,7 @@ class CustomDataModule:
 
         self.__data = data
         if self.__data.USED_IMAGES is None:
-            if used_images in data.VERSIONS:
-                self.__data.USED_IMAGES = data.VERSIONS[used_images]
-            else:
-                raise ValueError(f"'used_images' must be one of {list(data.VERSIONS.keys())}, not {used_images}")
+            helpers.set_used_images(self.__data, used_images, classification)
 
         if dataset_class is CustomVisionDataset:
             dataset_params = {
@@ -430,7 +428,6 @@ if __name__ == '__main__':
     from ProtoPNet.dataset.metadata import DATASETS
 
     ds = DATASETS["MIAS"]
-    ds.USED_IMAGES = ds.VERSIONS["original"]
 
     module = CustomDataModule(ds, "original", "normal_vs_abnormal", 5)
     for fold, (tr, vl) in module.folds:
