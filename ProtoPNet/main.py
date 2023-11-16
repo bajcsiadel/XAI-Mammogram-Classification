@@ -221,7 +221,7 @@ def main(args, logger, dataset_module):
         for epoch in np.arange(args.epochs) + 1:
             real_epoch_number = epoch + args.epochs_pretrain
             logger.log_info(f"\t\tepoch: \t{epoch} ({real_epoch_number})")
-            if epoch > 0:
+            if epoch > 1:
                 joint_lr_scheduler.step()
 
             logger.csv_log_index("train_model", (fold, real_epoch_number, "train"))
@@ -315,14 +315,13 @@ def main(args, logger, dataset_module):
 
 
 if __name__ == "__main__":
-    # handle warnings like errors
-    warnings.filterwarnings("error")
-
     # python main.py --pretrained --batch-size-pretrain 32 --batch-size 8 --batch-size-push 16 --epochs-pretrain 4 --epochs-finetune 4 --epochs 10 --dataset MIAS --target normal_vs_abnormal --stratified-cross-validation --grouped-cross-validation --gpu-id 1 --log-dir original-n-v-a
     command_line_params = args.get_args()
     logger = Log(command_line_params.log_dir)
 
     try:
+        warnings.showwarning = lambda warning: logger.log_exception(warning, warn_only=True)
+
         logger.log_command_line()
         args.save_args(command_line_params, logger.metadata_dir)
 
@@ -334,7 +333,5 @@ if __name__ == "__main__":
                               "accuracy", "micro_f1", "macro_f1", "l1", "prototype_distances")
 
         main(command_line_params, logger)
-    except Warning as w:
-        logger.log_exception(w, warn_only=True)
     except Exception as e:
         logger.log_exception(e)
