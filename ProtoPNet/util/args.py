@@ -438,7 +438,9 @@ def generate_gin_config(args, location):
         fd.write(f"{data_module}.used_images            = '{args.used_images}'\n")
         fd.write(f"{data_module}.classification         = '{args.target}'\n")
         data_filters = ",\n\t".join(map(lambda data_filter: f"@{data_filter.SCOPE}()", args.data_filters))
-        fd.write(f"{data_module}.data_filters           = [\n\t{data_filters},\n]\n")
+        if len(args.data_filters) > 0:
+            data_filters = f"\n\t{data_filters},\n"
+        fd.write(f"{data_module}.data_filters           = [{data_filters}]\n")
         fd.write(f"{data_module}.cross_validation_folds = {args.cross_validation_folds}\n")
         fd.write(f"{data_module}.stratified             = {args.stratified_cross_validation}\n")
         fd.write(f"{data_module}.groups                 = {args.grouped_cross_validation}\n")
