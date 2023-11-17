@@ -1,11 +1,10 @@
 import cv2
 import numpy as np
-import os
 import time
 import torch
 
 from ProtoPNet.receptive_field import compute_rf_prototype
-from ProtoPNet.util.helpers import find_high_activation_crop, makedir
+from ProtoPNet.util.helpers import find_high_activation_crop
 from ProtoPNet.util.save import save_image
 
 
@@ -62,10 +61,8 @@ def push_prototypes(
 
     if root_dir_for_saving_prototypes is not None:
         if epoch_number is not None:
-            proto_epoch_dir = os.path.join(
-                root_dir_for_saving_prototypes, "epoch-" + str(epoch_number)
-            )
-            makedir(proto_epoch_dir)
+            proto_epoch_dir = root_dir_for_saving_prototypes / f"epoch-{epoch_number}"
+            proto_epoch_dir.mkdir(parents=True, exist_ok=True)
         else:
             proto_epoch_dir = root_dir_for_saving_prototypes
     else:
@@ -106,20 +103,11 @@ def push_prototypes(
         and proto_bound_boxes_filename_prefix is not None
     ):
         np.save(
-            os.path.join(
-                proto_epoch_dir,
-                proto_bound_boxes_filename_prefix
-                + "-receptive_field-"
-                + str(epoch_number)
-                + ".npy",
-            ),
+            proto_epoch_dir / f"{proto_bound_boxes_filename_prefix}-receptive_field-{epoch_number}.npy",
             proto_rf_boxes,
         )
         np.save(
-            os.path.join(
-                proto_epoch_dir,
-                proto_bound_boxes_filename_prefix + "-" + str(epoch_number) + ".npy",
-            ),
+            proto_epoch_dir / f"{proto_bound_boxes_filename_prefix}-{epoch_number}.npy",
             proto_bound_boxes,
         )
 
@@ -333,24 +321,13 @@ def update_prototypes_on_batch(
                 if prototype_self_act_filename_prefix is not None:
                     # save the numpy array of the prototype self activation
                     np.save(
-                        os.path.join(
-                            dir_for_saving_prototypes,
-                            prototype_self_act_filename_prefix
-                            + "-" + str(j)
-                            + ".npy",
-                        ),
+                        dir_for_saving_prototypes / f"{prototype_self_act_filename_prefix}-{j}.npy",
                         proto_act_img_j,
                     )
                 if prototype_img_filename_prefix is not None:
                     # save the whole image containing the prototype as png
                     save_image(
-                        os.path.join(
-                            dir_for_saving_prototypes,
-                            prototype_img_filename_prefix
-                            + "-original-"
-                            + str(j)
-                            + ".png",
-                        ),
+                        dir_for_saving_prototypes / f"{prototype_img_filename_prefix}-original-{j}.png",
                         original_img_j,
                     )
                     # overlay (upsampled) self activation
@@ -370,13 +347,7 @@ def update_prototypes_on_batch(
                         0.5 * original_img_j + 0.3 * heatmap
                     )
                     save_image(
-                        os.path.join(
-                            dir_for_saving_prototypes,
-                            prototype_img_filename_prefix
-                            + "-original_with_self_act-"
-                            + str(j)
-                            + ".png",
-                        ),
+                        dir_for_saving_prototypes / f"{prototype_img_filename_prefix}-original_with_self_act-{j}.png",
                         overlayed_original_img_j,
                     )
 
@@ -388,13 +359,7 @@ def update_prototypes_on_batch(
                         or rf_img_j.shape[1] != original_img_w
                     ):
                         save_image(
-                            os.path.join(
-                                dir_for_saving_prototypes,
-                                prototype_img_filename_prefix
-                                + "-receptive_field-"
-                                + str(j)
-                                + ".png",
-                            ),
+                            dir_for_saving_prototypes / f"{prototype_img_filename_prefix}-receptive_field-{j}.png",
                             rf_img_j,
                         )
                         overlayed_rf_img_j = overlayed_original_img_j[
@@ -402,23 +367,14 @@ def update_prototypes_on_batch(
                             rf_prototype_j[3] : rf_prototype_j[4],
                         ]
                         save_image(
-                            os.path.join(
-                                dir_for_saving_prototypes,
-                                prototype_img_filename_prefix
-                                + "-receptive_field_with_self_act-"
-                                + str(j)
-                                + ".png",
-                            ),
+                            dir_for_saving_prototypes / f"{prototype_img_filename_prefix}-receptive_field_with_self_act-{j}.png",
                             overlayed_rf_img_j,
                         )
 
                     # save the prototype image
                     # (highly activated region of the whole image)
                     save_image(
-                        os.path.join(
-                            dir_for_saving_prototypes,
-                            prototype_img_filename_prefix + "-" + str(j) + ".png",
-                        ),
+                        dir_for_saving_prototypes / f"{prototype_img_filename_prefix}-{j}.png",
                         proto_img_j,
                     )
 

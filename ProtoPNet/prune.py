@@ -1,4 +1,3 @@
-import os
 import shutil
 from collections import Counter
 
@@ -6,7 +5,6 @@ import numpy as np
 import torch
 
 import ProtoPNet.find_nearest
-from ProtoPNet.util.helpers import makedir
 
 
 def prune_prototypes(
@@ -67,15 +65,10 @@ def prune_prototypes(
         (prototypes_to_prune_np, class_of_prototypes_to_prune)
     )
 
-    pruned_prototypes_location = os.path.join(original_model_dir, f"pruned_prototypes_epoch{epoch_number}_k{k}_pt{prune_threshold}", )
-    makedir(
-        pruned_prototypes_location
-    )
+    pruned_prototypes_location = original_model_dir / f"pruned_prototypes_epoch{epoch_number}_k{k}_pt{prune_threshold}"
+    pruned_prototypes_location.mkdir(parent=True, exist_ok=True)
     np.save(
-        os.path.join(
-            pruned_prototypes_location,
-            "prune_info.npy",
-        ),
+        pruned_prototypes_location / "prune_info.npy",
         prune_info,
     )
 
@@ -86,76 +79,41 @@ def prune_prototypes(
     #               f'pruned_prototypes_epoch{epoch_number}_k{k}_pt{prune_threshold}'
     #               model_name + '-pruned.pth'))
     if copy_prototype_imgs:
-        original_img_dir = os.path.join(
-            original_model_dir, "img", f"epoch-{epoch_number}"
-        )
-        dst_img_dir = os.path.join(
-            pruned_prototypes_location,
-            "img",
-            f"epoch-{epoch_number}",
-        )
-        makedir(dst_img_dir)
+        original_img_dir = original_model_dir / "img" / f"epoch-{epoch_number}"
+        dst_img_dir = pruned_prototypes_location / "img" / f"epoch-{epoch_number}"
+        dst_img_dir.mkdir(parent=True, exist_ok=True)
         prototypes_to_keep = list(
             set(range(original_num_prototypes)) - set(prototypes_to_prune)
         )
 
         for idx in range(len(prototypes_to_keep)):
             shutil.copyfile(
-                src=os.path.join(
-                    original_img_dir,
-                    f"prototype-img-{prototypes_to_keep[idx]}.png",
-                ),
-                dst=os.path.join(dst_img_dir, f"prototype-img-{idx}.png"),
+                src=original_img_dir / f"prototype-img-{prototypes_to_keep[idx]}.png",
+                dst=dst_img_dir / f"prototype-img-{idx}.png"
             )
 
             shutil.copyfile(
-                src=os.path.join(
-                    original_img_dir,
-                    f"prototype-img-original-{prototypes_to_keep[idx]}.png",
-                ),
-                dst=os.path.join(
-                    dst_img_dir, f"prototype-img-original-{idx}.png"
-                ),
+                src=original_img_dir / f"prototype-img-original-{prototypes_to_keep[idx]}.png",
+                dst=dst_img_dir / f"prototype-img-original-{idx}.png"
             )
 
             shutil.copyfile(
-                src=os.path.join(
-                    original_img_dir,
-                    f"prototype-img-original_with_self_act-{prototypes_to_keep[idx]}.png",
-                ),
-                dst=os.path.join(
-                    dst_img_dir,
-                    f"prototype-img-original_with_self_act-{idx}.png",
-                ),
+                src=original_img_dir / f"prototype-img-original_with_self_act-{prototypes_to_keep[idx]}.png",
+                dst=dst_img_dir / f"prototype-img-original_with_self_act-{idx}.png",
             )
 
             shutil.copyfile(
-                src=os.path.join(
-                    original_img_dir,
-                    f"prototype-self-act-{prototypes_to_keep[idx]}.npy",
-                ),
-                dst=os.path.join(
-                    dst_img_dir, f"prototype-self-act-{idx}.npy"
-                ),
+                src=original_img_dir / f"prototype-self-act-{prototypes_to_keep[idx]}.npy",
+                dst=dst_img_dir / f"prototype-self-act-{idx}.npy"
             )
 
-            bb = np.load(
-                os.path.join(original_img_dir, f"bb-{epoch_number}.npy")
-            )
+            bb = np.load(original_img_dir / f"bb-{epoch_number}.npy")
             bb = bb[prototypes_to_keep]
-            np.save(os.path.join(dst_img_dir, f"bb-{epoch_number}.npy"), bb)
+            np.save(dst_img_dir / f"bb-{epoch_number}.npy", bb)
 
-            bb_rf = np.load(
-                os.path.join(
-                    original_img_dir, f"bb-receptive_field-{epoch_number}.npy"
-                )
-            )
+            bb_rf = np.load(original_img_dir / f"bb-receptive_field-{epoch_number}.npy")
             bb_rf = bb_rf[prototypes_to_keep]
-            np.save(
-                os.path.join(
-                    dst_img_dir, f"bb-receptive_field-{epoch_number}.npy"
-                ),
-                bb_rf,
+            np.save(dst_img_dir / f"bb-receptive_field-{epoch_number}.npy",bb_rf,
             )
 
     return prune_info

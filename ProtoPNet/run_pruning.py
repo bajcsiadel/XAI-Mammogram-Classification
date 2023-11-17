@@ -1,17 +1,17 @@
 import argparse
 import gin
 import pickle
-import os
+# import os
 import shutil
 import torch
 
 from dotenv import load_dotenv
+from pathlib import Path
 load_dotenv()
 
 from ProtoPNet.dataset.dataloaders import CustomDataModule
 import ProtoPNet.prune as prune
 import ProtoPNet.train_and_test as tnt
-from ProtoPNet.util.helpers import makedir
 from ProtoPNet.util.log import Log
 from ProtoPNet.util.preprocess import preprocess
 import ProtoPNet.util.save as save
@@ -30,9 +30,9 @@ optimize_last_layer = True
 k = 6
 prune_threshold = 3
 
-original_model_dir = args.model_dir  # './runs/run-name/models/'
+original_model_dir = Path(args.model_dir)  # './runs/run-name/models/'
 original_model_name = args.model     # '10_16push0.8007.pth'
-original_model_path = os.path.join(original_model_dir, original_model_name)
+original_model_path = original_model_dir / original_model_name
 
 # pruning must happen after push
 assert "no_push" not in original_model_name, "pruning must happen after push"
@@ -42,7 +42,7 @@ logger = Log(
     log_file="log-prune.txt",
 )
 
-gin.parse_config_file(os.path.join(logger.metadata_dir, "train.gin"))
+gin.parse_config_file(logger.metadata_dir / "train.gin")
 
 epoch = original_model_name.split("-push")[0]
 
@@ -51,19 +51,16 @@ if "-" in epoch:
 else:
     epoch = int(epoch)
 
-model_dir = os.path.join(
-    original_model_dir,
-    f"pruned_prototypes_epoch{epoch}_k{k}_pt{prune_threshold}",
-)
-makedir(model_dir)
-shutil.copy(src=os.path.join(os.getcwd(), __file__), dst=model_dir)
+model_dir = original_model_dir / f"pruned_prototypes_epoch{epoch}_k{k}_pt{prune_threshold}"
+model_dir.mkdir(parents=True, exist_ok=True)
+shutil.copy(src=Path.cwd() / __file__, dst=model_dir)
 
 ppnet = torch.load(original_model_path)
 ppnet = ppnet.cuda()
 ppnet_multi = torch.nn.DataParallel(ppnet)
 class_specific = True
 
-train_args = pickle.load(open(os.path.join(logger.metadata_dir, "args.pickle"), "rb"))
+train_args = pickle.load((logger.metadata_dir / "args.pickle").open(mode="rb"))
 
 data_module = CustomDataModule(
     train_args.dataset_config,

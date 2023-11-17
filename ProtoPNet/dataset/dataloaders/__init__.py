@@ -3,7 +3,6 @@ from albumentations.pytorch import ToTensorV2
 
 import cv2
 import numpy as np
-import os
 import pandas as pd
 import typing as typ
 
@@ -61,7 +60,7 @@ class CustomVisionDataset(datasets.VisionDataset):
             ToTensorV2(),
         ])
 
-        super().__init__(dataset_meta.USED_IMAGES.DIR, transform=transform, target_transform=target_transform)
+        super().__init__(str(dataset_meta.USED_IMAGES.DIR), transform=transform, target_transform=target_transform)
 
         assert subset in ["train", "test", "all"], "subset must be one of 'train', 'test' or 'all'"
         self.__subset = subset
@@ -160,15 +159,12 @@ class CustomVisionDataset(datasets.VisionDataset):
         sample = self.__meta_information.iloc[index]
 
         # Load the image
-        image_path = os.path.join(
-            self.__dataset_meta.USED_IMAGES.DIR,
-            f"{sample.name[1]}{self.__dataset_meta.IMAGE_PROPERTIES.EXTENSION}"
-        )
+        image_path = self.__dataset_meta.USED_IMAGES.DIR / f"{sample.name[1]}{self.__dataset_meta.IMAGE_PROPERTIES.EXTENSION}"
         if self.__dataset_meta.IMAGE_PROPERTIES.EXTENSION in [".npy", ".npz"]:
             # quicker to load than cv2.imread
             self.__current_image = np.load(image_path)["image"]
         else:
-            self.__current_image = cv2.imread(image_path, cv2.IMREAD_GRAYSCALE)
+            self.__current_image = cv2.imread(str(image_path), cv2.IMREAD_GRAYSCALE)
 
         target = self.__class_to_number[sample[self.__classification, "label"]]
         self.__current_target = self.__target_transform(target)

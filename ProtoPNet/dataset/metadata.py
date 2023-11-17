@@ -1,13 +1,14 @@
 import albumentations as A
 import gin
 import os
+from pathlib import Path
 
 import dataclasses as dc
 import typing as typ
 
 from ProtoPNet.util import helpers
 
-DATA_DIR = os.getenv("DATASET_LOCATION")
+DATA_DIR = Path(os.getenv("DATASET_LOCATION"))
 assert DATA_DIR is not None, "Please set the environment variable DATASET_LOCATION in .env file"
 
 
@@ -78,14 +79,14 @@ class _Augmentations:
 @dc.dataclass(frozen=True)
 class _DataVersion:
     NAME: str
-    DIR: str
-    MEAN: typ.Tuple[float] = (0.0, )
-    STD: typ.Tuple[float] = (0.0, )
+    DIR: Path
+    MEAN: typ.Tuple[float] = (0.0,)
+    STD: typ.Tuple[float] = (0.0,)
 
 
 @dc.dataclass(frozen=True)
 class _MetadataInformation:
-    FILE: str
+    FILE: Path
     PARAMETERS: typ.Dict[str, typ.Any] = dc.field(default_factory=dict)  # set default to empty dict
 
 
@@ -101,17 +102,17 @@ class _ImageInformation:
 @dc.dataclass
 class DatasetInformation(_PartiallyFrozenDataClass):
     _MUTABLE_ATTRS: typ.ClassVar[typ.List[str]] = ["USED_IMAGES"]
-    ROOT_DIR: str
+    ROOT_DIR: Path
     VERSIONS: typ.Dict[str, typ.Dict[str, _DataVersion]]
     METADATA: _MetadataInformation
     IMAGE_PROPERTIES: _ImageInformation
     NAME: str = ""
     TARGET_TO_VERSION: typ.Dict[str, str] = dc.field(default_factory=lambda: {
-            "normal_vs_abnormal": "full",
-            "benign_vs_malignant": "cropped",
-            "normal_vs_benign_vs_malignant": "full",
-            # todo: add "normal_vs_benign_vs_malignant" for the cropped version
-        })
+        "normal_vs_abnormal": "full",
+        "benign_vs_malignant": "cropped",
+        "normal_vs_benign_vs_malignant": "full",
+        # todo: add "normal_vs_benign_vs_malignant" for the cropped version
+    })
     USED_IMAGES: _DataVersion | None = None
 
 
@@ -153,8 +154,8 @@ class DataFilter(_PartiallyFrozenDataClass):
 
 
 # dataset configs
-MIAS_ROOT_DIR = os.path.join(DATA_DIR, "MIAS")
-DDSM_ROOT_DIR = os.path.join(DATA_DIR, "DDSM")
+MIAS_ROOT_DIR = DATA_DIR / "MIAS"
+DDSM_ROOT_DIR = DATA_DIR / "DDSM"
 DATASETS: typ.Dict[str, DatasetInformation] = {
     "MIAS": DatasetInformation(
         NAME="MIAS",
@@ -163,41 +164,41 @@ DATASETS: typ.Dict[str, DatasetInformation] = {
             "full": {
                 "original": _DataVersion(
                     NAME="original",
-                    DIR=os.path.join(MIAS_ROOT_DIR, "pngs"),
-                    MEAN=(0.2192, ),
-                    STD=(0.2930, ),
+                    DIR=MIAS_ROOT_DIR / "pngs",
+                    MEAN=(0.2192,),
+                    STD=(0.2930,),
                 ),
                 "masked": _DataVersion(
                     NAME="masked",
-                    DIR=os.path.join(MIAS_ROOT_DIR, "masked_images", "original"),
-                    MEAN=(0.1651, ),
-                    STD=(0.2741, ),
+                    DIR=MIAS_ROOT_DIR / "masked_images" / "original",
+                    MEAN=(0.1651,),
+                    STD=(0.2741,),
                 ),
                 "masked_preprocessed": _DataVersion(
                     NAME="masked_preprocessed",
-                    DIR=os.path.join(MIAS_ROOT_DIR, "masked_images", "clahe"),
-                    MEAN=(0.1497, ),
-                    STD=(0.2639, ),
+                    DIR=MIAS_ROOT_DIR / "masked_images" / "clahe",
+                    MEAN=(0.1497,),
+                    STD=(0.2639,),
                 ),
             },
             "cropped": {
                 "original": _DataVersion(
                     NAME="original",
-                    DIR=os.path.join(MIAS_ROOT_DIR, "pngs"),
-                    MEAN=(0.2192, ),
-                    STD=(0.2930, ),
+                    DIR=MIAS_ROOT_DIR / "pngs",
+                    MEAN=(0.2192,),
+                    STD=(0.2930,),
                 ),
                 "masked": _DataVersion(
                     NAME="masked",
-                    DIR=os.path.join(MIAS_ROOT_DIR, "masked_images", "original"),
-                    MEAN=(0.1651, ),
-                    STD=(0.2741, ),
+                    DIR=MIAS_ROOT_DIR / "masked_images" / "original",
+                    MEAN=(0.1651,),
+                    STD=(0.2741,),
                 ),
                 "masked_preprocessed": _DataVersion(
                     NAME="masked_preprocessed",
-                    DIR=os.path.join(MIAS_ROOT_DIR, "masked_images", "clahe"),
-                    MEAN=(0.1497, ),
-                    STD=(0.2639, ),
+                    DIR=MIAS_ROOT_DIR / "masked_images" / "clahe",
+                    MEAN=(0.1497,),
+                    STD=(0.2639,),
                 ),
             },
         },
@@ -208,7 +209,7 @@ DATASETS: typ.Dict[str, DatasetInformation] = {
         #     # todo: add "normal_vs_benign_vs_malignant" for the cropped version
         # },
         METADATA=_MetadataInformation(
-            FILE=os.path.join(MIAS_ROOT_DIR, "extended_data.csv"),
+            FILE=MIAS_ROOT_DIR / "extended_data.csv",
             PARAMETERS={
                 "header": [0, 1],
                 "index_col": [0, 1],
@@ -234,19 +235,19 @@ DATASETS: typ.Dict[str, DatasetInformation] = {
             "full": {
                 "original": _DataVersion(
                     NAME="original",
-                    DIR=os.path.join(DDSM_ROOT_DIR, "images"),
-                    MEAN=(0.2192,),
-                    STD=(0.2930,),
+                    DIR=DDSM_ROOT_DIR / "images",
+                    MEAN=(0.2037,),
+                    STD=(0.2284,),
                 ),
                 "masked": _DataVersion(
                     NAME="masked",
-                    DIR=os.path.join(DDSM_ROOT_DIR, "masked_images", "original"),
+                    DIR=DDSM_ROOT_DIR / "masked_images" / "original",
                     MEAN=(0.1651,),
                     STD=(0.2741,),
                 ),
                 "masked_preprocessed": _DataVersion(
                     NAME="masked_preprocessed",
-                    DIR=os.path.join(DDSM_ROOT_DIR, "masked_images", "clahe"),
+                    DIR=DDSM_ROOT_DIR / "masked_images" / "clahe",
                     MEAN=(0.1497,),
                     STD=(0.2639,),
                 ),
@@ -254,13 +255,13 @@ DATASETS: typ.Dict[str, DatasetInformation] = {
             "cropped": {
                 "original": _DataVersion(
                     NAME="original",
-                    DIR=os.path.join(DDSM_ROOT_DIR, "patches", "original"),
+                    DIR=DDSM_ROOT_DIR / "patches" / "original",
                     MEAN=(0.2192,),
                     STD=(0.2930,),
                 ),
                 "preprocessed": _DataVersion(
                     NAME="masked_preprocessed",
-                    DIR=os.path.join(DDSM_ROOT_DIR, "patches", "hist_eq"),
+                    DIR=DDSM_ROOT_DIR / "patches" / "hist_eq",
                     MEAN=(0.1497,),
                     STD=(0.2639,),
                 ),
@@ -273,7 +274,7 @@ DATASETS: typ.Dict[str, DatasetInformation] = {
         #     # todo: add "normal_vs_benign_vs_malignant" for the cropped version
         # },
         METADATA=_MetadataInformation(
-            FILE=os.path.join(DDSM_ROOT_DIR, "extended_data.csv"),
+            FILE=DDSM_ROOT_DIR / "extended_data.csv",
             PARAMETERS={
                 "header": [0, 1],
                 "index_col": [0, 1],

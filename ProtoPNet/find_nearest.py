@@ -1,5 +1,5 @@
 import heapq
-import os
+# import os
 import time
 
 import cv2
@@ -7,8 +7,9 @@ import matplotlib.pyplot as plt
 import numpy as np
 import torch
 from ProtoPNet.receptive_field import compute_rf_prototype
-from ProtoPNet.util.helpers import find_high_activation_crop, makedir
+from ProtoPNet.util.helpers import find_high_activation_crop
 from ProtoPNet.util.save import save_image
+from pathlib import Path
 from tqdm import tqdm
 
 
@@ -74,7 +75,7 @@ def find_k_nearest_patches_to_prototypes(
     k=5,
     preprocess_input_function=None,  # normalize if needed
     full_save=False,  # save all the images
-    root_dir_for_saving_images="./nearest",
+    root_dir_for_saving_images=Path("./nearest"),
     log=print,
     prototype_activation_function_in_numpy=None,
 ):
@@ -213,10 +214,8 @@ def find_k_nearest_patches_to_prototypes(
         heaps[j] = heaps[j][::-1]
 
         if full_save:
-            dir_for_saving_images = os.path.join(
-                root_dir_for_saving_images, str(j)
-            )
-            makedir(dir_for_saving_images)
+            dir_for_saving_images = root_dir_for_saving_images / str(j)
+            dir_for_saving_images.mkdir(parents=True, exist_ok=True)
 
             labels = []
 
@@ -224,19 +223,13 @@ def find_k_nearest_patches_to_prototypes(
                 # save the activation pattern of the original image
                 # where the patch comes from
                 np.save(
-                    os.path.join(
-                        dir_for_saving_images,
-                        "nearest-" + str(i + 1) + "_act.npy",
-                    ),
+                    dir_for_saving_images / f"nearest-{i + 1}_act.npy",
                     patch.act_pattern,
                 )
 
                 # save the original image where the patch comes from
                 save_image(
-                    fname=os.path.join(
-                        dir_for_saving_images,
-                        "nearest-" + str(i + 1) + "_original.png",
-                    ),
+                    fname=dir_for_saving_images / f"nearest-{i + 1}_original.png",
                     arr=patch.original_img,
                 )
 
@@ -264,10 +257,7 @@ def find_k_nearest_patches_to_prototypes(
                     0.5 * patch.original_img + 0.3 * heatmap
                 )
                 save_image(
-                    fname=os.path.join(
-                        dir_for_saving_images,
-                        "nearest-" + str(i + 1) + "_original_with_heatmap.png",
-                    ),
+                    fname=dir_for_saving_images /  f"nearest-{i + 1}_original_with_heatmap.png",
                     arr=overlayed_original_img,
                 )
 
@@ -278,19 +268,11 @@ def find_k_nearest_patches_to_prototypes(
                     or patch.patch.shape[1] != img_w
                 ):
                     np.save(
-                        os.path.join(
-                            dir_for_saving_images,
-                            "nearest-"
-                            + str(i + 1)
-                            + "_receptive_field_indices.npy",
-                        ),
+                        dir_for_saving_images / f"nearest-{i + 1}_receptive_field_indices.npy",
                         patch.patch_indices,
                     )
                     save_image(
-                        fname=os.path.join(
-                            dir_for_saving_images,
-                            "nearest-" + str(i + 1) + "_receptive_field.png",
-                        ),
+                        fname=dir_for_saving_images / f"nearest-{i + 1}_receptive_field.png",
                         arr=patch.patch,
                     )
                     # save the receptive field patch with heatmap
@@ -300,12 +282,7 @@ def find_k_nearest_patches_to_prototypes(
                         :,
                     ]
                     save_image(
-                        fname=os.path.join(
-                            dir_for_saving_images,
-                            "nearest-"
-                            + str(i + 1)
-                            + "_receptive_field_with_heatmap.png",
-                        ),
+                        fname=dir_for_saving_images / f"nearest-{i + 1}_receptive_field_with_heatmap.png",
                         arr=overlayed_patch,
                     )
 
@@ -319,30 +296,17 @@ def find_k_nearest_patches_to_prototypes(
                     :,
                 ]
                 np.save(
-                    os.path.join(
-                        dir_for_saving_images,
-                        "nearest-"
-                        + str(i + 1)
-                        + "_high_act_patch_indices.npy",
-                    ),
+                    dir_for_saving_images / f"nearest-{i + 1}_high_act_patch_indices.npy",
                     high_act_patch_indices,
                 )
                 save_image(
-                    fname=os.path.join(
-                        dir_for_saving_images,
-                        "nearest-" + str(i + 1) + "_high_act_patch.png",
-                    ),
+                    fname=dir_for_saving_images / f"nearest-{i + 1}_high_act_patch.png",
                     arr=high_act_patch,
                 )
                 # save the original image with bounding box
                 # showing high activation patch
                 imsave_with_bbox(
-                    fname=os.path.join(
-                        dir_for_saving_images,
-                        "nearest-"
-                        + str(i + 1)
-                        + "_high_act_patch_in_original_img.png",
-                    ),
+                    fname=dir_for_saving_images /  f"nearest-{i + 1}_high_act_patch_in_original_img.png",
                     img_rgb=patch.original_img,
                     bbox_height_start=high_act_patch_indices[0],
                     bbox_height_end=high_act_patch_indices[1],
@@ -352,19 +316,14 @@ def find_k_nearest_patches_to_prototypes(
                 )
 
             labels = np.array([patch.label for patch in heaps[j]])
-            np.save(
-                os.path.join(dir_for_saving_images, "class_id.npy"), labels
-            )
+            np.save(dir_for_saving_images / "class_id.npy", labels)
 
     labels_all_prototype = np.array(
         [[patch.label for patch in heaps[j]] for j in range(n_prototypes)]
     )
 
     if full_save:
-        np.save(
-            os.path.join(root_dir_for_saving_images, "full_class_id.npy"),
-            labels_all_prototype,
-        )
+        np.save(root_dir_for_saving_images / "full_class_id.npy", labels_all_prototype)
 
     end = time.time()
     log(f"INFO: \tfind nearest patches time: \t{end - start}")
