@@ -24,6 +24,7 @@ torchvision = { version = "0.15.2+cu118", source = "torch" }
 tqdm = "^4.66.1"
 argparse = "^1.4.0"
 gin-config = "^0.5.0"
+pipe = "^2.0"
 
 [tool.poetry.dev-dependencies]
 black = "^23.9.1"

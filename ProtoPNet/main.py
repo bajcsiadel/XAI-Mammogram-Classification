@@ -3,11 +3,15 @@ import numpy as np
 import os
 import re
 import shutil
+import sys
 import torch
+import warnings
 
 from dotenv import load_dotenv
+from pathlib import Path
 
 load_dotenv()
+sys.path.append(os.getenv("PROJECT_ROOT"))
 
 from ProtoPNet import model
 from ProtoPNet import push
@@ -18,8 +22,7 @@ from ProtoPNet.dataset.metadata import DATASETS
 from ProtoPNet.dataset.dataloaders.MIAS import MIASDataModule
 from ProtoPNet.dataset.dataloaders.DDSM import DDSMDataModule
 
-from ProtoPNet.util import args
-from ProtoPNet.util import helpers
+from ProtoPNet.util import args as ProtoPNet_args
 from ProtoPNet.util.log import Log
 from ProtoPNet.util import save
 
@@ -38,11 +41,8 @@ def main(args, logger, dataset_module):
     logger.log_info(f"Visible devices set to: {torch.cuda.current_device()}")
 
     # create result directory
-    log_source_dir = os.path.join(
-        args.log_dir,
-        "src",
-    )
-    helpers.makedir(log_source_dir)
+    log_source_dir = args.log_dir / "src"
+    log_source_dir.mkdir(parents=True, exist_ok=True)
 
     dataset_information = DATASETS[args.dataset]
 
@@ -50,37 +50,26 @@ def main(args, logger, dataset_module):
 
     # copy code to result directory
     base_architecture_type = re.match("^[a-z]*", args.backbone).group(0)
+
+    project_root = Path(os.getenv("PROJECT_ROOT"))
+    module_root = project_root / "ProtoPNet"
     shutil.copy(
-        src=os.path.join(
-            os.getenv("PROJECT_ROOT"),
-            "ProtoPNet",
-            "config",
-            "backbone_features",
-            base_architecture_type + "_features.py",
-        ),
+        src=module_root / "config" / "backbone_features" / f"{base_architecture_type}_features.py",
         dst=log_source_dir,
     )
     shutil.copy(
-        src=os.path.join(
-            os.getenv("PROJECT_ROOT"),
-            "ProtoPNet",
-            "model.py"
-        ),
+        src=module_root / "model.py",
         dst=log_source_dir
     )
     shutil.copy(
-        src=os.path.join(
-            os.getenv("PROJECT_ROOT"),
-            "ProtoPNet",
-            "train_and_test.py"
-        ),
+        src=module_root / "train_and_test.py",
         dst=log_source_dir
     )
 
-    model_dir = os.path.join(args.log_dir, "model")
-    helpers.makedir(model_dir)
-    img_dir = os.path.join(args.log_dir, "img")
-    helpers.makedir(img_dir)
+    model_dir = args.log_dir / "model"
+    model_dir.mkdir(parents=True, exist_ok=True)
+    img_dir = args.log_dir / "img"
+    img_dir.mkdir(parents=True, exist_ok=True)
 
     # weight_matrix_filename = "outputL_weights"
     prototype_img_filename_prefix = "prototype-img"
@@ -218,7 +207,7 @@ def main(args, logger, dataset_module):
         for epoch in np.arange(args.epochs) + 1:
             real_epoch_number = epoch + args.epochs_pretrain
             logger.log_info(f"\t\tepoch: \t{epoch} ({real_epoch_number})")
-            if epoch > 0:
+            if epoch > 1:
                 joint_lr_scheduler.step()
 
             logger.csv_log_index("train_model", (fold, real_epoch_number, "train"))
@@ -313,13 +302,18 @@ def main(args, logger, dataset_module):
 
 if __name__ == "__main__":
     # python main.py --pretrained --batch-size-pretrain 32 --batch-size 8 --batch-size-push 16 --epochs-pretrain 4 --epochs-finetune 4 --epochs 10 --dataset MIAS --target normal_vs_abnormal --stratified-cross-validation --grouped-cross-validation --gpu-id 1 --log-dir original-n-v-a
-    command_line_params = args.get_args()
+    command_line_params = ProtoPNet_args.get_args()
     logger = Log(command_line_params.log_dir)
-    try:
-        args.save_args(command_line_params, logger.metadata_dir)
 
-        config_file = args.generate_gin_config(command_line_params, logger.metadata_dir)
+    try:
+        warnings.showwarning = lambda warning: logger.log_exception(warning, warn_only=True)
+
+        logger.log_command_line()
+        ProtoPNet_args.save_args(command_line_params, logger.metadata_dir)
+
+        config_file = ProtoPNet_args.generate_gin_config(command_line_params, logger.metadata_dir)
         gin.parse_config_file(config_file)
+        exit()
 
         logger.create_csv_log("train_model", ("fold", "epoch", "phase"),
                               "time", "cross entropy", "cluster_loss", "separation_loss",

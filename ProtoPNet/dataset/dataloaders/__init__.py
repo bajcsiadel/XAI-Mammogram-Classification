@@ -3,8 +3,8 @@ from albumentations.pytorch import ToTensorV2
 
 import cv2
 import numpy as np
-import os
 import pandas as pd
+import pipe
 import typing as typ
 
 import torch
@@ -12,6 +12,7 @@ from torch.utils.data import DataLoader, SubsetRandomSampler
 from torchvision import datasets
 
 from ProtoPNet.dataset.metadata import DatasetInformation
+from ProtoPNet.util import helpers
 
 
 def _target_transform(target):
@@ -27,6 +28,8 @@ class CustomVisionDataset(datasets.VisionDataset):
     :type classification: str
     :param subset: Subset to use
     :type subset: str
+    :param data_filters: Filters to apply to the data
+    :type data_filters: typ.List[typ.Callable[[pd.DataFrame], pd.DataFrame]] | None
     :param transform: Transform to apply to the images
     :type transform: albumentations.BasicTransform | list[albumentations.BasicTransform]
     :param target_transform: Transform to apply to the targets
@@ -37,6 +40,7 @@ class CustomVisionDataset(datasets.VisionDataset):
             dataset_meta,
             classification,
             subset="train",
+            data_filters=None,
             normalize=True,
             transform=A.NoOp(),
             target_transform=_target_transform
@@ -57,9 +61,9 @@ class CustomVisionDataset(datasets.VisionDataset):
             ToTensorV2(),
         ])
 
-        super().__init__(dataset_meta.USED_IMAGES.DIR, transform=transform, target_transform=target_transform)
+        super().__init__(str(dataset_meta.USED_IMAGES.DIR), transform=transform, target_transform=target_transform)
 
-        # assert subset in ["train", "test"], "subset must be one of 'train' or 'test'"
+        assert subset in ["train", "test", "all"], "subset must be one of 'train', 'test' or 'all'"
         self.__subset = subset
 
         self.__dataset_meta = dataset_meta
@@ -69,9 +73,18 @@ class CustomVisionDataset(datasets.VisionDataset):
             **dataset_meta.METADATA.PARAMETERS
         )
 
+        if data_filters is not None:
+            for data_filter in data_filters:
+                self.__meta_information = data_filter(self.__meta_information)
+
+            assert len(self.__meta_information) > 0, "no data left after filtering"
+
         assert isinstance(self.__meta_information.columns, pd.MultiIndex), "metadata does not have split information"
-        cls_types = list(filter(lambda column: "_vs_" in column, self.__meta_information.columns.get_level_values(0)))
-        assert len(cls_types) > 0, f"no classification types found in the metadata {dataset_meta.METADATA.FILE}"
+        cls_types = list(
+            self.__meta_information.columns.get_level_values(0)
+            | pipe.where(lambda column: "_vs_" in column)
+        )
+        assert len(cls_types) > 0, f"No classification types found in the metadata {dataset_meta.METADATA.FILE}"
         assert classification in f"cls_types, classification must be one from {cls_types}"
         self.__classification = classification
 
@@ -150,15 +163,12 @@ class CustomVisionDataset(datasets.VisionDataset):
         sample = self.__meta_information.iloc[index]
 
         # Load the image
-        image_path = os.path.join(
-            self.__dataset_meta.USED_IMAGES.DIR,
-            f"{sample.name[1]}{self.__dataset_meta.IMAGE_PROPERTIES.EXTENSION}"
-        )
+        image_path = self.__dataset_meta.USED_IMAGES.DIR / f"{sample.name[1]}{self.__dataset_meta.IMAGE_PROPERTIES.EXTENSION}"
         if self.__dataset_meta.IMAGE_PROPERTIES.EXTENSION in [".npy", ".npz"]:
             # quicker to load than cv2.imread
             self.__current_image = np.load(image_path)["image"]
         else:
-            self.__current_image = cv2.imread(image_path, cv2.IMREAD_GRAYSCALE)
+            self.__current_image = cv2.imread(str(image_path), cv2.IMREAD_GRAYSCALE)
 
         target = self.__class_to_number[sample[self.__classification, "label"]]
         self.__current_target = self.__target_transform(target)
@@ -181,6 +191,8 @@ class CustomDataModule:
     :type used_images: str
     :param classification:
     :type classification: str
+    :param data_filters: Filters to apply to the data
+    :type data_filters: typ.List[typ.Callable[[pd.DataFrame], pd.DataFrame]] | None
     :param cross_validation_folds: Number of cross validation folds
     :type cross_validation_folds: int
     :param stratified:
@@ -198,6 +210,7 @@ class CustomDataModule:
             data,
             used_images,
             classification,
+            data_filters=None,
             cross_validation_folds=None,
             stratified=True,
             groups=True,
@@ -209,10 +222,7 @@ class CustomDataModule:
 
         self.__data = data
         if self.__data.USED_IMAGES is None:
-            if used_images in data.VERSIONS:
-                self.__data.USED_IMAGES = data.VERSIONS[used_images]
-            else:
-                raise ValueError(f"'used_images' must be one of {list(data.VERSIONS.keys())}, not {used_images}")
+            helpers.set_used_images(self.__data, used_images, classification)
 
         if dataset_class is CustomVisionDataset:
             dataset_params = {
@@ -223,6 +233,10 @@ class CustomDataModule:
             dataset_params = {
                 "classification": classification,
             }
+
+        dataset_params = dataset_params | {
+            "data_filters": data_filters,
+        }
 
         # define datasets
         self.__train_data = dataset_class(
@@ -414,7 +428,6 @@ if __name__ == '__main__':
     from ProtoPNet.dataset.metadata import DATASETS
 
     ds = DATASETS["MIAS"]
-    ds.USED_IMAGES = ds.VERSIONS["original"]
 
     module = CustomDataModule(ds, "original", "normal_vs_abnormal", 5)
     for fold, (tr, vl) in module.folds:
