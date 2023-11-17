@@ -3,6 +3,7 @@ import json
 import os
 import pandas as pd
 import pickle
+import pipe
 
 from pathlib import Path
 
@@ -442,7 +443,7 @@ def generate_gin_config(args, location):
     config_content += "\n"
     config_content += f"{data_module}.used_images            = '{args.used_images}'\n"
     config_content += f"{data_module}.classification         = '{args.target}'\n"
-    data_filters = ",\n\t".join(map(lambda data_filter: f"@{data_filter.SCOPE}()", args.data_filters))
+    data_filters = ",\n\t".join(args.data_filters | pipe.map(lambda data_filter: f"@{data_filter.SCOPE}()"))
     if len(args.data_filters) > 0:
         data_filters = f"\n\t{data_filters},\n"
     config_content += f"{data_module}.data_filters           = [{data_filters}]\n"

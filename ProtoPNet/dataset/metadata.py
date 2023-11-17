@@ -1,6 +1,7 @@
 import albumentations as A
 import gin
 import os
+import pipe
 from pathlib import Path
 
 import dataclasses as dc
@@ -24,6 +25,17 @@ class _PartiallyFrozenDataClass:
 
 
 class _Augmentations:
+    """
+    Class representing the necessary augmentations for a dataset
+    :param TRAIN: augmentations applied to the train set. Defaults to None.
+    :type TRAIN: typ.Iterable[A.BasicTransform] | None
+    :param PUSH: augmentations applied to the push set. Defaults to None
+    :type PUSH: typ.Iterable[A.BasicTransform] | None
+    :param TEST: augmentations applied to the test set. Defaults to None.
+    :type TEST: typ.Iterable[A.BasicTransform]
+    :param DISABLED: flag marking if augmentations are turned off. Defaults to False.
+    :type DISABLED: bool
+    """
     def __init__(self, TRAIN=None, PUSH=None, TEST=None, DISABLED=False):
         self.__TRAIN = TRAIN or []
         self.__PUSH = PUSH or []
@@ -33,7 +45,9 @@ class _Augmentations:
     def __get_property(self, name):
         if self.DISABLED:
             return []
-        attr_name = list(filter(lambda x: x.endswith(f"__{name}"), self.__dict__.keys()))[0]
+        attr_name = list(
+            self.__dir__()
+            | pipe.where(lambda x: x.endswith(f"__{name}")))[0]
         return getattr(self, attr_name)
 
     def __set_property(self, name):
@@ -65,15 +79,49 @@ class _Augmentations:
 
     @staticmethod
     def __augmentations_to_json(augmentations):
-        return list(map(str, augmentations))
+        """
+        Convert the list of augmentations to a list
+        of strings representing each augmentation
+        :param augmentations:
+        :type augmentations: typ.Iterable[A.BasicTransform]
+        :return:
+        """
+        return list(augmentations | pipe.map(str))
 
     def to_json(self):
+        """
+        Get JSON representation of the current object
+        :return:
+        :rtype: str
+        """
         return {
             "TRAIN": self.__augmentations_to_json(self.__TRAIN),
             "PUSH": self.__augmentations_to_json(self.__PUSH),
             "TEST": self.__augmentations_to_json(self.__TEST),
             "DISABLED": self.DISABLED,
         }
+
+    def to_string(self):
+        """
+        Get a string representing the current object
+        :return:
+        :rtype: str
+        """
+        return repr(self)
+
+    def __repr__(self):
+        """
+        Get a string representing the current object
+        :return:
+        :rtype: str
+        """
+        return (f"{self.__class__.__name__}(\n"
+                f"\tTRAIN={self.__TRAIN},\n"
+                f"\tPUSH={self.__PUSH},\n"
+                f"\tTEST={self.__TEST},\n"
+                f"\tDISABLED={self.DISABLED},\n"
+                f")")
+Test = _Augmentations
 
 
 @dc.dataclass(frozen=True)
@@ -127,8 +175,15 @@ class DataFilter(_PartiallyFrozenDataClass):
     def __post_init__(self):
         if self.SCOPE == "":
             self.SCOPE = "Filter"
-            if type(self.FIELD) is tuple:
-                self.SCOPE += "".join(map(lambda x: x[0].upper() + x[1:].lower(), self.FIELD))
+            tmp_field = self.FIELD
+            if type(tmp_field) is str:
+                tmp_field = (tmp_field, )
+            self.SCOPE += "".join(
+                tmp_field
+                | pipe.map(lambda x: x.split("_"))
+                | pipe.chain  # flatten the resulting nested list
+                | pipe.map(lambda x: x[0].upper() + x[1:].lower())
+            )
             match self.VALUE:
                 case float():
                     self.SCOPE += str(self.VALUE).replace(".", "_")

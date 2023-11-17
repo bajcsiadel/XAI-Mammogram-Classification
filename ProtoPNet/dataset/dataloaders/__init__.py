@@ -4,6 +4,7 @@ from albumentations.pytorch import ToTensorV2
 import cv2
 import numpy as np
 import pandas as pd
+import pipe
 import typing as typ
 
 import torch
@@ -79,8 +80,11 @@ class CustomVisionDataset(datasets.VisionDataset):
             assert len(self.__meta_information) > 0, "no data left after filtering"
 
         assert isinstance(self.__meta_information.columns, pd.MultiIndex), "metadata does not have split information"
-        cls_types = list(filter(lambda column: "_vs_" in column, self.__meta_information.columns.get_level_values(0)))
-        assert len(cls_types) > 0, f"no classification types found in the metadata {dataset_meta.METADATA.FILE}"
+        cls_types = list(
+            self.__meta_information.columns.get_level_values(0)
+            | pipe.where(lambda column: "_vs_" in column)
+        )
+        assert len(cls_types) > 0, f"No classification types found in the metadata {dataset_meta.METADATA.FILE}"
         assert classification in f"cls_types, classification must be one from {cls_types}"
         self.__classification = classification
 
