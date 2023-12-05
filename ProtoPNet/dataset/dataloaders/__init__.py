@@ -7,6 +7,7 @@ import pandas as pd
 import pipe
 import typing as typ
 
+from icecream import ic
 import torch
 from torch.utils.data import DataLoader, SubsetRandomSampler
 from torchvision import datasets
@@ -35,6 +36,7 @@ class CustomVisionDataset(datasets.VisionDataset):
     :param target_transform: Transform to apply to the targets
     :type target_transform: callable
     """
+
     def __init__(
             self,
             dataset_meta,
@@ -52,7 +54,8 @@ class CustomVisionDataset(datasets.VisionDataset):
         if isinstance(transform, A.BasicTransform):
             transform = [transform]
         if normalize:
-            transform.append(A.Normalize(mean=dataset_meta.USED_IMAGES.MEAN, std=dataset_meta.USED_IMAGES.STD, max_pixel_value=1.0))
+            transform.append(
+                A.Normalize(mean=dataset_meta.USED_IMAGES.MEAN, std=dataset_meta.USED_IMAGES.STD, max_pixel_value=1.0))
 
         transform = A.Compose([
             A.ToFloat(max_value=dataset_meta.IMAGE_PROPERTIES.MAX_VALUE),
@@ -81,11 +84,12 @@ class CustomVisionDataset(datasets.VisionDataset):
 
         assert isinstance(self.__meta_information.columns, pd.MultiIndex), "metadata does not have split information"
         cls_types = list(
-            self.__meta_information.columns.get_level_values(0)
+            self.__meta_information.columns.get_level_values(0).tolist()
             | pipe.where(lambda column: "_vs_" in column)
         )
         assert len(cls_types) > 0, f"No classification types found in the metadata {dataset_meta.METADATA.FILE}"
-        assert classification in f"cls_types, classification must be one from {cls_types}"
+        assert classification in cls_types, (f"cls_types, classification must be one from "
+                                             f"{cls_types}, not {classification}")
         self.__classification = classification
 
         # Filter out the rows that are not in the subset
@@ -205,6 +209,7 @@ class CustomDataModule:
     :type seed: int
     :param dataset_class:
     """
+
     def __init__(
             self,
             data,
@@ -218,7 +223,8 @@ class CustomDataModule:
             seed=None,
             dataset_class=CustomVisionDataset,
     ):
-        assert issubclass(dataset_class, CustomVisionDataset), f"dataset_class must be a subclass of CustomVisionDataset, not {type(dataset_class)}"
+        assert issubclass(dataset_class,
+                          CustomVisionDataset), f"dataset_class must be a subclass of CustomVisionDataset, not {type(dataset_class)}"
 
         self.__data = data
         if self.__data.USED_IMAGES is None:
@@ -311,8 +317,9 @@ class CustomDataModule:
 
         self.__folds = {fold + 1: (
             SubsetRandomSampler(train_idx),
-            SubsetRandomSampler(validation_idx)
-        ) for fold, (train_idx, validation_idx) in enumerate(cross_validator.split(self.__train_data, **self.__cv_kwargs))}
+            SubsetRandomSampler(validation_idx),
+        ) for fold, (train_idx, validation_idx) in
+            enumerate(cross_validator.split(self.__train_data, **self.__cv_kwargs))}
 
     @property
     def folds(self):
@@ -421,19 +428,15 @@ class CustomDataModule:
 
 
 if __name__ == '__main__':
-    from dotenv import load_dotenv
-
-    load_dotenv()
-
     from ProtoPNet.dataset.metadata import DATASETS
 
     ds = DATASETS["MIAS"]
 
-    module = CustomDataModule(ds, "original", "normal_vs_abnormal", 5)
+    module = CustomDataModule(ds, "original", "normal_vs_abnormal", cross_validation_folds=5)
     for fold, (tr, vl) in module.folds:
-        print(fold)
-        print(tr)
-        print(vl)
+        ic(fold)
+        ic(tr)
+        ic(vl)
 
     # loader = CustomDataModule(ds, "original", "normal_vs_abnormal", 32)
     # tr_loader = loader.train_dataloader()
@@ -444,4 +447,3 @@ if __name__ == '__main__':
     #     print(fold)
     #     print(tr_idx)
     #     print(val_idx)
-
