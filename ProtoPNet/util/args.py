@@ -368,10 +368,13 @@ def __process_agrs(args):
     }
 
     if args.log_dir == "":
-        args.log_dir = f"{args.dataset}-{args.used_images}-{args.backbone}-{args.target}"
+        args.log_dir = f"{args.dataset}"
 
         if args.balanced_cross_validation:
             args.log_dir += "-balanced"
+
+        args.log_dir += f"-{args.used_images}-{args.backbone}-{args.target}"
+
         if len(args.data_filters) > 0:
             args.log_dir += "-filtered"
             current_field = None

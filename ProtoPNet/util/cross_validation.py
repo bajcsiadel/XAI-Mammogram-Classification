@@ -136,32 +136,12 @@ class BalancedGroupKFold(GroupKFold):
 
             yield train_idx, test_idx
 
-        images = X.index.get_level_values("image_name").values
-        self.__count_use["train_stats"] = sorted(
-            list(
-                zip(images[self.__count_use["train"] > 0], self.__count_use["train"][self.__count_use["train"] > 0])
-            ),
-            key=lambda x: x[1],
-            reverse=True
-        )
-        self.__count_use["test_stats"] = sorted(
-            list(
-                zip(images[self.__count_use["test"] > 0], self.__count_use["test"][self.__count_use["test"] > 0])
-            ),
-            key=lambda x: x[1],
-            reverse=True
-        )
-        self.__count_use["train_not_used"] = len(images[self.__count_use["train"] == 0])
-        self.__count_use["test_not_used"] = len(images[self.__count_use["test"] == 0])
-
     def stats(self):
         ic("TRAIN")
         ic("maximum use", self.__count_use["train"].max())
         ic(np.unique(self.__count_use["train"], return_counts=True))
-        ic(self.__count_use["train_stats"])
         print()
         ic("TEST")
-        ic(self.__count_use["test_stats"])
         ic("maximum use", self.__count_use["test"].max())
         ic(np.unique(self.__count_use["test"], return_counts=True))
 

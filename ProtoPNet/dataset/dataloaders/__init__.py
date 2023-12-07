@@ -98,10 +98,6 @@ class CustomVisionDataset(datasets.VisionDataset):
         self.__class_to_number = {cls: i for i, cls in enumerate(self.__classes)}
 
         self.__transform = transform
-
-        # define imbalance of dataset
-        self.__imbalance = self.__meta_information.groupby((self.__classification, "label")).size().to_dict()
-
         self.__target_transform = target_transform
 
     @property
@@ -274,16 +270,13 @@ class CustomDataModule:
             return
 
         targets = self.__train_data.targets
-        sample_groups = self.__train_data.metadata.index.get_level_values("patient_id").to_numpy() if groups else None
+        sample_groups = self.__train_data.metadata.index.get_level_values("patient_id").to_numpy()
 
         cv_kwargs = {}
         if groups or balanced:
             cv_kwargs["groups"] = sample_groups
         if stratified or balanced:
             cv_kwargs["y"] = targets
-
-        from icecream import ic
-        ic(cv_kwargs)
 
         if balanced:
             from ProtoPNet.util.cross_validation import BalancedGroupKFold
