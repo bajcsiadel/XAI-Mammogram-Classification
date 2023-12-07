@@ -33,6 +33,8 @@ class MIASDataModule(dl.CustomDataModule):
     :type cross_validation_folds: int
     :param stratified:
     :type stratified: bool
+    :param balanced:
+    :type balanced: bool
     :param groups:
     :type groups: bool
     :param num_workers:
@@ -47,6 +49,7 @@ class MIASDataModule(dl.CustomDataModule):
             data_filters=None,
             cross_validation_folds=5,
             stratified=True,
+            balanced=False,
             groups=True,
             num_workers=4,
             seed=0,
@@ -58,6 +61,7 @@ class MIASDataModule(dl.CustomDataModule):
             data_filters,
             cross_validation_folds,
             stratified,
+            balanced,
             groups,
             num_workers,
             seed,

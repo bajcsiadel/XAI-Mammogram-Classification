@@ -7,7 +7,7 @@ import pipe
 
 from pathlib import Path
 
-from ProtoPNet.dataset.metadata import DATASETS, DataFilter
+from ProtoPNet.dataset.metadata import DATASETS, ExactDataFilter
 from ProtoPNet.config.backbone_features import BACKBONE_MODELS
 
 from ProtoPNet.util import helpers
@@ -92,10 +92,16 @@ def get_args():
         default=5,
         help="Number of folds for cross validation",
     )
-    parser.add_argument(
+    cv_parameters = parser.add_mutually_exclusive_group()
+    cv_parameters.add_argument(
         "--stratified-cross-validation",
         action="store_true",
         help="Use stratified cross-validation"
+    )
+    cv_parameters.add_argument(
+        "--balanced-cross-validation",
+        action="store_true",
+        help="Use balanced cross-validation"
     )
     parser.add_argument(
         "--grouped-cross-validation",
@@ -363,6 +369,21 @@ def __process_agrs(args):
 
     if args.log_dir == "":
         args.log_dir = f"{args.dataset}-{args.used_images}-{args.backbone}-{args.target}"
+
+        if args.balanced_cross_validation:
+            args.log_dir += "-balanced"
+        if len(args.data_filters) > 0:
+            args.log_dir += "-filtered"
+            current_field = None
+            current_values = []
+            for current_filter in args.data_filters + [ExactDataFilter(FIELD="end", VALUE="end")]:
+                if current_filter.FIELD != current_field:
+                    if current_field is not None:
+                        args.log_dir += f"_{current_field}_{'_'.join(current_values | pipe.map(str))}"
+                    current_field = current_filter.get_short_field()
+                    current_values = []
+                current_values.append(current_filter.VALUE)
+
     args.log_dir = Path(os.getenv("PROJECT_ROOT")) / "runs" / args.log_dir
 
 
@@ -371,6 +392,8 @@ def __get_used_images_key(args):
         return "masked_preprocessed"
     elif args.masked:
         return "masked"
+    elif args.preprocessed:
+        return "preprocessed"
     else:
         return "original"
 
@@ -449,6 +472,7 @@ def generate_gin_config(args, location):
     config_content += f"{data_module}.data_filters           = [{data_filters}]\n"
     config_content += f"{data_module}.cross_validation_folds = {args.cross_validation_folds}\n"
     config_content += f"{data_module}.stratified             = {args.stratified_cross_validation}\n"
+    config_content += f"{data_module}.balanced               = {args.balanced_cross_validation}\n"
     config_content += f"{data_module}.groups                 = {args.grouped_cross_validation}\n"
     config_content += f"{data_module}.num_workers            = {args.number_of_workers}\n"
     config_content += f"{data_module}.seed                   = {args.seed}\n"
@@ -534,7 +558,7 @@ class __AppendFilter(argparse.Action):
 
 class __FilterView(__AppendFilter):
     def __call__(self, parser, namespace, view, option_string=None):
-        super().__call__(parser, namespace, DataFilter(FIELD=("mammogram_properties", "view"), VALUE=view),
+        super().__call__(parser, namespace, ExactDataFilter(FIELD=("mammogram_properties", "view"), VALUE=view),
                          option_string)
 
 
