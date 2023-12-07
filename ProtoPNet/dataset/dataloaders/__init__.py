@@ -50,7 +50,8 @@ class CustomVisionDataset(datasets.VisionDataset):
         if isinstance(transform, A.BasicTransform):
             transform = [transform]
         if normalize:
-            transform.append(A.Normalize(mean=dataset_meta.USED_IMAGES.MEAN, std=dataset_meta.USED_IMAGES.STD, max_pixel_value=1.0))
+            transform.append(
+                A.Normalize(mean=dataset_meta.USED_IMAGES.MEAN, std=dataset_meta.USED_IMAGES.STD, max_pixel_value=1.0))
 
         transform = A.Compose([
             A.ToFloat(max_value=dataset_meta.IMAGE_PROPERTIES.MAX_VALUE),
@@ -79,11 +80,12 @@ class CustomVisionDataset(datasets.VisionDataset):
 
         assert isinstance(self.__meta_information.columns, pd.MultiIndex), "metadata does not have split information"
         cls_types = list(
-            self.__meta_information.columns.get_level_values(0)
+            self.__meta_information.columns.get_level_values(0).tolist()
             | pipe.where(lambda column: "_vs_" in column)
         )
         assert len(cls_types) > 0, f"No classification types found in the metadata {dataset_meta.METADATA.FILE}"
-        assert classification in f"cls_types, classification must be one from {cls_types}"
+        assert classification in cls_types, (f"cls_types, classification must be one from "
+                                             f"{cls_types}, not {classification}")
         self.__classification = classification
 
         # Filter out the rows that are not in the subset
@@ -196,6 +198,7 @@ class CustomDataModule:
     :type seed: int
     :param dataset_class:
     """
+
     def __init__(
             self,
             data,
@@ -418,10 +421,6 @@ class CustomDataModule:
 
 
 if __name__ == '__main__':
-    from dotenv import load_dotenv
-
-    load_dotenv()
-
     from ProtoPNet.dataset.metadata import DATASETS
 
     ds = DATASETS["MIAS"]
@@ -441,4 +440,3 @@ if __name__ == '__main__':
     #     print(fold)
     #     print(tr_idx)
     #     print(val_idx)
-

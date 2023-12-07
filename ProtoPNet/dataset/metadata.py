@@ -368,7 +368,7 @@ DATASETS: typ.Dict[str, DatasetInformation] = {
             },
         ),
         IMAGE_PROPERTIES=_ImageInformation(
-            EXTENSION=".png",
+            EXTENSION=".npz",
             SHAPE=(1024, 1024),
             COLOR_CHANNELS=1,
             # MAX_VALUE=255,
