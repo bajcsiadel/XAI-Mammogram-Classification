@@ -1,9 +1,10 @@
-import albumentations as A
+import abc
 import gin
 import os
 import pipe
 from pathlib import Path
 
+import albumentations as A
 import dataclasses as dc
 import typing as typ
 
@@ -166,7 +167,7 @@ class DatasetInformation(_PartiallyFrozenDataClass):
 
 @gin.configurable
 @dc.dataclass
-class DataFilter(_PartiallyFrozenDataClass):
+class _DataFilter(_PartiallyFrozenDataClass, abc.ABC):
     _MUTABLE_ATTRS = ["SCOPE"]
     FIELD: str | tuple[str, ...]
     VALUE: typ.Any
@@ -178,8 +179,9 @@ class DataFilter(_PartiallyFrozenDataClass):
             tmp_field = self.FIELD
             if type(tmp_field) is str:
                 tmp_field = (tmp_field, )
+
             self.SCOPE += "".join(
-                tmp_field
+                list(tmp_field)
                 | pipe.map(lambda x: x.split("_"))
                 | pipe.chain  # flatten the resulting nested list
                 | pipe.map(lambda x: x[0].upper() + x[1:].lower())
@@ -191,8 +193,38 @@ class DataFilter(_PartiallyFrozenDataClass):
                     raise ValueError("DataFilter: List values are not supported for 'VALUE' field")
                 case _:
                     self.SCOPE += str(self.VALUE)
-        self.SCOPE += "/DataFilter"
+        self.SCOPE += f"/{self.__class__.__name__}"
 
+    def get_short_field(self):
+        """
+        Get a short version of the field name
+        :return:
+        :rtype: str
+        """
+        match self.FIELD:
+            case str():
+                return self.FIELD
+            case tuple() | list():
+                return self.FIELD[-1]
+            case _:
+                raise TypeError(f"Unexpected type for field: {type(self.FIELD)}")
+
+    @abc.abstractmethod
+    def __call__(self, data):
+        raise NotImplementedError
+
+    def __lt__(self, other):
+        """
+        Compare the current filter to another filter. Needed for sorting
+        :param other: other DataFilter object
+        :type other: _DataFilter
+        :return:
+        :rtype: bool
+        """
+        return self.SCOPE < other.SCOPE
+
+
+class ExactDataFilter(_DataFilter):
     def __call__(self, data):
         """
         Apply the filter to the given data
