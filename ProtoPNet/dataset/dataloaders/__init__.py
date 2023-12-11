@@ -7,6 +7,7 @@ import pandas as pd
 import pipe
 import typing as typ
 
+from icecream import ic
 import torch
 from torch.utils.data import DataLoader, SubsetRandomSampler
 from torchvision import datasets
@@ -35,6 +36,7 @@ class CustomVisionDataset(datasets.VisionDataset):
     :param target_transform: Transform to apply to the targets
     :type target_transform: callable
     """
+
     def __init__(
             self,
             dataset_meta,
@@ -45,14 +47,11 @@ class CustomVisionDataset(datasets.VisionDataset):
             transform=A.NoOp(),
             target_transform=_target_transform
     ):
-        has_transforms = True
-        if isinstance(transform, A.NoOp) or transform == []:
-            has_transforms = False
-
         if isinstance(transform, A.BasicTransform):
             transform = [transform]
         if normalize:
-            transform.append(A.Normalize(mean=dataset_meta.USED_IMAGES.MEAN, std=dataset_meta.USED_IMAGES.STD, max_pixel_value=1.0))
+            transform.append(
+                A.Normalize(mean=dataset_meta.USED_IMAGES.MEAN, std=dataset_meta.USED_IMAGES.STD, max_pixel_value=1.0))
 
         transform = A.Compose([
             A.ToFloat(max_value=dataset_meta.IMAGE_PROPERTIES.MAX_VALUE),
@@ -81,11 +80,12 @@ class CustomVisionDataset(datasets.VisionDataset):
 
         assert isinstance(self.__meta_information.columns, pd.MultiIndex), "metadata does not have split information"
         cls_types = list(
-            self.__meta_information.columns.get_level_values(0)
+            self.__meta_information.columns.get_level_values(0).tolist()
             | pipe.where(lambda column: "_vs_" in column)
         )
         assert len(cls_types) > 0, f"No classification types found in the metadata {dataset_meta.METADATA.FILE}"
-        assert classification in f"cls_types, classification must be one from {cls_types}"
+        assert classification in cls_types, (f"cls_types, classification must be one from "
+                                             f"{cls_types}, not {classification}")
         self.__classification = classification
 
         # Filter out the rows that are not in the subset
@@ -97,16 +97,8 @@ class CustomVisionDataset(datasets.VisionDataset):
         self.__number_of_classes = len(self.__classes)
         self.__class_to_number = {cls: i for i, cls in enumerate(self.__classes)}
 
-        self.__has_transforms = has_transforms
         self.__transform = transform
-
-        # define imbalance of dataset
-        self.__imbalance = self.__meta_information.groupby((self.__classification, "label")).size().to_dict()
-
         self.__target_transform = target_transform
-
-        self.__current_image = None
-        self.__current_target = None
 
     @property
     def targets(self):
@@ -147,7 +139,6 @@ class CustomVisionDataset(datasets.VisionDataset):
         :return: number of images
         :rtype: int
         """
-        # TODO: if the dataset is imbalanced, solve it by augmentation and recompute the number of samples
         return len(self.__meta_information)
 
     def __getitem__(self, index):
@@ -158,28 +149,24 @@ class CustomVisionDataset(datasets.VisionDataset):
         :return: Return the image and its label at a given index
         :rtype: tuple(torch.Tensor, torch.Tensor)
         """
-        # TODO: if the dataset is imbalanced, solve it by augmentation
-        # TODO: compute index correspondingly
         sample = self.__meta_information.iloc[index]
 
         # Load the image
-        image_path = self.__dataset_meta.USED_IMAGES.DIR / f"{sample.name[1]}{self.__dataset_meta.IMAGE_PROPERTIES.EXTENSION}"
+        image_path = self.__dataset_meta.USED_IMAGES.DIR / (f"{sample.name[1]}"
+                                                            f"{self.__dataset_meta.IMAGE_PROPERTIES.EXTENSION}")
         if self.__dataset_meta.IMAGE_PROPERTIES.EXTENSION in [".npy", ".npz"]:
             # quicker to load than cv2.imread
-            self.__current_image = np.load(image_path)["image"]
+            image = np.load(image_path)["image"]
         else:
-            self.__current_image = cv2.imread(str(image_path), cv2.IMREAD_GRAYSCALE)
+            image = cv2.imread(str(image_path), cv2.IMREAD_GRAYSCALE)
 
         target = self.__class_to_number[sample[self.__classification, "label"]]
-        self.__current_target = self.__target_transform(target)
 
-        if self.__has_transforms:
-            # TODO: apply augmentation
-            image = None
-        else:
-            image = self.__transform(image=self.__current_image)["image"]
+        # apply transforms
+        image = self.__transform(image=image)["image"]
+        target = self.__target_transform(target)
 
-        return image, self.__current_target
+        return image, target
 
 
 class CustomDataModule:
@@ -197,6 +184,8 @@ class CustomDataModule:
     :type cross_validation_folds: int
     :param stratified:
     :type stratified: bool
+    :param balanced:
+    :type balanced: bool
     :param groups:
     :type groups: bool
     :param num_workers:
@@ -205,6 +194,7 @@ class CustomDataModule:
     :type seed: int
     :param dataset_class:
     """
+
     def __init__(
             self,
             data,
@@ -212,13 +202,15 @@ class CustomDataModule:
             classification,
             data_filters=None,
             cross_validation_folds=None,
-            stratified=True,
-            groups=True,
+            stratified=False,
+            balanced=False,
+            groups=False,
             num_workers=0,
             seed=None,
             dataset_class=CustomVisionDataset,
     ):
-        assert issubclass(dataset_class, CustomVisionDataset), f"dataset_class must be a subclass of CustomVisionDataset, not {type(dataset_class)}"
+        assert issubclass(dataset_class, CustomVisionDataset), (f"dataset_class must be a subclass "
+                                                                f"of CustomVisionDataset, not {type(dataset_class)}")
 
         self.__data = data
         if self.__data.USED_IMAGES is None:
@@ -257,15 +249,17 @@ class CustomDataModule:
 
         self.__number_of_workers = num_workers
 
-        self.__init_cross_validation(cross_validation_folds, stratified, groups, seed)
+        self.__init_cross_validation(cross_validation_folds, stratified, balanced, groups, seed)
 
-    def __init_cross_validation(self, cross_validation_folds, stratified=True, groups=True, seed=None):
+    def __init_cross_validation(self, cross_validation_folds, stratified, balanced, groups, seed):
         """
         Initialize cross validation folds
         :param cross_validation_folds: number of cross validation folds
         :type cross_validation_folds: int
         :param stratified:
         :type stratified: bool
+        :param balanced:
+        :type balanced: bool
         :param groups:
         :type groups: bool
         :param seed:
@@ -276,32 +270,30 @@ class CustomDataModule:
             return
 
         targets = self.__train_data.targets
-        sample_groups = self.__train_data.metadata.index.get_level_values("patient_id").to_numpy() if groups else None
+        sample_groups = self.__train_data.metadata.index.get_level_values("patient_id").to_numpy()
 
-        if stratified and groups:
+        cv_kwargs = {}
+        if groups or balanced:
+            cv_kwargs["groups"] = sample_groups
+        if stratified or balanced:
+            cv_kwargs["y"] = targets
+
+        if balanced:
+            from ProtoPNet.util.cross_validation import BalancedGroupKFold
+            cross_validator_class = BalancedGroupKFold
+        elif stratified and groups:
             from sklearn.model_selection import StratifiedGroupKFold
             cross_validator_class = StratifiedGroupKFold
-            self.__cv_kwargs = {
-                "y": targets,
-                "groups": sample_groups
-            }
         elif stratified and not groups:
             from sklearn.model_selection import StratifiedKFold
             cross_validator_class = StratifiedKFold
-            self.__cv_kwargs = {
-                "y": targets
-            }
         elif not stratified and groups:
             from sklearn.model_selection import GroupKFold
             cross_validator_class = GroupKFold
-            self.__cv_kwargs = {
-                "groups": sample_groups
-            }
         else:
             # not stratified and not groups
             from sklearn.model_selection import KFold
             cross_validator_class = KFold
-            self.__cv_kwargs = {}
 
         cross_validator = cross_validator_class(
             n_splits=cross_validation_folds,
@@ -311,8 +303,9 @@ class CustomDataModule:
 
         self.__folds = {fold + 1: (
             SubsetRandomSampler(train_idx),
-            SubsetRandomSampler(validation_idx)
-        ) for fold, (train_idx, validation_idx) in enumerate(cross_validator.split(self.__train_data, **self.__cv_kwargs))}
+            SubsetRandomSampler(validation_idx),
+        ) for fold, (train_idx, validation_idx) in
+            enumerate(cross_validator.split(self.__train_data, **cv_kwargs))}
 
     @property
     def folds(self):
@@ -421,19 +414,15 @@ class CustomDataModule:
 
 
 if __name__ == '__main__':
-    from dotenv import load_dotenv
-
-    load_dotenv()
-
     from ProtoPNet.dataset.metadata import DATASETS
 
     ds = DATASETS["MIAS"]
 
-    module = CustomDataModule(ds, "original", "normal_vs_abnormal", 5)
-    for fold, (tr, vl) in module.folds:
-        print(fold)
-        print(tr)
-        print(vl)
+    module = CustomDataModule(ds, "original", "normal_vs_abnormal", cross_validation_folds=5, balanced=True)
+    for f, (tr, vl) in module.folds:
+        ic(f)
+        ic(tr)
+        ic(vl)
 
     # loader = CustomDataModule(ds, "original", "normal_vs_abnormal", 32)
     # tr_loader = loader.train_dataloader()
@@ -444,4 +433,3 @@ if __name__ == '__main__':
     #     print(fold)
     #     print(tr_idx)
     #     print(val_idx)
-

@@ -312,8 +312,7 @@ if __name__ == "__main__":
         ProtoPNet_args.save_args(command_line_params, logger.metadata_dir)
 
         config_file = ProtoPNet_args.generate_gin_config(command_line_params, logger.metadata_dir)
-        gin.parse_config_file(config_file)
-        exit()
+        gin.parse_config_file(str(config_file))
 
         logger.create_csv_log("train_model", ("fold", "epoch", "phase"),
                               "time", "cross entropy", "cluster_loss", "separation_loss",
