@@ -1,0 +1,8 @@
+# @package _global_.data.set
+image_dir: ${data.set.root}/masked_images/original
+
+image_properties:
+  mean:
+    - 0.1611
+  std:
+    - 0.2723

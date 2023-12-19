@@ -1,0 +1,10 @@
+defaults:
+  - _hydra_config
+  - _self_
+  - data/set: MIAS
+
+hydra:
+  sweep:
+    subdir: ${data.set.name}
+
+target: normal_vs_abnormal  # normal_vs_abnormal | benign_vs_malignant | normal_vs_benign_vs_malignant

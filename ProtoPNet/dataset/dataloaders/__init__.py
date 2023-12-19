@@ -20,6 +20,13 @@ def _target_transform(target):
     return torch.tensor(target, dtype=torch.long)
 
 
+def my_collate_function(batch):
+    data = [item[0] for item in batch]
+    target = [item[1] for item in batch]
+    target = torch.LongTensor(target)
+    return [data, target]
+
+
 class CustomVisionDataset(datasets.VisionDataset):
     """
     Custom Vision Dataset class for PyTorch.

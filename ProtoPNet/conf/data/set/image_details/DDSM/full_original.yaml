@@ -1,0 +1,10 @@
+# @package _global_.data.set
+image_dir: ${data.set.root}/images
+
+image_properties:
+  width: 1537
+  height: 2677
+  mean:
+    - 0.2064
+  std:
+    - 0.2290

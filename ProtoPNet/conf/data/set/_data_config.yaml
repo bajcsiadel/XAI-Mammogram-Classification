@@ -1,0 +1,12 @@
+defaults:
+  - _data_set_validation   # type verification defined in config_types.py
+  - size: full
+  - state: original
+  - optional image_details: ${data/set}/${data/set/size}_${data/set/state}
+
+image_properties:
+  extension: .npz
+  augmentations:
+    train: []
+    push: []
+    test: []

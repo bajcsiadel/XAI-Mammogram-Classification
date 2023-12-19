@@ -1,0 +1,6 @@
+# @package _global_
+data:
+  set:
+    size: full
+
+target: normal_vs_abnormal

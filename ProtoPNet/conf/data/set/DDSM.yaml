@@ -1,0 +1,22 @@
+defaults:
+  - _data_config@_here_
+
+name: DDSM
+
+root: ${oc.env:DATASET_LOCATION}/DDSM/
+
+image_properties:
+  width: 1024
+  height: 1024
+  color_channels: 1
+  max_value: 255
+
+metadata:
+  file: ${data.set.root}/extended_data.csv
+  parameters:
+    header:
+      - 0
+      - 1
+    index_col:
+      - 0
+      - 1

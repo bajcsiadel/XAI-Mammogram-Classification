@@ -1,0 +1,12 @@
+hydra:
+  run:
+    dir: runs/${hydra.job.name}/${now:%Y-%m-%d}/${now:%H-%M-%S}
+  sweep:
+#    --multirun data/set=MIAS,DDSM
+    dir: runs/${hydra.job.name}/${now:%Y-%m-%d}/${now:%H-%M-%S}
+    subdir: ${hydra.job.num}
+  output_subdir: conf
+  job_logging:
+    formatters:
+      simple:
+        format: '[%(asctime)s][%(levelname)s] - %(message)s'

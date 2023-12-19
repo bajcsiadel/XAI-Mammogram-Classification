@@ -1,0 +1,8 @@
+defaults:
+  - _network_validation  # type verification defined in config_types.py
+
+pretrained: true
+
+backbone_only: false
+
+add_on_layer_type: regular  # regular | bottleneck
