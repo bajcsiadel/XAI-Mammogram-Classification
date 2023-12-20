@@ -1,43 +1,38 @@
-from dotenv import load_dotenv
-load_dotenv()
-
-import os
-import sys
-sys.path.append(os.getenv("PROJECT_ROOT"))
-
 import cv2
+import hydra
+import omegaconf.errors
+from dotenv import load_dotenv
 import numpy as np
+import os
 from pathlib import Path
+import sys
+
+from icecream import ic
 from tqdm import tqdm
 
-from ProtoPNet.dataset.metadata import DATASETS
+load_dotenv()
+sys.path.append(os.getenv("PROJECT_ROOT"))
 
-# --------------------------------------------- #
-import argparse
+from ProtoPNet.util.config_types import Config
 
-parser = argparse.ArgumentParser(__file__, "Define the mean and std of a given dataset.")
+conf_dir = Path(os.getenv("PROJECT_ROOT")) / os.getenv("MODULE_NAME") / os.getenv("CONFIG_DIR_NAME")
 
-parser.add_argument(
-    "--dataset",
-    type=str,
-    choices=DATASETS.keys(),
-    required=True,
-    help="Dataset for which to define the mean and std."
-)
 
-args = parser.parse_args()
-# --------------------------------------------- #
+@hydra.main(version_base=None, config_path=str(conf_dir), config_name="script_define_mean_config")
+def convert_images(cfg: Config):
+    images = [f for f in cfg.data.set.image_dir.iterdir() if f.is_file() and f.suffix == ".png"]
+    for filepath in tqdm(images, desc=f"Processing files for '{cfg.data.set.name}."
+                                      f"{cfg.data.set.size}.{cfg.data.set.state}'"):
+        if filepath.is_file() and filepath.suffix == ".png":
+            new_filepath = filepath.with_suffix(".npz")
+            if not new_filepath.is_file():
+                image = cv2.imread(str(filepath), cv2.IMREAD_GRAYSCALE)
+                np.savez(new_filepath, image=image)
+                # os.remove(filepath)
+                # print(f"Converted {filepath} to {new_filepath}")
 
-DS_META = DATASETS[args.dataset]
 
-for image_type_name, image_type_details in tqdm(DS_META.VERSIONS.items(), desc="Processing directories"):
-    for version_name, version in tqdm(image_type_details.items(), desc=f"\tProcessing '{image_type_name}'"):
-        directory = version.DIR
-        for filepath in tqdm(directory.iterdir(), desc=f"\t\tProcessing files for '{version_name}'"):
-            if filepath.is_file() and filepath.suffix == ".png":
-                new_filepath = filepath.with_suffix(".npz")
-                if not new_filepath.is_file():
-                    image = cv2.imread(str(filepath), cv2.IMREAD_GRAYSCALE)
-                    np.savez(filepath[:-4], image=image)
-                    # os.remove(filepath)
-                    # print(f"Converted {filepath} to {new_filepath}")
+try:
+    convert_images()
+except omegaconf.errors.MissingMandatoryValue as e:
+    ic("skipped")

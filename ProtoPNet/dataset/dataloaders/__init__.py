@@ -9,7 +9,8 @@ import pandas as pd
 import pipe
 import typing as typ
 
-from omegaconf import OmegaConf, DictConfig
+from hydra.utils import instantiate
+from omegaconf import OmegaConf, DictConfig, ListConfig
 
 from icecream import ic
 import torch
@@ -61,6 +62,9 @@ class CustomVisionDataset(datasets.VisionDataset):
     ):
         if isinstance(transform, A.BasicTransform):
             transform = [transform]
+        elif isinstance(transform, ListConfig):
+            transform = [instantiate(t) for t in transform]
+
         if normalize:
             transform.append(
                 A.Normalize(
@@ -439,22 +443,26 @@ class CustomDataModule:
 
 
 if __name__ == '__main__':
-    from ProtoPNet.dataset.metadata import DATASETS
+    import hydra
+    import os
+    from pathlib import Path
 
-    ds = DATASETS["MIAS"]
+    from dotenv import load_dotenv
 
-    module = CustomDataModule(ds, "original", "normal_vs_abnormal", cross_validation_folds=5, balanced=True)
-    for f, (tr, vl) in module.folds:
-        ic(f)
-        ic(tr)
-        ic(vl)
+    from ProtoPNet.util.config_types import Config
 
-    # loader = CustomDataModule(ds, "original", "normal_vs_abnormal", 32)
-    # tr_loader = loader.train_dataloader()
-    # from sklearn.model_selection import StratifiedGroupKFold
-    #
-    # skf = StratifiedGroupKFold(n_splits=5, shuffle=True, random_state=42)
-    # for fold, (tr_idx, val_idx) in enumerate(skf.split(tr_loader)):
-    #     print(fold)
-    #     print(tr_idx)
-    #     print(val_idx)
+    load_dotenv()
+
+    conf_dir = Path(os.getenv("PROJECT_ROOT")) / os.getenv("MODULE_NAME") / os.getenv("CONFIG_DIR_NAME")
+
+    @hydra.main(version_base=None, config_path=str(conf_dir), config_name="main_config")
+    def test(cfg: Config):
+
+        module = CustomDataModule(cfg.data.set, "normal_vs_abnormal",
+                                  cross_validation_folds=5, balanced=True)
+        for f, (tr, vl) in module.folds:
+            ic(f)
+            ic(tr)
+            ic(vl)
+
+    test()

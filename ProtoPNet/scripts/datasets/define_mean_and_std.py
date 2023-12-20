@@ -15,6 +15,7 @@ References & Footnotes
 import logging
 import os
 import sys
+from pathlib import Path
 
 from dotenv import load_dotenv
 import hydra
@@ -30,6 +31,9 @@ sys.path.append(os.getenv("PROJECT_ROOT"))
 from ProtoPNet.dataset.dataloaders import CustomVisionDataset, my_collate_function
 from ProtoPNet.util import helpers
 from ProtoPNet.util.config_types import Config
+
+
+conf_dir = Path(os.getenv("PROJECT_ROOT")) / os.getenv("MODULE_NAME") / os.getenv("CONFIG_DIR_NAME")
 
 
 def flatten(lst: list) -> np.ndarray:
@@ -48,7 +52,7 @@ def flatten(lst: list) -> np.ndarray:
     return new_lst
 
 
-@hydra.main(version_base=None, config_path="../../conf", config_name="script_define_mean_config")
+@hydra.main(version_base=None, config_path=str(conf_dir), config_name="script_define_mean_config")
 def compute_mean_and_std_of_dataset(cfg: Config):
     logger = logging.getLogger()
 
