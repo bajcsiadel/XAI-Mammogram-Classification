@@ -17,12 +17,13 @@ import os
 import sys
 from pathlib import Path
 
-from dotenv import load_dotenv
 import hydra
-from icecream import ic
 import numpy as np
-from omegaconf import OmegaConf, errors as conf_errors
 import pipe
+from dotenv import load_dotenv
+from icecream import ic
+from omegaconf import OmegaConf
+from omegaconf import errors as conf_errors
 from torch.utils.data import DataLoader
 
 load_dotenv()
@@ -32,8 +33,11 @@ from ProtoPNet.dataset.dataloaders import CustomVisionDataset, my_collate_functi
 from ProtoPNet.util import helpers
 from ProtoPNet.util.config_types import Config
 
-
-conf_dir = Path(os.getenv("PROJECT_ROOT")) / os.getenv("MODULE_NAME") / os.getenv("CONFIG_DIR_NAME")
+conf_dir = (
+    Path(os.getenv("PROJECT_ROOT"))
+    / os.getenv("MODULE_NAME")
+    / os.getenv("CONFIG_DIR_NAME")
+)
 
 
 def flatten(lst: list) -> np.ndarray:
@@ -52,7 +56,11 @@ def flatten(lst: list) -> np.ndarray:
     return new_lst
 
 
-@hydra.main(version_base=None, config_path=str(conf_dir), config_name="script_define_mean_config")
+@hydra.main(
+    version_base=None,
+    config_path=str(conf_dir),
+    config_name="script_define_mean_config",
+)
 def compute_mean_and_std_of_dataset(cfg: Config):
     logger = logging.getLogger()
 
@@ -86,8 +94,11 @@ def compute_mean_and_std_of_dataset(cfg: Config):
         cnt = 0
 
         for images, _ in loader:
-
-            sizes = list(images) | pipe.map(lambda x: x.shape[1:]) | helpers.CustomPipe.to_numpy
+            sizes = (
+                list(images)
+                | pipe.map(lambda x: x.shape[1:])
+                | helpers.CustomPipe.to_numpy
+            )
             average_image_size += np.sum(sizes, axis=0)
 
             images = flatten(images)
@@ -99,18 +110,18 @@ def compute_mean_and_std_of_dataset(cfg: Config):
             snd_moment = (cnt * snd_moment + sum_of_square) / (cnt + len(images[0]))
             cnt += len(images[0])
 
-        mean, std = fst_moment, np.sqrt(snd_moment - fst_moment ** 2)
+        mean, std = fst_moment, np.sqrt(snd_moment - fst_moment**2)
 
         average_image_size /= len(dataset)
 
         logger.info(f"Number of images: {len(dataset)}")
         logger.info(f"Average image size: {average_image_size}")
 
-        logger.info(f"mean:")
+        logger.info("mean:")
         for m in mean:
             logger.info(f"- {m:.4f}")
 
-        logger.info(f"std:")
+        logger.info("std:")
         for s in std:
             logger.info(f"- {s:.4f}")
 

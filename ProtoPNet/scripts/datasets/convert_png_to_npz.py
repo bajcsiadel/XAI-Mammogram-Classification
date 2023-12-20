@@ -1,12 +1,12 @@
+import os
+import sys
+from pathlib import Path
+
 import cv2
 import hydra
+import numpy as np
 import omegaconf.errors
 from dotenv import load_dotenv
-import numpy as np
-import os
-from pathlib import Path
-import sys
-
 from icecream import ic
 from tqdm import tqdm
 
@@ -15,14 +15,29 @@ sys.path.append(os.getenv("PROJECT_ROOT"))
 
 from ProtoPNet.util.config_types import Config
 
-conf_dir = Path(os.getenv("PROJECT_ROOT")) / os.getenv("MODULE_NAME") / os.getenv("CONFIG_DIR_NAME")
+conf_dir = (
+    Path(os.getenv("PROJECT_ROOT"))
+    / os.getenv("MODULE_NAME")
+    / os.getenv("CONFIG_DIR_NAME")
+)
 
 
-@hydra.main(version_base=None, config_path=str(conf_dir), config_name="script_define_mean_config")
+@hydra.main(
+    version_base=None,
+    config_path=str(conf_dir),
+    config_name="script_define_mean_config",
+)
 def convert_images(cfg: Config):
-    images = [f for f in cfg.data.set.image_dir.iterdir() if f.is_file() and f.suffix == ".png"]
-    for filepath in tqdm(images, desc=f"Processing files for '{cfg.data.set.name}."
-                                      f"{cfg.data.set.size}.{cfg.data.set.state}'"):
+    images = [
+        f
+        for f in cfg.data.set.image_dir.iterdir()
+        if f.is_file() and f.suffix == ".png"
+    ]
+    for filepath in tqdm(
+        images,
+        desc=f"Processing files for '{cfg.data.set.name}."
+        f"{cfg.data.set.size}.{cfg.data.set.state}'",
+    ):
         if filepath.is_file() and filepath.suffix == ".png":
             new_filepath = filepath.with_suffix(".npz")
             if not new_filepath.is_file():
@@ -34,5 +49,5 @@ def convert_images(cfg: Config):
 
 try:
     convert_images()
-except omegaconf.errors.MissingMandatoryValue as e:
+except omegaconf.errors.MissingMandatoryValues:
     ic("skipped")

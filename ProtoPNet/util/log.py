@@ -1,9 +1,8 @@
-import os
 import logging
+import os
 import sys
 import traceback
 import typing as typ
-
 from datetime import datetime
 from pathlib import Path
 
@@ -47,12 +46,20 @@ class Log(logging.Logger):
     def metadata_dir(self):
         return self.__log_dir / "metadata"
 
-    def _log(self, level, msg, args, exc_info=None,
-             extra=None, stack_info=False, stacklevel=1):
+    def _log(
+        self,
+        level,
+        msg,
+        args,
+        exc_info=None,
+        extra=None,
+        stack_info=False,
+        stacklevel=1,
+    ):
         """
         Write a message to the log file
 
-        :param level: the level of the message, e.g. logging.INFO, logging.WARNING, logging.ERROR
+        :param level: the level of the message, e.g. logging.INFO
         :type level: int
         :param msg: the message string to be written to the log file
         :type msg: str
@@ -67,9 +74,15 @@ class Log(logging.Logger):
         :type stacklevel: int
         """
         for line in msg.splitlines():
-            super()._log(level, line, args,
-                         exc_info=exc_info, extra=extra,
-                         stack_info=stack_info, stacklevel=stacklevel)
+            super()._log(
+                level,
+                line,
+                args,
+                exc_info=exc_info,
+                extra=extra,
+                stack_info=stack_info,
+                stacklevel=stacklevel,
+            )
 
     def exception(self, ex, warn_only=False, **kwargs):
         """
@@ -103,16 +116,22 @@ class Log(logging.Logger):
             fd.write("\n")
             fd.write("# check if environment exists\n")
             fd.write("poetry env list > /dev/null\n")
-            fd.write("if { [ $? -ne 0 ] && [ -f \"pyproject.toml\" ]; }\n")
+            fd.write('if { [ $? -ne 0 ] && [ -f "pyproject.toml" ]; }\n')
             fd.write("then\n")
             fd.write("\tpoetry install\n")
             fd.write("else\n")
-            fd.write("\techo \"No pyproject.toml found. Please run this script from the project root.\"\n")
+            fd.write(
+                '\techo "No pyproject.toml found. '
+                'Please run this script from the project root."\n'
+            )
             fd.write("\texit 1\n")
             fd.write("fi\n")
             fd.write("\n")
             fd.write(f"screen -dmS {screen_name}\n")
-            fd.write(f"screen -S {screen_name} -X stuff \"poetry run python {python_file} {params}\"\n")
+            fd.write(
+                f'screen -S {screen_name} -X stuff '
+                f'"poetry run python {python_file} {params}"\n'
+            )
             fd.write("# attaching the screen\n")
             fd.write(f"screen -r {screen_name}\n")
 
@@ -153,7 +172,9 @@ class Log(logging.Logger):
         # Add to existing logs
         self.__logs[log_name] = (key_name, value_names)
         # Create log file. Create columns
-        (self.log_dir / f"{log_name}.csv").write_text(",".join(key_name + value_names) + "\n")
+        (self.log_dir / f"{log_name}.csv").write_text(
+            ",".join(key_name + value_names) + "\n"
+        )
 
     def csv_log_index(self, log_name, key):
         """
@@ -175,20 +196,24 @@ class Log(logging.Logger):
 
     def csv_log_values(self, log_name, *values):
         """
-        Log values in an existent log file. The key should be specified in advance by calling create_csv_log
+        Log values in an existent log file. The key should be
+        specified in advance by calling create_csv_log
 
         :param log_name: The name of the log file
         :type log_name: str
         :param values: value attributes that will be stored in the log
         :type values: str
         :raises FileNotFoundError: If the log file does not exist
-        :raises errors.CsvMismatchedColumnsError: If the number of values does not match the number of columns
+        :raises errors.CsvMismatchedColumnsError: If the number of
+        values does not match the number of columns
         """
         if log_name not in self.__logs.keys():
             raise FileNotFoundError("Log does not exist!")
         if len(values) != len(self.__logs[log_name][1]):
-            raise errors.CsvMismatchedColumnsError(f"Not all required values are logged! "
-                                                   f"Expected {len(self.__logs[log_name][1])}, got {len(values)}")
+            raise errors.CsvMismatchedColumnsError(
+                f"Not all required values are logged! "
+                f"Expected {len(self.__logs[log_name][1])}, got {len(values)}"
+            )
         # Write a new line with the given values
         with (self.log_dir / f"{log_name}.csv").open(mode="a") as f:
             f.write(",".join(str(v) for v in values) + "\n")
@@ -204,7 +229,8 @@ class Log(logging.Logger):
         :param values: value attributes that will be stored in the log
         :type values: str
         :raises FileNotFoundError: If the log file does not exist
-        :raises errors.CsvMismatchedColumnsError: If the number of values does not match the number of columns
+        :raises errors.CsvMismatchedColumnsError: If the number of values
+        does not match the number of columns
         """
         self.csv_log_index(log_name, key)
         self.csv_log_values(log_name, *values)

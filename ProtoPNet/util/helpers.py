@@ -1,13 +1,13 @@
 import dataclasses as dc
 import inspect
 import json
-import numpy as np
-from pipe import Pipe
 import subprocess
-import torch
 import typing as typ
-
 from pathlib import Path
+
+import numpy as np
+import torch
+from pipe import Pipe
 
 
 def list_of_distances(X, Y):
@@ -46,7 +46,9 @@ def get_current_commit_hash():
     :return:
     :rtype: str
     """
-    process = subprocess.Popen(['git', 'rev-parse', 'HEAD'], shell=False, stdout=subprocess.PIPE)
+    process = subprocess.Popen(
+        ["git", "rev-parse", "HEAD"], shell=False, stdout=subprocess.PIPE
+    )
     return process.communicate()[0].strip()
 
 
@@ -70,11 +72,14 @@ def set_used_images(dataset_config, used_images, target):
     :param target:
     :type target: str
     """
-    assert target in dataset_config.TARGET_TO_VERSION.keys(), "Target does not exist in dataset!"
+    assert (
+        target in dataset_config.TARGET_TO_VERSION.keys()
+    ), "Target does not exist in dataset!"
     versions_key = dataset_config.TARGET_TO_VERSION[target]
 
-    assert used_images in dataset_config.VERSIONS[versions_key].keys(), \
-        f"Used images does not exist in dataset for target {target}!"
+    assert (
+        used_images in dataset_config.VERSIONS[versions_key].keys()
+    ), f"Used images does not exist in dataset for target {target}!"
     dataset_config.USED_IMAGES = dataset_config.VERSIONS[versions_key][used_images]
 
 
@@ -141,7 +146,10 @@ class DotDict(dict):
             if isinstance(value, dict):
                 converted[key] = DotDict.new(value)
             elif isinstance(value, list):
-                converted[key] = [DotDict.new(item) if isinstance(item, dict) else item for item in value]
+                converted[key] = [
+                    DotDict.new(item) if isinstance(item, dict) else item
+                    for item in value
+                ]
 
         return converted
 

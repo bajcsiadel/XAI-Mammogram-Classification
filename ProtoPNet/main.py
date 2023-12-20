@@ -1,33 +1,33 @@
-from functools import partial
-
-import hydra
-import numpy as np
 import os
 import re
 import shutil
 import sys
-import torch
 import warnings
+from functools import partial
 
+import hydra
+import numpy as np
+import torch
 from dotenv import load_dotenv
-
 from hydra.utils import instantiate
 from icecream import ic
 
 load_dotenv()
 sys.path.append(os.getenv("PROJECT_ROOT"))
 
-from ProtoPNet import model
-from ProtoPNet import push
+from ProtoPNet import model, push
 from ProtoPNet import train_and_test as tnt
-
-from ProtoPNet.util import save, helpers
-from ProtoPNet.util.config_types import init_config_store, Config
+from ProtoPNet.util import helpers, save
+from ProtoPNet.util.config_types import Config, init_config_store
 from ProtoPNet.util.log import Log
 from ProtoPNet.util.preprocess import preprocess
 
 
-@hydra.main(version_base=None, config_path=os.getenv("CONFIG_DIR_NAME"), config_name="main_config")
+@hydra.main(
+    version_base=None,
+    config_path=os.getenv("CONFIG_DIR_NAME"),
+    config_name="main_config",
+)
 def main(cfg: Config):
     logger = Log(__name__)
 
@@ -36,9 +36,19 @@ def main(cfg: Config):
 
         logger.log_command_line()
 
-        logger.create_csv_log("train_model", ("fold", "epoch", "phase"),
-                              "time", "cross entropy", "cluster_loss", "separation_loss",
-                              "accuracy", "micro_f1", "macro_f1", "l1", "prototype_distances")
+        logger.create_csv_log(
+            "train_model",
+            ("fold", "epoch", "phase"),
+            "time",
+            "cross entropy",
+            "cluster_loss",
+            "separation_loss",
+            "accuracy",
+            "micro_f1",
+            "macro_f1",
+            "l1",
+            "prototype_distances",
+        )
 
         set_seeds(cfg.seed)
         run_experiment(cfg, logger)
@@ -65,23 +75,21 @@ def run_experiment(cfg: Config, logger: Log):
 
     shutil.copy(cfg.data.set.metadata.file, logger.metadata_dir)
 
-    # copy code to result directory
-    base_architecture_type = re.match("^[a-z]*", cfg.network.name).group(0)
-
     model_dir = logger.log_dir / cfg.outputs.dirs.model
     model_dir.mkdir(parents=True, exist_ok=True)
     img_dir = logger.log_dir / cfg.outputs.dirs.image
     img_dir.mkdir(parents=True, exist_ok=True)
 
     if cfg.cross_validation.folds > 1:
-        logger.info("using cross-validation with:\n"
-                    f"\t{cfg.cross_validation.folds} folds")
+        logger.info(
+            "using cross-validation with:\n" f"\t{cfg.cross_validation.folds} folds"
+        )
         if cfg.cross_validation.stratified:
-            logger.info(f"\tstratified")
+            logger.info("\tstratified")
         elif cfg.cross_validation.balanced:
-            logger.info(f"\tbalanced")
+            logger.info("\tbalanced")
         if cfg.cross_validation.grouped:
-            logger.info(f"\tgrouped")
+            logger.info("\tgrouped")
 
     logger.info(f"number of prototypes per class: {cfg.prototypes.per_class}")
 
@@ -92,7 +100,12 @@ def run_experiment(cfg: Config, logger: Log):
 
     number_of_classes = dataset_module.dataset.number_of_classes
     image_size = dataset_module.dataset.input_size
-    prototype_shape = (cfg.prototypes.per_class * number_of_classes, cfg.prototypes.size, 1, 1)
+    prototype_shape = (
+        cfg.prototypes.per_class * number_of_classes,
+        cfg.prototypes.size,
+        1,
+        1,
+    )
     class_specific = True
 
     train_test_parameters = {
@@ -185,7 +198,9 @@ def run_experiment(cfg: Config, logger: Log):
 
         if not cfg.network.backbone_only:
             logger.info(f"\t\tbatch size: {cfg.phases.warm.batch_size}")
-            tnt.warm_only(model=ppnet_multi, log=logger, backbone_only=cfg.network.backbone_only)
+            tnt.warm_only(
+                model=ppnet_multi, log=logger, backbone_only=cfg.network.backbone_only
+            )
 
             train_loader = dataset_module.train_dataloader(
                 sampler=train_sampler,
@@ -221,7 +236,9 @@ def run_experiment(cfg: Config, logger: Log):
 
             logger.info("\t\tfinished warmup")
 
-        tnt.joint(model=ppnet_multi, log=logger, backbone_only=cfg.network.backbone_only)
+        tnt.joint(
+            model=ppnet_multi, log=logger, backbone_only=cfg.network.backbone_only
+        )
 
         train_loader = dataset_module.train_dataloader(
             sampler=train_sampler,
@@ -282,7 +299,9 @@ def run_experiment(cfg: Config, logger: Log):
                     log=logger,
                 )
 
-                logger.csv_log_index("train_model", (fold, real_epoch_number, "push validation"))
+                logger.csv_log_index(
+                    "train_model", (fold, real_epoch_number, "push validation")
+                )
                 accu = partial_test(
                     model=ppnet_multi,
                     dataloader=validation_loader,
@@ -301,14 +320,20 @@ def run_experiment(cfg: Config, logger: Log):
                     for i in np.arange(cfg.phases.finetune.epochs) + 1:
                         logger.info(f"\t\t\t\titeration: \t{i}")
 
-                        logger.csv_log_index("train_model", (fold, real_epoch_number, f"last layer {i} train"))
+                        logger.csv_log_index(
+                            "train_model",
+                            (fold, real_epoch_number, f"last layer {i} train"),
+                        )
                         _ = partial_train(
                             model=ppnet_multi,
                             dataloader=train_loader,
                             optimizer=last_layer_optimizer,
                         )
 
-                        logger.csv_log_index("train_model", (fold, real_epoch_number, f"last layer {i} validation"))
+                        logger.csv_log_index(
+                            "train_model",
+                            (fold, real_epoch_number, f"last layer {i} validation"),
+                        )
                         accu = partial_test(
                             model=ppnet_multi,
                             dataloader=validation_loader,

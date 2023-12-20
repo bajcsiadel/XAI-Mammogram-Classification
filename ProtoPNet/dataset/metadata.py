@@ -1,16 +1,18 @@
 import abc
+import dataclasses as dc
 import os
-import pipe
+import typing as typ
 from pathlib import Path
 
 import albumentations as A
-import dataclasses as dc
-import typing as typ
+import pipe
 
 from ProtoPNet.util import helpers
 
 DATA_DIR = Path(os.getenv("DATASET_LOCATION"))
-assert DATA_DIR is not None, "Please set the environment variable DATASET_LOCATION in .env file"
+assert (
+    DATA_DIR is not None
+), "Please set the environment variable DATASET_LOCATION in .env file"
 
 
 @dc.dataclass
@@ -35,7 +37,9 @@ class DataFilter(helpers.PartiallyFrozenDataClass, abc.ABC):
                 case float():
                     self.scope += str(self.value).replace(".", "_")
                 case list():
-                    raise ValueError("DataFilter: List values are not supported for 'VALUE' field")
+                    raise ValueError(
+                        "DataFilter: List values are not supported for 'VALUE' field"
+                    )
                 case _:
                     self.scope += str(self.value)
         self.scope += f"/{self.__class__.__name__}"
@@ -70,9 +74,12 @@ class ExactDataFilter(DataFilter):
         :type data: pandas.DataFrame
         :return: the filtered data
         :rtype: pandas.DataFrame
-        :raises ValueError: if the given data does not contain the field specified in the filter
+        :raises ValueError: if the given data does not
+        contain the field specified in the filter
         """
         if self.field_in_df not in data.columns:
-            raise ValueError(f"The given data does not contain the field '{self.field_in_df}'")
+            raise ValueError(
+                f"The given data does not contain the field '{self.field_in_df}'"
+            )
 
         return data[data[self.field_in_df] == self.value]
