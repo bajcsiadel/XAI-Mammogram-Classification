@@ -4,6 +4,7 @@ import pipe
 import typing as typ
 
 import hydra
+import torch.cuda
 from hydra.core.config_store import ConfigStore
 from hydra.utils import instantiate
 from omegaconf import OmegaConf, MISSING
@@ -111,6 +112,8 @@ class Dataset:
     image_dir: Path
     image_properties: ImageProperties
     metadata: MetadataInformation
+    number_of_classes: int = 0
+    input_size: list[int] = dc.field(default_factory=list)
 
     def __setattr__(self, key, value):
         match key:
@@ -129,6 +132,8 @@ class Dataset:
                 if value not in subset_values:
                     raise ValueError(f"Dataset subset {value} not supported. "
                                      f"Choose one of f{', '.join(subset_values)}.")
+            case "number_of_classes" | "input_size":
+                raise ValueError(f"{key} is automatically defined. Should not be set in the configuration file!")
 
         super().__setattr__(key, value)
 
@@ -141,7 +146,7 @@ class Filter:
 
 
 @dc.dataclass
-class DataLoader:
+class DataModule:
     _target_: str
     data: Dataset
     classification: str
@@ -158,7 +163,7 @@ class DataLoader:
 class Data:
     set: Dataset
     filters: list[Filter]
-    dataloader: DataLoader
+    datamodule: DataModule
 
 
 @dc.dataclass
@@ -233,13 +238,14 @@ class Phase:
     epochs: int = 0
     learning_rates: dict[str, float] = dc.field(default_factory=dict)
     weight_decay: float = 0.0
-    step_size: int = 0
     start: int = 0
     interval: int = 0
+    scheduler: dict[str, typ.Any] = dc.field(default_factory=dict)
+    push_epochs: list[int] = dc.field(default_factory=list)
 
     def __setattr__(self, key, value):
         match key:
-            case "batch_size" | "epochs" | "step_size" | "start" | "interval" | "weight_decay":
+            case "batch_size" | "epochs" | "start" | "interval" | "weight_decay":
                 if value < 0:
                     raise ValueError(f"{key[0].upper()}{key[1:]} size must be positive.\n{key} = {value}")
             case "learning_rates":
@@ -248,6 +254,21 @@ class Phase:
                         raise ValueError(f"Learning rate must be positive.\n{lr_key} = {lr_value}")
 
         super().__setattr__(key, value)
+
+
+@dc.dataclass
+class Phases:
+    warm: Phase = dc.field(default_factory=Phase)
+    joint: Phase = dc.field(default_factory=Phase)
+    push: Phase = dc.field(default_factory=Phase)
+    finetune: Phase = dc.field(default_factory=Phase)
+
+    def __post_init__(self):
+        self.push.push_epochs = list(range(
+            self.push.start,
+            self.joint.epochs,
+            self.push.interval,
+        )) + [self.joint.epochs + 1]
 
 
 @dc.dataclass
@@ -281,47 +302,62 @@ class JobProperties:
 
 
 @dc.dataclass
+class Gpu:
+    ids: list[str]
+    disabled: bool = False
+
+    def __setattr__(self, key, value):
+        match key:
+            case "ids":
+                if self.__dict__.get("disabled", False) and len(value) > 0:
+                    raise ValueError(f"If GPUs are disabled ids should not be set!")
+                gpu_id_values = range(torch.cuda.device_count())
+                for id_ in value:
+                    if id_ not in gpu_id_values:
+                        raise ValueError(f"GPU id should be between 0 and "
+                                         f"{gpu_id_values[-1]}, but {id_} given")
+            case "disables":
+                if value and len(self.__dict__.get("ids", [])) > 0:
+                    raise ValueError(f"If GPUs are disabled ids should not be set!")
+            
+        super().__setattr__(key, value)
+
+
+@dc.dataclass
+class Dirs:
+    model: str
+    image: str
+
+
+@dc.dataclass
+class FilePrefixes:
+    prototype: str
+    self_activation: str
+    bounding_box: str
+
+
+@dc.dataclass
+class Outputs:
+    dirs: Dirs
+    file_prefixes: FilePrefixes
+
+
+@dc.dataclass
 class Config:
     data: Data
     target: str
     network: Network
     prototypes: PrototypeProperties
     cross_validation: CrossValidationParameters
-    gpu_ids: list[str]
-    log_dir: Path
+    gpu: Gpu
     seed: int
     loss: Loss
     job: JobProperties
-    phases: helpers.DotDict[str, Phase] = dc.field(default_factory=lambda: helpers.DotDict())
+    outputs: Outputs
+    phases: Phases
 
     def __setattr__(self, key, value):
         super().__setattr__(key, value)
-
-    def __post_init__(self):
-        if self.log_dir.name == "default":
-            new_name = f"{self.data.set.name}"
-
-            if self.cross_validation.balanced:
-                new_name += "-balanced"
-
-            new_name += f"-{self.data.set.state}-{self.network.name}-{self.target}"
-
-            if len(self.data.filters) > 0:
-                new_name += "-filtered"
-                current_field = None
-                current_values = []
-                for current_filter in self.data.filters + [ExactDataFilter(field=["end"], value="end")]:
-                    if current_filter.field != current_field:
-                        if current_field is not None:
-                            new_name += f"_{current_field}_{'_'.join(current_values | pipe.map(str))}"
-                        current_field = current_filter.field[-1]
-                        current_values = []
-                    current_values.append(current_filter.value)
-
-            self.log_dir = self.log_dir.with_name(new_name)
-
-        # convert default dict to dot dict
-        self.phases = helpers.DotDict(self.phases)
 
 
 def init_config_store():
@@ -353,7 +389,7 @@ def process_config(cfg: Config):
     ic(cfg.data.set.image_properties.augmentations)
     ic(instantiate(cfg.data.set.image_properties.augmentations.train[0]))
     ic(type(cfg))
-    ic(instantiate(cfg.data.dataloader))
+    ic(instantiate(cfg.data.datamodule))
     return cfg
 
 

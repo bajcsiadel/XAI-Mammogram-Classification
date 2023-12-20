@@ -1,4 +1,3 @@
-import gin
 import numpy as np
 import time
 import torch
@@ -314,7 +313,6 @@ def _train_or_test(
     return n_correct / n_examples
 
 
-@gin.configurable(denylist=["model", "dataloader", "optimizer", "log"])
 def train(
     model,
     dataloader,
@@ -347,7 +345,6 @@ def train(
     )
 
 
-@gin.configurable(denylist=["model", "dataloader", "log"])
 def test(
     model,
     dataloader,

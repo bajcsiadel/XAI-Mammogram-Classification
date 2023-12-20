@@ -1,4 +1,3 @@
-import gin
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
@@ -496,10 +495,10 @@ class BBNet(nn.Module):
         )
 
 
-@gin.configurable
 def construct_PPNet(
     base_architecture,
     pretrained=True,
+    color_channels=3,
     img_shape=(224, 224),
     prototype_shape=(2000, 512, 1, 1),
     num_classes=200,
@@ -509,7 +508,8 @@ def construct_PPNet(
     positive_weights_in_classifier=False
 ):
     features = base_architecture_to_features[base_architecture](
-        pretrained=pretrained
+        pretrained=pretrained,
+        color_channels=color_channels,
     )
     if backbone_only:
         return BBNet(

@@ -40,9 +40,9 @@ def find_high_activation_crop(activation_map, percentile=95):
     return lower_y, upper_y + 1, lower_x, upper_x + 1
 
 
-def get_last_commit_hash():
+def get_current_commit_hash():
     """
-    Get the hash of the last commit
+    Get the hash of the current commit
     :return:
     :rtype: str
     """

@@ -1,5 +1,6 @@
 defaults:
   - _config_validation  # type verification defined in config_types.py
+  - _hydra_config
   - _self_
   - data/set: MIAS
   - data/filters: default
@@ -9,7 +10,7 @@ defaults:
 target: normal_vs_abnormal  # normal_vs_abnormal | benign_vs_malignant | normal_vs_benign_vs_malignant
 
 data:
-  dataloader:
+  datamodule:
     _target_: ProtoPNet.dataset.dataloaders.CustomDataModule
     data: ${data.set}
     classification: ${target}
@@ -21,12 +22,11 @@ data:
     num_workers: ${job.number_of_workers}
     seed: ${seed}
 
-log_dir: ${oc.env:PROJECT_ROOT}/runs/default
-
 seed: 42
 
-gpu_ids:
-  - 1
+gpu:
+  ids:
+    - 1
 
 prototypes:
   per_class: 10
@@ -38,17 +38,21 @@ phases:
     batch_size: 32
     epochs: 4
     learning_rates:
-      add_on_layer: 3e-3
+      add_on_layers: 3e-3
       prototype_vectors: 3e-3
     weight_decay: 1e-3
   joint:
     batch_size: 8
     epochs: 10
     learning_rates:
-      feature: 1e-4
-      add_on_layer: 3e-3
+      features: 1e-4
+      add_on_layers: 3e-3
       prototype_vectors: 3e-3
-    step_size: 5
+    scheduler:
+      _target_: torch.optim.lr_scheduler.StepLR
+      _partial_: true
+      step_size: 5
+      gamma: 0.1
   push:
     batch_size: 16
     start: 2
@@ -56,7 +60,7 @@ phases:
   finetune:
     epochs: 4
     learning_rates:
-      feature: 1e-4
+      features: 1e-4
 
 loss:
   binary_cross_entropy: false
@@ -71,3 +75,12 @@ loss:
 
 job:
   number_of_workers: 4
+
+outputs:
+  dirs:
+    model: model
+    image: img
+  file_prefixes:
+    prototype: prototype-img
+    self_activation: prototype-self-act
+    bounding_box: prototype-bb

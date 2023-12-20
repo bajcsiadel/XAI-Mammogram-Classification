@@ -1,3 +1,5 @@
+import copy
+
 import albumentations as A
 from albumentations.pytorch import ToTensorV2
 
@@ -7,13 +9,15 @@ import pandas as pd
 import pipe
 import typing as typ
 
+from omegaconf import OmegaConf, DictConfig
+
 from icecream import ic
 import torch
 from torch.utils.data import DataLoader, SubsetRandomSampler
 from torchvision import datasets
 
-from ProtoPNet.dataset.metadata import DatasetInformation
-from ProtoPNet.util import helpers
+from ProtoPNet.util import config_types as conf_typ
+from ProtoPNet.dataset.metadata import DataFilter
 
 
 def _target_transform(target):
@@ -30,14 +34,15 @@ def my_collate_function(batch):
 class CustomVisionDataset(datasets.VisionDataset):
     """
     Custom Vision Dataset class for PyTorch.
+
     :param dataset_meta: Dataset metadata
-    :type dataset_meta: DatasetInformation
+    :type dataset_meta: conf_typ.Dataset
     :param classification: Classification type
     :type classification: str
     :param subset: Subset to use
     :type subset: str
     :param data_filters: Filters to apply to the data
-    :type data_filters: typ.List[typ.Callable[[pd.DataFrame], pd.DataFrame]] | None
+    :type data_filters: typ.List[DataFilter] | None
     :param transform: Transform to apply to the images
     :type transform: albumentations.BasicTransform | list[albumentations.BasicTransform]
     :param target_transform: Transform to apply to the targets
@@ -58,29 +63,43 @@ class CustomVisionDataset(datasets.VisionDataset):
             transform = [transform]
         if normalize:
             transform.append(
-                A.Normalize(mean=dataset_meta.USED_IMAGES.MEAN, std=dataset_meta.USED_IMAGES.STD, max_pixel_value=1.0))
+                A.Normalize(
+                    mean=dataset_meta.image_properties.mean,
+                    std=dataset_meta.image_properties.std,
+                    max_pixel_value=dataset_meta.image_properties.max_value
+                )
+            )
+            dataset_meta.image_properties.max_value = 1.0
 
         transform = A.Compose([
-            A.ToFloat(max_value=dataset_meta.IMAGE_PROPERTIES.MAX_VALUE),
-            A.Resize(width=dataset_meta.IMAGE_PROPERTIES.SHAPE[0], height=dataset_meta.IMAGE_PROPERTIES.SHAPE[1]),
+            A.ToFloat(max_value=dataset_meta.image_properties.max_value),
+            A.Resize(width=dataset_meta.image_properties.width, height=dataset_meta.image_properties.height),
             *transform,  # unpack list of transforms
             ToTensorV2(),
         ])
 
-        super().__init__(str(dataset_meta.USED_IMAGES.DIR), transform=transform, target_transform=target_transform)
+        super().__init__(str(dataset_meta.image_dir), transform=transform, target_transform=target_transform)
 
         assert subset in ["train", "test", "all"], "subset must be one of 'train', 'test' or 'all'"
         self.__subset = subset
 
         self.__dataset_meta = dataset_meta
 
+        metafile_params = dataset_meta.metadata.parameters
+        if isinstance(metafile_params, DictConfig):
+            metafile_params = OmegaConf.to_object(dataset_meta.metadata.parameters)
+        if isinstance(metafile_params, conf_typ.CSVParameters):
+            metafile_params = metafile_params.to_dict()
+
         self.__meta_information = pd.read_csv(
-            dataset_meta.METADATA.FILE,
-            **dataset_meta.METADATA.PARAMETERS
+            dataset_meta.metadata.file,
+            **metafile_params
         )
 
         if data_filters is not None:
             for data_filter in data_filters:
+                if isinstance(data_filter, DictConfig):
+                    data_filter = OmegaConf.to_object(data_filter)
                 self.__meta_information = data_filter(self.__meta_information)
 
             assert len(self.__meta_information) > 0, "no data left after filtering"
@@ -90,27 +109,35 @@ class CustomVisionDataset(datasets.VisionDataset):
             self.__meta_information.columns.get_level_values(0).tolist()
             | pipe.where(lambda column: "_vs_" in column)
         )
-        assert len(cls_types) > 0, f"No classification types found in the metadata {dataset_meta.METADATA.FILE}"
+        assert len(cls_types) > 0, f"No classification types found in the metadata {dataset_meta.metadata.file}"
         assert classification in cls_types, (f"cls_types, classification must be one from "
                                              f"{cls_types}, not {classification}")
         self.__classification = classification
 
+        self.__meta_information = self.__meta_information[self.__meta_information[(self.__classification, "label")]
+        .notna()]
         # Filter out the rows that are not in the subset
         if subset != "all":
             self.__meta_information = self.__meta_information[
                 self.__meta_information[(self.__classification, "subset")] == self.__subset
-            ]
+                ]
         self.__classes = self.__meta_information[(self.__classification, "label")].unique().tolist()
-        self.__number_of_classes = len(self.__classes)
+        self.__dataset_meta.number_of_classes = len(self.__classes)
         self.__class_to_number = {cls: i for i, cls in enumerate(self.__classes)}
 
         self.__transform = transform
         self.__target_transform = target_transform
 
+        for transform in self.__transform[::-1]:
+            if isinstance(transform, A.RandomResizedCrop) or isinstance(transform, A.Resize):
+                self.__dataset_meta.input_size = [transform.height, transform.width]
+                break
+
     @property
     def targets(self):
         """
         Get the targets of the dataset
+
         :return:
         :rtype: np.ndarray
         """
@@ -120,6 +147,7 @@ class CustomVisionDataset(datasets.VisionDataset):
     def metadata(self):
         """
         Get metadata of the dataset
+
         :return:
         :rtype: pd.DataFrame
         """
@@ -128,21 +156,23 @@ class CustomVisionDataset(datasets.VisionDataset):
     def __repr__(self):
         """
         Get the representation of the dataset
+
         :return:
         :rtype: str
         """
         formatted_transform = "\n\t".join(str(self.__transform).split("\n"))
         return (
-            f"Dataset {self.__dataset_meta.NAME if self.__dataset_meta.NAME != '' else 'CustomVisionDataset'}\n"
+            f"Dataset {self.__dataset_meta.name if self.__dataset_meta.name != '' else 'CustomVisionDataset'}\n"
             f"\tSubset: {self.__subset}\n"
             f"\tNumber of datapoints: {len(self)}\n"
-            f"\tImage location: {self.__dataset_meta.USED_IMAGES.DIR}\n"
+            f"\tImage location: {self.__dataset_meta.image_dir}\n"
             f"\tTransform: {formatted_transform}\n"
         )
 
     def __len__(self):
         """
         Get the number of images in the dataset
+
         :return: number of images
         :rtype: int
         """
@@ -151,6 +181,7 @@ class CustomVisionDataset(datasets.VisionDataset):
     def __getitem__(self, index):
         """
         Get sample at a specific index from the dataset
+
         :param index: Index of the sample
         :type index: int
         :return: Return the image and its label at a given index
@@ -159,9 +190,10 @@ class CustomVisionDataset(datasets.VisionDataset):
         sample = self.__meta_information.iloc[index]
 
         # Load the image
-        image_path = self.__dataset_meta.USED_IMAGES.DIR / (f"{sample.name[1]}"
-                                                            f"{self.__dataset_meta.IMAGE_PROPERTIES.EXTENSION}")
-        if self.__dataset_meta.IMAGE_PROPERTIES.EXTENSION in [".npy", ".npz"]:
+        image_path = self.__dataset_meta.image_dir / (f"{sample.name[1]}"
+                                                      f"{self.__dataset_meta.image_properties.extension}")
+
+        if self.__dataset_meta.image_properties.extension in [".npy", ".npz"]:
             # quicker to load than cv2.imread
             image = np.load(image_path)["image"]
         else:
@@ -180,9 +212,7 @@ class CustomDataModule:
     """
     DataModule to define data loaders.
     :param data:
-    :type data: DatasetInformation
-    :param used_images:
-    :type used_images: str
+    :type data: Dataset
     :param classification:
     :type classification: str
     :param data_filters: Filters to apply to the data
@@ -199,13 +229,11 @@ class CustomDataModule:
     :type num_workers: int
     :param seed:
     :type seed: int
-    :param dataset_class:
     """
 
     def __init__(
             self,
             data,
-            used_images,
             classification,
             data_filters=None,
             cross_validation_folds=None,
@@ -214,43 +242,29 @@ class CustomDataModule:
             groups=False,
             num_workers=0,
             seed=None,
-            dataset_class=CustomVisionDataset,
     ):
-        assert issubclass(dataset_class, CustomVisionDataset), (f"dataset_class must be a subclass "
-                                                                f"of CustomVisionDataset, not {type(dataset_class)}")
-
         self.__data = data
-        if self.__data.USED_IMAGES is None:
-            helpers.set_used_images(self.__data, used_images, classification)
 
-        if dataset_class is CustomVisionDataset:
-            dataset_params = {
-                "dataset_meta": self.__data,
-                "classification": classification,
-            }
-        else:
-            dataset_params = {
-                "classification": classification,
-            }
-
-        dataset_params = dataset_params | {
+        dataset_params = {
+            "dataset_meta": self.__data,
+            "classification": classification,
             "data_filters": data_filters,
         }
 
         # define datasets
-        self.__train_data = dataset_class(
+        self.__train_data = CustomVisionDataset(
             **dataset_params,
-            transform=self.__data.IMAGE_PROPERTIES.AUGMENTATIONS.TRAIN,
+            transform=self.__data.image_properties.augmentations.train,
             subset="train")
-        self.__push_data = dataset_class(
+        self.__push_data = CustomVisionDataset(
             **dataset_params,
-            transform=self.__data.IMAGE_PROPERTIES.AUGMENTATIONS.PUSH,
+            transform=self.__data.image_properties.augmentations.push,
             normalize=False,
             subset="train"
         )
-        self.__test_data = dataset_class(
+        self.__test_data = CustomVisionDataset(
             **dataset_params,
-            transform=self.__data.IMAGE_PROPERTIES.AUGMENTATIONS.TEST,
+            transform=self.__data.image_properties.augmentations.test,
             subset="test"
         )
 
@@ -313,6 +327,10 @@ class CustomDataModule:
             SubsetRandomSampler(validation_idx),
         ) for fold, (train_idx, validation_idx) in
             enumerate(cross_validator.split(self.__train_data, **cv_kwargs))}
+
+    @property
+    def dataset(self):
+        return copy.deepcopy(self.__data)
 
     @property
     def folds(self):
