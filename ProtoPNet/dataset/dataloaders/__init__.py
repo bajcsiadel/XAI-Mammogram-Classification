@@ -10,7 +10,7 @@ import torch
 from albumentations.pytorch import ToTensorV2
 from hydra.utils import instantiate
 from icecream import ic
-from omegaconf import DictConfig, ListConfig, OmegaConf
+import omegaconf
 from torch.utils.data import DataLoader, SubsetRandomSampler
 from torchvision import datasets
 
@@ -59,7 +59,7 @@ class CustomVisionDataset(datasets.VisionDataset):
     ):
         if isinstance(transform, A.BasicTransform):
             transform = [transform]
-        elif isinstance(transform, ListConfig):
+        elif isinstance(transform, omegaconf.ListConfig):
             transform = [instantiate(t) for t in transform]
 
         if normalize:
@@ -100,9 +100,9 @@ class CustomVisionDataset(datasets.VisionDataset):
         self.__dataset_meta = dataset_meta
 
         metafile_params = dataset_meta.metadata.parameters
-        if isinstance(metafile_params, DictConfig):
-            metafile_params = OmegaConf.to_object(dataset_meta.metadata.parameters)
-        if isinstance(metafile_params, conf_typ.CSVParameters):
+        if isinstance(metafile_params, omegaconf.DictConfig):
+            metafile_params = omegaconf.OmegaConf.to_object(dataset_meta.metadata.parameters)
+        if isinstance(metafile_params, conf_typ.CSVParameters) or type(metafile_params).__name__ == "CSVParameters":
             metafile_params = metafile_params.to_dict()
 
         self.__meta_information = pd.read_csv(
@@ -111,8 +111,8 @@ class CustomVisionDataset(datasets.VisionDataset):
 
         if data_filters is not None:
             for data_filter in data_filters:
-                if isinstance(data_filter, DictConfig):
-                    data_filter = OmegaConf.to_object(data_filter)
+                if isinstance(data_filter, omegaconf.DictConfig):
+                    data_filter = omegaconf.OmegaConf.to_object(data_filter)
                 self.__meta_information = data_filter(self.__meta_information)
 
             assert len(self.__meta_information) > 0, "no data left after filtering"

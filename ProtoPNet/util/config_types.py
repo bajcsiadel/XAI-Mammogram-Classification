@@ -7,16 +7,14 @@ import hydra
 import torch.cuda
 from hydra.core.config_store import ConfigStore
 from hydra.utils import instantiate
-from omegaconf import OmegaConf, MISSING
+from omegaconf import OmegaConf
 
 from icecream import ic
 from pathlib import Path
 from dotenv import load_dotenv
 
-from ProtoPNet.util import helpers
 from ProtoPNet.config.backbone_features import BACKBONE_MODELS
-from ProtoPNet.dataset.metadata import ExactDataFilter
-
+from ProtoPNet.util import helpers
 
 Augmentation = dict[str, typ.Any]
 
@@ -133,7 +131,8 @@ class Dataset:
                     raise ValueError(f"Dataset subset {value} not supported. "
                                      f"Choose one of f{', '.join(subset_values)}.")
             case "number_of_classes" | "input_size":
-                raise ValueError(f"{key} is automatically defined. Should not be set in the configuration file!")
+                if key in self.__dict__:
+                    raise ValueError(f"{key} is automatically defined. Should not be set in the configuration file!")
 
         super().__setattr__(key, value)
 
@@ -311,7 +310,9 @@ class Gpu:
             case "ids":
                 if self.__dict__.get("disabled", False) and len(value) > 0:
                     raise ValueError(f"If GPUs are disabled ids should not be set!")
-                gpu_id_values = range(torch.cuda.device_count())
+                gpu_id_values = (list(range(torch.cuda.device_count())) |
+                                 pipe.map(str) |
+                                 helpers.CustomPipe.to_list)
                 for id_ in value:
                     if id_ not in gpu_id_values:
                         raise ValueError(f"GPU id should be between 0 and "
@@ -372,10 +373,7 @@ def init_config_store():
     return config_store_
 
 
-config_store = init_config_store()
-
-
-@hydra.main(version_base=None, config_path="../conf", config_name="config")
+@hydra.main(version_base=None, config_path="../conf", config_name="main_config")
 def process_config(cfg: Config):
     """
     Process the information in the config file using hydra
@@ -387,7 +385,7 @@ def process_config(cfg: Config):
     cfg: Config = OmegaConf.to_object(cfg)
 
     ic(cfg.data.set.image_properties.augmentations)
-    ic(instantiate(cfg.data.set.image_properties.augmentations.train[0]))
+    ic(instantiate(cfg.data.set.image_properties.augmentations.train))
     ic(type(cfg))
     ic(instantiate(cfg.data.datamodule))
     return cfg
@@ -395,4 +393,7 @@ def process_config(cfg: Config):
 
 if __name__ == "__main__":
     load_dotenv()
+
+    init_config_store()
+
     process_config()

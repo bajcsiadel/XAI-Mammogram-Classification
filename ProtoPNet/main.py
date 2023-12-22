@@ -1,5 +1,4 @@
 import os
-import re
 import shutil
 import sys
 import warnings
@@ -7,6 +6,7 @@ from functools import partial
 
 import hydra
 import numpy as np
+import omegaconf
 import torch
 from dotenv import load_dotenv
 from hydra.utils import instantiate
@@ -15,10 +15,10 @@ from icecream import ic
 load_dotenv()
 sys.path.append(os.getenv("PROJECT_ROOT"))
 
+import ProtoPNet.util.config_types as conf_typ
 from ProtoPNet import model, push
 from ProtoPNet import train_and_test as tnt
 from ProtoPNet.util import helpers, save
-from ProtoPNet.util.config_types import Config, init_config_store
 from ProtoPNet.util.log import Log
 from ProtoPNet.util.preprocess import preprocess
 
@@ -28,7 +28,7 @@ from ProtoPNet.util.preprocess import preprocess
     config_path=os.getenv("CONFIG_DIR_NAME"),
     config_name="main_config",
 )
-def main(cfg: Config):
+def main(cfg: conf_typ.Config):
     logger = Log(__name__)
 
     try:
@@ -50,6 +50,8 @@ def main(cfg: Config):
             "prototype_distances",
         )
 
+        cfg = omegaconf.OmegaConf.to_object(cfg)
+
         set_seeds(cfg.seed)
         run_experiment(cfg, logger)
     except Exception as e:
@@ -63,7 +65,7 @@ def set_seeds(seed):
     torch.cuda.manual_seed(seed)
 
 
-def run_experiment(cfg: Config, logger: Log):
+def run_experiment(cfg: conf_typ.Config, logger: Log):
     # set used GPU id
     os.environ["CUDA_VISIBLE_DEVICES"] = ",".join(cfg.gpu.ids)
 
@@ -354,6 +356,6 @@ def run_experiment(cfg: Config, logger: Log):
 
 
 if __name__ == "__main__":
-    init_config_store()
+    conf_typ.init_config_store()
 
     main()
