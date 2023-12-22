@@ -1,5 +1,7 @@
 # @package data.set.image_properties.augmentations
 train:
   - _target_: albumentations.Rotate
-    limit: 30
+    limit: 10
     p: 1.0
+  - _target_: albumentations.VerticalFlip
+    p: 0.5

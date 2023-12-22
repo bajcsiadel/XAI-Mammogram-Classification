@@ -58,6 +58,7 @@ phases:
     start: 2
     interval: 5
   finetune:
+    batch_size: 32
     epochs: 4
     learning_rates:
       features: 1e-4
