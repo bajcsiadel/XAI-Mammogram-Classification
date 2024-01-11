@@ -1,6 +1,5 @@
 import os
 
-import gin
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
@@ -149,8 +148,7 @@ class DownsampleLayer(nn.Module):
         )
 
 
-@gin.configurable
-class ResNet_features(nn.Module):
+class ResNetFeatures(nn.Module):
     """
     the convolutional layers of ResNet
     the average pooling and final fully convolutional layer is removed
@@ -164,7 +162,7 @@ class ResNet_features(nn.Module):
         color_channels=3,
         zero_init_residual=False,
     ):
-        super(ResNet_features, self).__init__()
+        super(ResNetFeatures, self).__init__()
         self.option = option
 
         if option == "A":
@@ -238,9 +236,7 @@ class ResNet_features(nn.Module):
         # initialize the parameters
         for m in self.modules():
             if isinstance(m, nn.Conv2d):
-                nn.init.kaiming_normal_(
-                    m.weight, mode="fan_out", nonlinearity="relu"
-                )
+                nn.init.kaiming_normal_(m.weight, mode="fan_out", nonlinearity="relu")
             elif isinstance(m, nn.BatchNorm2d):
                 nn.init.constant_(m.weight, 1)
                 nn.init.constant_(m.bias, 0)
@@ -338,7 +334,7 @@ def resnet18_features(pretrained=False, **kwargs):
     Args:
         pretrained (bool): If True, returns a model pre-trained on ImageNet
     """
-    model = ResNet_features(BasicBlock, [2, 2, 2, 2], **kwargs)
+    model = ResNetFeatures(BasicBlock, [2, 2, 2, 2], **kwargs)
     if pretrained:
         my_dict = model_zoo.load_url(
             model_urls["resnet18"], model_dir=PRETRAINED_MODELS_DIR
@@ -357,7 +353,7 @@ def resnet18_features(pretrained=False, **kwargs):
 
 def resnet20_features(pretrained=False, **kwargs):
     """Constructs a ResNet-20 model."""
-    model = ResNet_features(BasicBlock, [3, 3, 3], option="B", **kwargs)
+    model = ResNetFeatures(BasicBlock, [3, 3, 3], option="B", **kwargs)
     return model
 
 
@@ -366,7 +362,7 @@ def resnet34_features(pretrained=False, **kwargs):
     Args:
         pretrained (bool): If True, returns a model pre-trained on ImageNet
     """
-    model = ResNet_features(BasicBlock, [3, 4, 6, 3], **kwargs)
+    model = ResNetFeatures(BasicBlock, [3, 4, 6, 3], **kwargs)
     if pretrained:
         my_dict = model_zoo.load_url(
             model_urls["resnet34"], model_dir=PRETRAINED_MODELS_DIR
@@ -382,7 +378,7 @@ def resnet50_features(pretrained=False, **kwargs):
     Args:
         pretrained (bool): If True, returns a model pre-trained on ImageNet
     """
-    model = ResNet_features(Bottleneck, [3, 4, 6, 3], **kwargs)
+    model = ResNetFeatures(Bottleneck, [3, 4, 6, 3], **kwargs)
     if pretrained:
         my_dict = model_zoo.load_url(
             model_urls["resnet50"], model_dir=PRETRAINED_MODELS_DIR
@@ -398,7 +394,7 @@ def resnet101_features(pretrained=False, **kwargs):
     Args:
         pretrained (bool): If True, returns a model pre-trained on ImageNet
     """
-    model = ResNet_features(Bottleneck, [3, 4, 23, 3], **kwargs)
+    model = ResNetFeatures(Bottleneck, [3, 4, 23, 3], **kwargs)
     if pretrained:
         my_dict = model_zoo.load_url(
             model_urls["resnet101"], model_dir=PRETRAINED_MODELS_DIR
@@ -414,7 +410,7 @@ def resnet152_features(pretrained=False, **kwargs):
     Args:
         pretrained (bool): If True, returns a model pre-trained on ImageNet
     """
-    model = ResNet_features(Bottleneck, [3, 8, 36, 3], **kwargs)
+    model = ResNetFeatures(Bottleneck, [3, 8, 36, 3], **kwargs)
     if pretrained:
         my_dict = model_zoo.load_url(
             model_urls["resnet152"], model_dir=PRETRAINED_MODELS_DIR

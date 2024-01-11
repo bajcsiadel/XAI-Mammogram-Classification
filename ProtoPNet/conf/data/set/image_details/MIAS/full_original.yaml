@@ -1,0 +1,8 @@
+# @package _global_.data.set
+image_dir: ${data.set.root}/pngs
+
+image_properties:
+  mean:
+    - 0.2121
+  std:
+    - 0.2907

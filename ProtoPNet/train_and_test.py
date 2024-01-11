@@ -1,6 +1,6 @@
-import gin
-import numpy as np
 import time
+
+import numpy as np
 import torch
 from sklearn.metrics import f1_score
 
@@ -68,18 +68,12 @@ def _train_or_test(
 
             # compute loss
             if use_bce:
-                one_hot_target = torch.nn.functional.one_hot(
-                    target, number_of_classes
-                )
-                cross_entropy = (
-                    torch.nn.functional.binary_cross_entropy_with_logits(
-                        output, one_hot_target.float(), reduction="sum"
-                    )
+                one_hot_target = torch.nn.functional.one_hot(target, number_of_classes)
+                cross_entropy = torch.nn.functional.binary_cross_entropy_with_logits(
+                    output, one_hot_target.float(), reduction="sum"
                 )
             else:
-                cross_entropy = torch.nn.functional.cross_entropy(
-                    output, target
-                )
+                cross_entropy = torch.nn.functional.cross_entropy(output, target)
 
             if not backbone_only:
                 if class_specific:
@@ -96,8 +90,7 @@ def _train_or_test(
                         model.module.prototype_class_identity[:, label]
                     ).cuda()
                     inverted_distances, target_proto_index = torch.max(
-                        (max_dist - min_distances)
-                        * prototypes_of_correct_class,
+                        (max_dist - min_distances) * prototypes_of_correct_class,
                         dim=1,
                     )
                     cluster_cost = torch.mean(max_dist - inverted_distances)
@@ -110,13 +103,11 @@ def _train_or_test(
                             inverted_distances_to_nontarget_prototypes,
                             _,
                         ) = torch.max(
-                            (max_dist - min_distances)
-                            * prototypes_of_wrong_class,
+                            (max_dist - min_distances) * prototypes_of_wrong_class,
                             dim=1,
                         )
                         separation_cost = torch.mean(
-                            max_dist
-                            - inverted_distances_to_nontarget_prototypes
+                            max_dist - inverted_distances_to_nontarget_prototypes
                         )
                     elif separation_type == "avg":
                         min_distances_detached_prototype_vectors = (
@@ -144,8 +135,8 @@ def _train_or_test(
                     elif separation_type == "margin":
                         # For each input get the distance
                         # to the closest target class prototype
-                        min_distance_target = (
-                            max_dist - inverted_distances.reshape((-1, 1))
+                        min_distance_target = max_dist - inverted_distances.reshape(
+                            (-1, 1)
                         )
 
                         all_distances = additional_out["distances"]
@@ -161,9 +152,7 @@ def _train_or_test(
                             all_distances.size(0), all_distances.size(1), -1
                         )
                         distance_at_anchor = all_distances[
-                            torch.arange(
-                                0, all_distances.size(0), dtype=torch.long
-                            ),
+                            torch.arange(0, all_distances.size(0), dtype=torch.long),
                             :,
                             anchor_index,
                         ]
@@ -178,10 +167,9 @@ def _train_or_test(
                         # max(d(a, p) - d(a, n) + margin, 0)
                         separation_cost = torch.mean(
                             torch.maximum(
-                                distance_pos_neg + loss_coefficients["separation_margin"],
-                                torch.tensor(
-                                    0.0, device=distance_pos_neg.device
-                                ),
+                                distance_pos_neg
+                                + loss_coefficients["separation_margin"],
+                                torch.tensor(0.0, device=distance_pos_neg.device),
                             )
                         )
                     else:
@@ -196,14 +184,9 @@ def _train_or_test(
 
                     if use_l1_mask:
                         l1_mask = (
-                            1
-                            - torch.t(
-                                model.module.prototype_class_identity
-                            ).cuda()
+                            1 - torch.t(model.module.prototype_class_identity).cuda()
                         )
-                        l1 = (model.module.last_layer.weight * l1_mask).norm(
-                            p=1
-                        )
+                        l1 = (model.module.last_layer.weight * l1_mask).norm(p=1)
                     else:
                         l1 = model.module.last_layer.weight.norm(p=1)
 
@@ -229,22 +212,25 @@ def _train_or_test(
         if is_train:
             if backbone_only:
                 if loss_coefficients is not None:
-                    loss = loss_coefficients["cross_entropy"] * cross_entropy + loss_coefficients["l1"] * l1
+                    loss = (
+                        loss_coefficients["cross_entropy"] * cross_entropy
+                        + loss_coefficients["l1"] * l1
+                    )
                 else:
                     loss = cross_entropy + 1e-4 * l1
             else:
                 if class_specific:
                     if loss_coefficients is not None:
                         loss = (
-                                loss_coefficients["cross_entropy"] * cross_entropy
-                                + loss_coefficients["clustering"] * cluster_cost
-                                + loss_coefficients["separation"] * separation_cost
-                                + (
-                                    loss_coefficients["l2"] * l2
+                            loss_coefficients["cross_entropy"] * cross_entropy
+                            + loss_coefficients["clustering"] * cluster_cost
+                            + loss_coefficients["separation"] * separation_cost
+                            + (
+                                loss_coefficients["l2"] * l2
                                 if separation_type == "avg"
                                 else 0
                             )
-                                + loss_coefficients["l1"] * l1
+                            + loss_coefficients["l1"] * l1
                         )
                     else:
                         loss = (
@@ -256,9 +242,9 @@ def _train_or_test(
                 else:
                     if loss_coefficients is not None:
                         loss = (
-                                loss_coefficients["cross_entropy"] * cross_entropy
-                                + loss_coefficients["clustering"] * cluster_cost
-                                + loss_coefficients["l1"] * l1
+                            loss_coefficients["cross_entropy"] * cross_entropy
+                            + loss_coefficients["clustering"] * cluster_cost
+                            + loss_coefficients["l1"] * l1
                         )
                     else:
                         loss = cross_entropy + 0.8 * cluster_cost + 1e-4 * l1
@@ -280,17 +266,19 @@ def _train_or_test(
     total_time = end - start
     cross_entropy = total_cross_entropy / n_batches
     cluster_cost = total_cluster_cost / n_batches if not backbone_only else None
-    separation_cost = total_separation_cost / n_batches if not backbone_only and class_specific else None
+    separation_cost = (
+        total_separation_cost / n_batches
+        if not backbone_only and class_specific
+        else None
+    )
     accuracy = n_correct / n_examples * 100
-    micro_f1 = f1_score(true_labels, predicted_labels, average='micro')
-    macro_f1 = f1_score(true_labels, predicted_labels, average='macro')
+    micro_f1 = f1_score(true_labels, predicted_labels, average="micro")
+    macro_f1 = f1_score(true_labels, predicted_labels, average="macro")
     l1_norm = model.module.last_layer.weight.norm(p=1).item()
 
     p_avg_pair_dist = None
     if not backbone_only:
-        p = model.module.prototype_vectors.view(
-            model.module.num_prototypes, -1
-        ).cpu()
+        p = model.module.prototype_vectors.view(model.module.num_prototypes, -1).cpu()
         with torch.no_grad():
             p_avg_pair_dist = torch.mean(list_of_distances(p, p)).item()
 
@@ -308,13 +296,22 @@ def _train_or_test(
         log(f"INFO: \t\t\t\t{'p dist pair: ':<13}{p_avg_pair_dist}")
 
     if hasattr(log, "csv_log_values"):
-        log.csv_log_values("train_model", total_time, cross_entropy, cluster_cost, separation_cost,
-                           accuracy, micro_f1, macro_f1, l1_norm, p_avg_pair_dist)
+        log.csv_log_values(
+            "train_model",
+            total_time,
+            cross_entropy,
+            cluster_cost,
+            separation_cost,
+            accuracy,
+            micro_f1,
+            macro_f1,
+            l1_norm,
+            p_avg_pair_dist,
+        )
 
     return n_correct / n_examples
 
 
-@gin.configurable(denylist=["model", "dataloader", "optimizer", "log"])
 def train(
     model,
     dataloader,
@@ -347,7 +344,6 @@ def train(
     )
 
 
-@gin.configurable(denylist=["model", "dataloader", "log"])
 def test(
     model,
     dataloader,

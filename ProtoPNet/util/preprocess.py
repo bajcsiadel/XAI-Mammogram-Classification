@@ -1,8 +1,6 @@
-import gin
 import torch
 
 
-@gin.configurable
 def preprocess(x, mean, std, number_of_channels=1):
     """
     allocate new tensor like x and apply the normalization used in the
@@ -15,7 +13,6 @@ def preprocess(x, mean, std, number_of_channels=1):
     return y
 
 
-@gin.configurable
 def undo_preprocess(x, mean, std, number_of_channels=1):
     """
     allocate new tensor like x and undo the normalization used in the

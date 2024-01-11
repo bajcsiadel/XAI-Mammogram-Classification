@@ -1,0 +1,4 @@
+defaults:
+  - _network_config
+
+name: resnet18

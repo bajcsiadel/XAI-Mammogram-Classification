@@ -1,7 +1,7 @@
-import gin
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
+
 from ProtoPNet.config.backbone_features.densenet_features import (
     densenet121_features,
     densenet161_features,
@@ -49,6 +49,7 @@ base_architecture_to_features = {
     "vgg19_bn": vgg19_bn_features,
 }
 
+
 class PositiveLinear(nn.Module):
     def __init__(self, in_features, out_features, bias=True):
         super(PositiveLinear, self).__init__()
@@ -58,7 +59,7 @@ class PositiveLinear(nn.Module):
         if bias:
             raise NotImplementedError("Positive bias is not implemented.")
         else:
-            self.register_parameter('bias', None)
+            self.register_parameter("bias", None)
         self.reset_parameters()
 
     def reset_parameters(self):
@@ -81,7 +82,7 @@ class PPNet(nn.Module):
         init_weights=True,
         prototype_activation_function="log",
         add_on_layers_type="bottleneck",
-        positive_weights_in_classifier=False
+        positive_weights_in_classifier=False,
     ):
         super(PPNet, self).__init__()
         self.img_shape = img_shape
@@ -179,13 +180,12 @@ class PPNet(nn.Module):
 
         # do not make this just a tensor,
         # since it will not be moved automatically to gpu
-        self.ones = nn.Parameter(
-            torch.ones(self.prototype_shape), requires_grad=False
-        )
+        self.ones = nn.Parameter(torch.ones(self.prototype_shape), requires_grad=False)
 
         if positive_weights_in_classifier:
             self.last_layer = PositiveLinear(
-                self.num_prototypes, self.num_classes, bias=False)
+                self.num_prototypes, self.num_classes, bias=False
+            )
         else:
             self.last_layer = nn.Linear(
                 self.num_prototypes, self.num_classes, bias=False
@@ -315,9 +315,7 @@ class PPNet(nn.Module):
         # changing in_features and out_features make sure the numbers are consistent
         self.last_layer.in_features = self.num_prototypes
         self.last_layer.out_features = self.num_classes
-        self.last_layer.weight.data = self.last_layer.weight.data[
-            :, prototypes_to_keep
-        ]
+        self.last_layer.weight.data = self.last_layer.weight.data[:, prototypes_to_keep]
 
         # self.ones is nn.Parameter
         self.ones = nn.Parameter(
@@ -370,9 +368,7 @@ class PPNet(nn.Module):
         for m in self.add_on_layers.modules():
             if isinstance(m, nn.Conv2d):
                 # every init technique has an underscore _ in the name
-                nn.init.kaiming_normal_(
-                    m.weight, mode="fan_out", nonlinearity="relu"
-                )
+                nn.init.kaiming_normal_(m.weight, mode="fan_out", nonlinearity="relu")
 
                 if m.bias is not None:
                     nn.init.constant_(m.bias, 0)
@@ -496,20 +492,21 @@ class BBNet(nn.Module):
         )
 
 
-@gin.configurable
 def construct_PPNet(
     base_architecture,
     pretrained=True,
+    color_channels=3,
     img_shape=(224, 224),
     prototype_shape=(2000, 512, 1, 1),
     num_classes=200,
     prototype_activation_function="log",
     add_on_layers_type="bottleneck",
     backbone_only=False,
-    positive_weights_in_classifier=False
+    positive_weights_in_classifier=False,
 ):
     features = base_architecture_to_features[base_architecture](
-        pretrained=pretrained
+        pretrained=pretrained,
+        color_channels=color_channels,
     )
     if backbone_only:
         return BBNet(
@@ -541,5 +538,5 @@ def construct_PPNet(
             init_weights=True,
             prototype_activation_function=prototype_activation_function,
             add_on_layers_type=add_on_layers_type,
-            positive_weights_in_classifier=positive_weights_in_classifier
+            positive_weights_in_classifier=positive_weights_in_classifier,
         )
