@@ -341,7 +341,7 @@ class CustomDataModule:
             cv_kwargs["y"] = targets
 
         if balanced:
-            from ProtoPNet.util.cross_validation import BalancedGroupKFold
+            from ProtoPNet.util.split_data.cross_validation import BalancedGroupKFold
 
             cross_validator_class = BalancedGroupKFold
         elif stratified and groups:
