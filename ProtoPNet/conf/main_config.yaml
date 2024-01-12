@@ -18,7 +18,7 @@ data:
     cross_validation_folds: ${cross_validation.folds}
     stratified: ${cross_validation.stratified}
     balanced: ${cross_validation.balanced}
-    groups: ${cross_validation.grouped}
+    grouped: ${cross_validation.grouped}
     num_workers: ${job.number_of_workers}
     seed: ${seed}
 

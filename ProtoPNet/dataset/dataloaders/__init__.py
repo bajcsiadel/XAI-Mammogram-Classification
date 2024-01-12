@@ -273,7 +273,7 @@ class CustomDataModule:
         cross_validation_folds=None,
         stratified=False,
         balanced=False,
-        groups=False,
+        grouped=False,
         num_workers=0,
         seed=None,
     ):

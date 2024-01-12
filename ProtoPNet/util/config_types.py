@@ -153,7 +153,7 @@ class DataModule:
     cross_validation_folds: int
     stratified: bool
     balanced: bool
-    groups: bool
+    grouped: bool
     num_workers: int
     seed: int
 
