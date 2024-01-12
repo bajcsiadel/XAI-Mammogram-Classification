@@ -1,8 +1,8 @@
 hydra:
   run:
-    dir: runs/${hydra.job.name}/${data.set.name}-${network.name}-${data.set.state}-${target}/${now:%Y-%m-%d}/${now:%H-%M-%S}
+    dir: ${oc.env:PROJECT_ROOT}/runs/${hydra.job.name}/${data.set.name}-${network.name}-${data.set.state}-${target}/${now:%Y-%m-%d}/${now:%H-%M-%S}
   sweep:
-    dir: runs/${hydra.job.name}
+    dir: ${oc.env:PROJECT_ROOT}/runs/${hydra.job.name}
     subdir: ${data.set.name}-${network.name}-${data.set.state}-${target}/${now:%Y-%m-%d}/${now:%H-%M-%S}
   output_subdir: conf
   job_logging:
