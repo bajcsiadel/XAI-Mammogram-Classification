@@ -1597,6 +1597,21 @@ files = [
 diagrams = ["jinja2", "railroad-diagrams"]
 
 [[package]]
+name = "pyproject-flake8"
+version = "6.1.0"
+description = "pyproject-flake8 (`pflake8`), a monkey patching wrapper to connect flake8 with pyproject.toml configuration"
+optional = false
+python-versions = ">=3.8.1"
+files = [
+    {file = "pyproject_flake8-6.1.0-py3-none-any.whl", hash = "sha256:86ea5559263c098e1aa4f866776aa2cf45362fd91a576b9fd8fbbbb55db12c4e"},
+    {file = "pyproject_flake8-6.1.0.tar.gz", hash = "sha256:6da8e5a264395e0148bc11844c6fb50546f1fac83ac9210f7328664135f9e70f"},
+]
+
+[package.dependencies]
+flake8 = "6.1.0"
+tomli = {version = "*", markers = "python_version < \"3.11\""}
+
+[[package]]
 name = "python-dateutil"
 version = "2.8.2"
 description = "Extensions to the standard Python datetime module"
@@ -2183,4 +2198,4 @@ requests = "*"
 [metadata]
 lock-version = "2.0"
 python-versions = "^3.10,<3.12"
-content-hash = "b8f1ca0d08237a14d73a48e8bfc2e3d4457445e78459c5e64624da2eff512732"
+content-hash = "b44c2a72d000979d05829f6f6431c88d8db5e474c1d71bf4b94fcb5bc58bf678"
