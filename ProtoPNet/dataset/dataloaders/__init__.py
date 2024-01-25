@@ -59,8 +59,6 @@ class CustomVisionDataset(datasets.VisionDataset):
     ):
         if isinstance(transform, A.BasicTransform):
             transform = [transform]
-        elif isinstance(transform, omegaconf.ListConfig):
-            transform = [instantiate(t) for t in transform]
 
         if normalize:
             transform.append(
