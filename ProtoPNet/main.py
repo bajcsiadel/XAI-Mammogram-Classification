@@ -110,6 +110,16 @@ def run_experiment(cfg: conf_typ.Config, logger: Log):
     )
     class_specific = True
 
+    logger.info(f"\t{' x '.join(map(str, prototype_shape))} prototype shape")
+
+    logger.info("data settings")
+    logger.info(f"\t{cfg.data.set.target.name}")
+    logger.info(f"\t{' x '.join(map(str, image_size))} image size")
+    logger.info(f"\t{cfg.data.set.image_properties.color_channels} color channels")
+    logger.info(f"\t{cfg.data.set.image_properties.std} std")
+    logger.info(f"\t{cfg.data.set.image_properties.mean} mean")
+    logger.info(f"\t{number_of_classes} classes")
+
     train_test_parameters = {
         "prototype_shape": prototype_shape,
         "separation_type": cfg.loss.separation_type,

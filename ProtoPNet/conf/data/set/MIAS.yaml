@@ -6,8 +6,6 @@ name: MIAS
 root: ${oc.env:DATASET_LOCATION}/MIAS/
 
 image_properties:
-  width: 1024
-  height: 1024
   color_channels: 1
   max_value: 255
 

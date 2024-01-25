@@ -4,17 +4,15 @@ import pipe
 import typing as typ
 
 import hydra
-import torch.cuda
 from hydra.core.config_store import ConfigStore
 from hydra.utils import instantiate
-from omegaconf import OmegaConf
+import omegaconf
 
 from icecream import ic
 from pathlib import Path
 from dotenv import load_dotenv
 
 from ProtoPNet.config.backbone_features import BACKBONE_MODELS
-from ProtoPNet.util import helpers
 
 Augmentation = dict[str, typ.Any]
 
@@ -102,11 +100,17 @@ class MetadataInformation:
 
 
 @dc.dataclass
+class Target:
+    name: str
+    size: str
+
+
+@dc.dataclass
 class Dataset:
     name: str
     root: Path
-    size: str
     state: str
+    target: Target
     image_dir: Path
     image_properties: ImageProperties
     metadata: MetadataInformation
@@ -149,13 +153,16 @@ class DataModule:
     _target_: str
     data: Dataset
     classification: str
-    data_filters: list[Filter]
-    cross_validation_folds: int
-    stratified: bool
-    balanced: bool
-    grouped: bool
-    num_workers: int
-    seed: int
+    data_filters: list[Filter] = dc.field(default_factory=list)
+    cross_validation_folds: int = 0
+    stratified: bool = False
+    balanced: bool = False
+    grouped: bool = False
+    num_workers: int = 0
+    seed: int = 1234
+    debug: bool = False
+    train_batch_size: int = 32
+    validation_batch_size: int = 8
 
 
 @dc.dataclass
@@ -346,7 +353,6 @@ class Outputs:
 @dc.dataclass
 class Config:
     data: Data
-    target: str
     network: Network
     prototypes: PrototypeProperties
     cross_validation: CrossValidationParameters
@@ -364,11 +370,30 @@ class Config:
 def init_config_store():
     config_store_ = ConfigStore.instance()
 
-    config_store_.store(name="_config_validation", node=Config)
-    config_store_.store(name="_data_validation", group="data", node=Data)
-    config_store_.store(name="_data_set_validation", group="data/set", node=Dataset)
-    config_store_.store(name="_cross_validation_validation", group="cross_validation", node=CrossValidationParameters)
-    config_store_.store(name="_network_validation", group="network", node=Network)
+    config_store_.store(
+        name="_config_validation",
+        node=Config
+    )
+    config_store_.store(
+        name="_data_validation",
+        group="data",
+        node=Data
+    )
+    config_store_.store(
+        name="_data_set_validation",
+        group="data/set",
+        node=Dataset
+    )
+    config_store_.store(
+        name="_cross_validation_validation",
+        group="cross_validation",
+        node=CrossValidationParameters
+    )
+    config_store_.store(
+        name="_network_validation",
+        group="network",
+        node=Network
+    )
 
     return config_store_
 
@@ -381,8 +406,7 @@ def process_config(cfg: Config):
     :param cfg: config information read from file
     :return: the processed and validated config
     """
-    # print(OmegaConf.to_yaml(cfg))
-    cfg: Config = OmegaConf.to_object(cfg)
+    cfg: Config = omegaconf.OmegaConf.to_object(cfg)
 
     ic(cfg.data.set.image_properties.augmentations)
     ic(instantiate(cfg.data.set.image_properties.augmentations.train))
