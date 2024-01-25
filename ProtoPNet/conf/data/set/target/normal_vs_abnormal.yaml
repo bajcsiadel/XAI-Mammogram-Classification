@@ -1,0 +1,4 @@
+defaults:
+  - size: full
+
+name: normal_vs_abnormal

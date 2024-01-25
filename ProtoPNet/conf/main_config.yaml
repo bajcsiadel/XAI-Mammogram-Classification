@@ -7,13 +7,11 @@ defaults:
   - cross_validation: stratified
   - network: resnet18
 
-target: normal_vs_abnormal  # normal_vs_abnormal | benign_vs_malignant | normal_vs_benign_vs_malignant
-
 data:
   datamodule:
     _target_: ProtoPNet.dataset.dataloaders.CustomDataModule
     data: ${data.set}
-    classification: ${target}
+    classification: ${data.set.target.name}
     data_filters: ${data.filters}
     cross_validation_folds: ${cross_validation.folds}
     stratified: ${cross_validation.stratified}

@@ -1,0 +1,4 @@
+# @package _global_.data.set.target
+size: cropped
+
+#target: benign_vs_malignant

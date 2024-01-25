@@ -1,0 +1,4 @@
+defaults:
+  - size: cropped
+
+name: benign_vs_malignant

@@ -1,4 +1,7 @@
 # @package _global_.data.set
+defaults:
+  - MIAS/_full@_here_
+
 image_dir: ${data.set.root}/pngs
 
 image_properties:

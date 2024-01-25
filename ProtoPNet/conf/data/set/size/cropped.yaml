@@ -1,6 +1,0 @@
-# @package _global_
-data:
-  set:
-    size: cropped
-
-target: benign_vs_malignant

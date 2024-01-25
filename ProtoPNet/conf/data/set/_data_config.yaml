@@ -1,8 +1,8 @@
 defaults:
   - _data_set_validation   # type verification defined in config_types.py
-  - size: full
+  - target: normal_vs_abnormal  # normal_vs_abnormal | benign_vs_malignant | normal_vs_benign_vs_malignant
   - state: original
-  - optional image_details: ${data/set}/${data/set/size}_${data/set/state}
+  - optional image_details: ${data/set}/${data/set/target/size}_${data/set/state}
 
 image_properties:
   extension: .npz
