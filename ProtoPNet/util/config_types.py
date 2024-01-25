@@ -309,25 +309,9 @@ class JobProperties:
 
 @dc.dataclass
 class Gpu:
-    ids: list[str]
     disabled: bool = False
 
     def __setattr__(self, key, value):
-        match key:
-            case "ids":
-                if self.__dict__.get("disabled", False) and len(value) > 0:
-                    raise ValueError(f"If GPUs are disabled ids should not be set!")
-                gpu_id_values = (list(range(torch.cuda.device_count())) |
-                                 pipe.map(str) |
-                                 helpers.CustomPipe.to_list)
-                for id_ in value:
-                    if id_ not in gpu_id_values:
-                        raise ValueError(f"GPU id should be between 0 and "
-                                         f"{gpu_id_values[-1]}, but {id_} given")
-            case "disables":
-                if value and len(self.__dict__.get("ids", [])) > 0:
-                    raise ValueError(f"If GPUs are disabled ids should not be set!")
-            
         super().__setattr__(key, value)
 
 
@@ -356,12 +340,12 @@ class Config:
     network: Network
     prototypes: PrototypeProperties
     cross_validation: CrossValidationParameters
-    gpu: Gpu
     seed: int
     loss: Loss
     job: JobProperties
     outputs: Outputs
     phases: Phases
+    gpu: Gpu = dc.field(default_factory=Gpu)
 
     def __setattr__(self, key, value):
         super().__setattr__(key, value)

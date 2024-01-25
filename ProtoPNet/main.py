@@ -22,6 +22,9 @@ from ProtoPNet.util import helpers, save
 from ProtoPNet.util.log import Log
 from ProtoPNet.util.preprocess import preprocess
 
+tick = "\u2714"
+cross = "\u2718"
+
 
 @hydra.main(
     version_base=None,
@@ -53,9 +56,31 @@ def main(cfg: conf_typ.Config):
         cfg = omegaconf.OmegaConf.to_object(cfg)
 
         set_seeds(cfg.seed)
+
+        set_gpu_usage(cfg.gpu, logger)
+
         run_experiment(cfg, logger)
     except Exception as e:
         logger.exception(e)
+
+
+def set_gpu_usage(gpu, logger):
+    """
+    Set the gpu usage according to the given configuration.
+    :param gpu:
+    :type gpu: conf_typ.Gpu
+    :param logger:
+    :type logger: Log
+    :return:
+    """
+    logger.info("GPU settings")
+    if not gpu.disabled:
+        logger.info(f"\t{cross} disabled")
+        gpu.ids = os.getenv("CUDA_VISIBLE_DEVICES").split(",")
+        logger.info(f"\t{tick if torch.cuda.is_available() else cross} available")
+        logger.info(f"\tVisible devices set to: {os.getenv('CUDA_VISIBLE_DEVICES')}")
+    else:
+        logger.info(f"\t{tick} disabled")
 
 
 def set_seeds(seed):
@@ -66,11 +91,6 @@ def set_seeds(seed):
 
 
 def run_experiment(cfg: conf_typ.Config, logger: Log):
-    # set used GPU id
-    os.environ["CUDA_VISIBLE_DEVICES"] = ",".join(cfg.gpu.ids)
-
-    logger.info(f"Visible devices set to: {torch.cuda.current_device()}")
-
     # save last commit number (source of the used code)
     commit_fie = logger.metadata_dir / "commit_hash"
     commit_fie.write_bytes(helpers.get_current_commit_hash())
@@ -154,7 +174,9 @@ def run_experiment(cfg: conf_typ.Config, logger: Log):
             backbone_only=cfg.network.backbone_only,
             positive_weights_in_classifier=False,
         )
-        ppnet = ppnet.cuda()
+        if not cfg.gpu.disabled:
+            ppnet = ppnet.cuda()
+
         ppnet_multi = torch.nn.DataParallel(ppnet)
 
         warm_optimizer_specs = [
