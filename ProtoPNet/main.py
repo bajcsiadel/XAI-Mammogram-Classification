@@ -35,7 +35,7 @@ def main(cfg: conf_typ.Config):
     logger = Log(__name__)
 
     try:
-        warnings.showwarning = lambda warning: logger.exception(warning, warn_only=True)
+        warnings.showwarning = lambda message, *args: logger.exception(message, warn_only=True)
 
         logger.log_command_line()
 
