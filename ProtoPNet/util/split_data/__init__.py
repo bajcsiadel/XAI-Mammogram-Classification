@@ -11,6 +11,7 @@ from sklearn.model_selection import train_test_split
 def stratified_grouped_train_test_split(X, y, groups, test_size=0.3, train_size=None, random_state=1234):
     """
     Create a grouped, stratified split of the dataset.
+
     :param X:
     :param y:
     :param groups:
@@ -65,22 +66,23 @@ def stratified_grouped_train_test_split(X, y, groups, test_size=0.3, train_size=
 
     cases_distribution.drop(index=single_classes.index, inplace=True)
 
+    train_ratio = train_size / (train_size + test_size)
+    test_ratio = 1 - train_ratio
     train_patients, test_patients = train_test_split(cases_distribution.index.to_numpy(),
-                                                     test_size=test_size // 2 + 1, train_size=train_size // 2 + 1,
+                                                     test_size=test_ratio, train_size=train_ratio,
                                                      stratify=cases_distribution.values, random_state=random_state)
 
     train_indices = np.where([patient_id in train_patients for patient_id in groups])[0]
     test_indices = np.where([patient_id in test_patients for patient_id in groups])[0]
 
     if len(train_indices) > train_size:
-        train_indices = np.random.choice(train_indices, train_size-2, replace=False)
+        train_indices = np.random.choice(train_indices, train_size, replace=False)
     if len(test_indices) > test_size:
         test_indices = np.random.choice(test_indices, test_size, replace=False)
 
     # if there are fewer elements in the generated set than needed
     # then add the single classes to the sets
     i = 0
-    single_classes = pd.DataFrame([[1, 1], [2, 0], [2, 1]], columns=['N', "A"], index=[1,2,3])
     if len(train_indices) < train_size:
         train_indices, i = __add_single_classes(train_indices, train_size, single_classes, i, groups)
     if len(test_indices) < test_size:
@@ -104,7 +106,11 @@ def __add_single_classes(set_, preferred_set_size, single_classes, index, groups
     :return:
     """
     difference = preferred_set_size - len(set_)
-    while difference > 0 and index < len(single_classes):
+    while difference > 0:
+        if index == len(single_classes):
+            raise UserWarning(f"There are not enough data/groups! "
+                              f"Set contains less samples "
+                              f"({len(set_)} < {preferred_set_size})")
         cases = np.where(single_classes.iloc[index].name == groups)[0]
         if len(cases) > difference:
             cases = np.random.choice(cases, difference, replace=False)
