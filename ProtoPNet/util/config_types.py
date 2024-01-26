@@ -352,6 +352,8 @@ class Config:
 
 
 def init_config_store():
+    add_custom_solvers()
+
     config_store_ = ConfigStore.instance()
 
     config_store_.store(
@@ -380,6 +382,13 @@ def init_config_store():
     )
 
     return config_store_
+
+
+def add_custom_solvers():
+    omegaconf.OmegaConf.register_new_resolver(
+        "format_backbone_only",
+        lambda backbone_only: "only-" if backbone_only else ""
+    )
 
 
 @hydra.main(version_base=None, config_path="../conf", config_name="main_config")
