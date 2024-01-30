@@ -383,7 +383,7 @@ def last_only(model, log=print, backbone_only=False):
     for p in model.module.last_layer.parameters():
         p.requires_grad = True
 
-    log("INFO: \t\t\tlast layer")
+    log("INFO: \tlast layer")
 
 
 def warm_only(model, log=print, backbone_only=False):
@@ -396,7 +396,7 @@ def warm_only(model, log=print, backbone_only=False):
     for p in model.module.last_layer.parameters():
         p.requires_grad = True
 
-    log("INFO: \t\t\twarm")
+    log("INFO: \twarm")
 
 
 def joint(model, log=print, backbone_only=False):
@@ -409,4 +409,4 @@ def joint(model, log=print, backbone_only=False):
     for p in model.module.last_layer.parameters():
         p.requires_grad = True
 
-    log("INFO: \t\t\tjoint")
+    log("INFO: \tjoint")

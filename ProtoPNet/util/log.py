@@ -73,10 +73,12 @@ class Log(logging.Logger):
         :param stacklevel: the stack level. Defaults to 1
         :type stacklevel: int
         """
+        indent = msg[: len(msg) - len(msg.lstrip())]
+        msg = msg.strip()
         for line in msg.splitlines():
             super()._log(
                 level,
-                line,
+                f"{indent}{line}",
                 args,
                 exc_info=exc_info,
                 extra=extra,
