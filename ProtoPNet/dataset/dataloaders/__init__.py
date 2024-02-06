@@ -304,7 +304,7 @@ class CustomDataModule:
         self.__number_of_workers = num_workers
 
         self.__init_cross_validation(
-            cross_validation_folds, stratified, balanced, groups, seed
+            cross_validation_folds, stratified, balanced, grouped, seed
         )
 
     def __init_cross_validation(
