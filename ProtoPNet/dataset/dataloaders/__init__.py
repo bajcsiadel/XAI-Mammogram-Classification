@@ -3,19 +3,20 @@ import typing as typ
 
 import albumentations as A
 import cv2
+import matplotlib.pyplot as plt
 import numpy as np
+import omegaconf
 import pandas as pd
 import pipe
 import torch
 from albumentations.pytorch import ToTensorV2
 from hydra.utils import instantiate
 from icecream import ic
-import omegaconf
-from torch.utils.data import DataLoader, SubsetRandomSampler
-from torchvision import datasets
-
 from ProtoPNet.dataset.metadata import DataFilter
 from ProtoPNet.util import config_types as conf_typ
+from ProtoPNet.util import log
+from torch.utils.data import DataLoader, SubsetRandomSampler
+from torchvision import datasets
 
 
 def _target_transform(target):
@@ -42,7 +43,8 @@ class CustomVisionDataset(datasets.VisionDataset):
     :param data_filters: Filters to apply to the data
     :type data_filters: typ.List[DataFilter] | None
     :param transform: Transform to apply to the images
-    :type transform: albumentations.BasicTransform | list[albumentations.BasicTransform]
+    :type transform: albumentations.BasicTransform |
+    list[albumentations.BasicTransform]
     :param target_transform: Transform to apply to the targets
     :type target_transform: callable
     """
@@ -59,6 +61,12 @@ class CustomVisionDataset(datasets.VisionDataset):
     ):
         if isinstance(transform, A.BasicTransform):
             transform = [transform]
+        elif isinstance(transform, omegaconf.ListConfig):
+            if len(transform) > 0:
+                if isinstance(transform[0], omegaconf.DictConfig):
+                    transform = [instantiate(t) for t in transform]
+            else:
+                transform = []
 
         if normalize:
             transform.append(
@@ -99,8 +107,13 @@ class CustomVisionDataset(datasets.VisionDataset):
 
         metafile_params = dataset_meta.metadata.parameters
         if isinstance(metafile_params, omegaconf.DictConfig):
-            metafile_params = omegaconf.OmegaConf.to_object(dataset_meta.metadata.parameters)
-        if isinstance(metafile_params, conf_typ.CSVParameters) or type(metafile_params).__name__ == "CSVParameters":
+            metafile_params = omegaconf.OmegaConf.to_object(
+                dataset_meta.metadata.parameters
+            )
+        if (
+            isinstance(metafile_params, conf_typ.CSVParameters)
+            or type(metafile_params).__name__ == "CSVParameters"
+        ):
             metafile_params = metafile_params.to_dict()
 
         self.__meta_information = pd.read_csv(
@@ -122,9 +135,10 @@ class CustomVisionDataset(datasets.VisionDataset):
             self.__meta_information.columns.get_level_values(0).tolist()
             | pipe.where(lambda column: "_vs_" in column)
         )
-        assert (
-            len(cls_types) > 0
-        ), f"No classification types found in the metadata {dataset_meta.metadata.file}"
+        assert len(cls_types) > 0, (
+            f"No classification types found in "
+            f"the metadata {dataset_meta.metadata.file}"
+        )
         assert classification in cls_types, (
             f"cls_types, classification must be one from "
             f"{cls_types}, not {classification}"
@@ -141,7 +155,9 @@ class CustomVisionDataset(datasets.VisionDataset):
                 == self.__subset
             ]
         self.__classes = (
-            self.__meta_information[(self.__classification, "label")].unique().tolist()
+            self.__meta_information[(self.__classification, "label")]
+            .unique()
+            .tolist()
         )
         self.__dataset_meta.number_of_classes = len(self.__classes)
         self.__class_to_number = {cls: i for i, cls in enumerate(self.__classes)}
@@ -153,6 +169,8 @@ class CustomVisionDataset(datasets.VisionDataset):
             if isinstance(transform, A.RandomResizedCrop) or isinstance(
                 transform, A.Resize
             ):
+                # save the width and height of the image after the
+                # last augmentation modifying the size
                 self.__dataset_meta.input_size = [transform.height, transform.width]
                 break
 
@@ -164,9 +182,11 @@ class CustomVisionDataset(datasets.VisionDataset):
         :return:
         :rtype: np.ndarray
         """
-        return (
-            self.__meta_information[(self.__classification, "label")].to_numpy().copy()
-        )
+        return self.__meta_information[(self.__classification, "label")].to_numpy()
+
+    @property
+    def groups(self):
+        return self.__meta_information.index.get_level_values("patient_id").to_numpy()
 
     @property
     def metadata(self):
@@ -243,6 +263,7 @@ class CustomVisionDataset(datasets.VisionDataset):
 class CustomDataModule:
     """
     DataModule to define data loaders.
+
     :param data:
     :type data: Dataset
     :param classification:
@@ -255,8 +276,8 @@ class CustomDataModule:
     :type stratified: bool
     :param balanced:
     :type balanced: bool
-    :param groups:
-    :type groups: bool
+    :param grouped:
+    :type grouped: bool
     :param num_workers:
     :type num_workers: int
     :param seed:
@@ -289,6 +310,7 @@ class CustomDataModule:
             transform=self.__data.image_properties.augmentations.train,
             subset="train",
         )
+        self.__validation_data = None
         self.__push_data = CustomVisionDataset(
             **dataset_params,
             transform=self.__data.image_properties.augmentations.push,
@@ -324,13 +346,11 @@ class CustomDataModule:
         :type seed: int
         """
         if cross_validation_folds in [None, 0, 1]:
-            self.__folds = {}
+            self.__fold_generator = [(None, None)]
             return
 
         targets = self.__train_data.targets
-        sample_groups = self.__train_data.metadata.index.get_level_values(
-            "patient_id"
-        ).to_numpy()
+        sample_groups = self.__train_data.groups
 
         cv_kwargs = {}
         if groups or balanced:
@@ -364,20 +384,27 @@ class CustomDataModule:
             n_splits=cross_validation_folds, shuffle=True, random_state=seed
         )
 
-        self.__folds = {
-            fold
-            + 1: (
-                SubsetRandomSampler(train_idx),
-                SubsetRandomSampler(validation_idx),
-            )
-            for fold, (train_idx, validation_idx) in enumerate(
-                cross_validator.split(self.__train_data, **cv_kwargs)
-            )
-        }
+        self.__fold_generator = cross_validator.split(self.__train_data, **cv_kwargs)
 
     @property
     def dataset(self):
         return copy.deepcopy(self.__data)
+
+    @property
+    def train_data(self):
+        return self.__train_data
+
+    @property
+    def validation_data(self):
+        return self.__validation_data or self.__train_data
+
+    @property
+    def push_data(self):
+        return self.__push_data
+
+    @property
+    def test_data(self):
+        return self.__test_data
 
     @property
     def folds(self):
@@ -386,7 +413,34 @@ class CustomDataModule:
         :return: fold number, (train sampler, validation sampler)
         :rtype: typ.Generator[int, typ.Tuple[SubsetRandomSampler, SubsetRandomSampler]]
         """
-        yield from self.__folds.items()
+        yield from self.__fold_generator
+
+    def log_data_information(self, logger):
+        """
+        Log information about the data
+        :param logger:
+        :type logger: pytorch_lightning.loggers.base.LightningLoggerBase
+        """
+        CustomDataModule.__log_data(logger, self.__train_data, "train")
+        if self.__validation_data is not None:
+            CustomDataModule.__log_data(logger, self.__validation_data, "validation")
+        CustomDataModule.__log_data(logger, self.__push_data, "push")
+
+    @staticmethod
+    def __log_data(logger, data, name):
+        """
+        Log information about a dataset
+        :param logger:
+        :type logger: log.Log
+        :param data:
+        :type data: CustomSubset | CustomVisionDataset
+        :param name:
+        :type name: str
+        """
+        logger.info(f"\t{name}")
+        logger.info(f"\t\tsize: {len(data)}")
+        logger.info("\t\tdistribution")
+        logger.info(f"\t\t\t{data.metadata.groupby(data.targets).size().to_string()}")
 
     def __get_data_loader(self, dataset, **kwargs):
         """
@@ -486,10 +540,10 @@ if __name__ == "__main__":
 
     import hydra
     from dotenv import load_dotenv
-
-    from ProtoPNet.util.config_types import Config
+    import ProtoPNet.util.config_types as conf_typ
 
     load_dotenv()
+    conf_typ.init_config_store()
 
     conf_dir = (
         Path(os.getenv("PROJECT_ROOT"))
@@ -498,13 +552,17 @@ if __name__ == "__main__":
     )
 
     @hydra.main(version_base=None, config_path=str(conf_dir), config_name="main_config")
-    def test(cfg: Config):
-        module = CustomDataModule(
-            cfg.data.set, "normal_vs_abnormal", cross_validation_folds=5, balanced=True
-        )
-        for f, (tr, vl) in module.folds:
+    def test(cfg: conf_typ.Config):
+        module = hydra.utils.instantiate(cfg.data.datamodule)
+        for f, (tr, vl) in enumerate(module.folds, start=1):
             ic(f)
+
             ic(tr)
+            if tr is not None:
+                ic(len(tr))
+
             ic(vl)
+            if vl is not None:
+                ic(len(vl))
 
     test()
