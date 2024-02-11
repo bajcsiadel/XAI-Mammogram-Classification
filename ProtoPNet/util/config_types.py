@@ -1,6 +1,7 @@
 import dataclasses as dc
 import numpy as np
 import pipe
+import platform
 import typing as typ
 
 import hydra
@@ -179,16 +180,19 @@ class Network:
     backbone_only: bool
     add_on_layer_type: str
 
+    # possible values
+    __add_on_layer_type_values = ["regular", "bottleneck"]
+
     def __setattr__(self, key, value):
         match key:
             case "name":
                 if value not in BACKBONE_MODELS:
                     raise ValueError(f"Network {value} not supported. Choose one of {', '.join(BACKBONE_MODELS)}.")
             case "add_on_layer_type":
-                add_on_layer_type_values = ["regular", "bottleneck"]
-                if value not in add_on_layer_type_values:
+
+                if value not in self.__add_on_layer_type_values:
                     raise ValueError(f"Add-on layer type {value} not supported. "
-                                     f"Choose one of {', '.join(add_on_layer_type_values)}.")
+                                     f"Choose one of {', '.join(self.__add_on_layer_type_values)}.")
 
         super().__setattr__(key, value)
 
@@ -221,6 +225,9 @@ class PrototypeProperties:
     size: int
     activation_fn: str
 
+    # possible values
+    __activation_fn_values = ["log", "linear", "relu", "sigmoid", "tanh"]
+
     def __setattr__(self, key, value):
         match key:
             case "per_class":
@@ -230,10 +237,10 @@ class PrototypeProperties:
                 if value <= 0:
                     raise ValueError(f"Prototype size must be positive. {key} = {value}")
             case "activation_fn":
-                activation_fn_values = ["log", "linear", "relu", "sigmoid", "tanh"]
-                if value not in activation_fn_values:
+
+                if value not in self.__activation_fn_values:
                     raise ValueError(f"Prototype activation function {value} not supported. "
-                                     f"Choose one of {', '.join(activation_fn_values)}.")
+                                     f"Choose one of {', '.join(self.__activation_fn_values)}.")
 
         super().__setattr__(key, value)
 
@@ -283,13 +290,15 @@ class Loss:
     separation_type: str
     coefficients: dict[str, float]
 
+    # possible values
+    __separation_type_values = ["avg", "max", "margin"]
+
     def __setattr__(self, key, value):
         match key:
             case "separation_type":
-                separation_type_values = ["avg", "max", "margin"]
-                if value not in separation_type_values:
+                if value not in self.__separation_type_values:
                     raise ValueError(f"Separation type {self.separation_type} not supported."
-                                     f"Choose one of {', '.join(separation_type_values)}.")
+                                     f"Choose one of {', '.join(self.__separation_type_values)}.")
 
         super().__setattr__(key, value)
 
@@ -310,8 +319,20 @@ class JobProperties:
 @dc.dataclass
 class Gpu:
     disabled: bool = False
+    device: str = "cpu"
 
     def __setattr__(self, key, value):
+        match key:
+            case "disabled":
+                if value:
+                    match platform.system():
+                        case "Windows" | "Linux":
+                            self.device = "cuda"
+                        case "Darwin":
+                            self.device = "mps"
+                        case _:
+                            raise ValueError(f"Platform {platform.system()} not supported.")
+
         super().__setattr__(key, value)
 
 

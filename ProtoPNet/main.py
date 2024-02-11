@@ -1,4 +1,5 @@
 import os
+import platform
 import shutil
 import sys
 import warnings
@@ -67,6 +68,7 @@ def main(cfg: conf_typ.Config):
 def set_gpu_usage(gpu, logger):
     """
     Set the gpu usage according to the given configuration.
+
     :param gpu:
     :type gpu: conf_typ.Gpu
     :param logger:
@@ -76,9 +78,13 @@ def set_gpu_usage(gpu, logger):
     logger.info("GPU settings")
     if not gpu.disabled:
         logger.info(f"\t{cross} disabled")
-        gpu.ids = os.getenv("CUDA_VISIBLE_DEVICES").split(",")
-        logger.info(f"\t{tick if torch.cuda.is_available() else cross} available")
-        logger.info(f"\tVisible devices set to: {os.getenv('CUDA_VISIBLE_DEVICES')}")
+        match platform.system():
+            case "Windows" | "Linux":
+                logger.info(f"\t{tick if torch.cuda.is_available() else cross} available CUDA")
+                logger.info(f"\tVisible devices set to: {os.getenv('CUDA_VISIBLE_DEVICES')}")
+            case "Darwin":
+                logger.info(f"\t{tick if torch.backends.mps.is_available() else cross} available MPS")
+
     else:
         logger.info(f"\t{tick} disabled")
 
@@ -188,7 +194,7 @@ def run_experiment(cfg: conf_typ.Config, logger: Log):
             positive_weights_in_classifier=False,
         )
         if not cfg.gpu.disabled:
-            ppnet = ppnet.cuda()
+            ppnet = ppnet.device(cfg.gpu.device)
 
         ppnet_multi = torch.nn.DataParallel(ppnet)
 
