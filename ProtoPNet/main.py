@@ -250,7 +250,7 @@ def run_experiment(cfg: conf_typ.Config, logger: Log):
                 sampler=train_sampler,
                 batch_size=cfg.phases.warm.batch_size,
             )
-            validation_loader = dataset_module.train_dataloader(
+            validation_loader = dataset_module.validation_dataloader(
                 sampler=validation_sampler,
                 batch_size=cfg.phases.warm.batch_size,
             )
@@ -294,7 +294,7 @@ def run_experiment(cfg: conf_typ.Config, logger: Log):
             sampler=train_sampler,
             batch_size=cfg.phases.joint.batch_size,
         )
-        validation_loader = dataset_module.train_dataloader(
+        validation_loader = dataset_module.validation_dataloader(
             sampler=validation_sampler,
             batch_size=cfg.phases.joint.batch_size,
         )

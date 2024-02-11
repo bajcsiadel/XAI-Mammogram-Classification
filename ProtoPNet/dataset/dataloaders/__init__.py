@@ -260,6 +260,38 @@ class CustomVisionDataset(datasets.VisionDataset):
         return image, target
 
 
+class CustomSubset(torch.utils.data.Subset):
+    """
+    Custom Subset class for PyTorch containing `targets` and `groups` properties.
+
+    :param dataset: root dataset
+    :type dataset: CustomVisionDataset
+    :param indices: indices of the included samples
+    :type indices: typ.Sequence[int]
+    """
+
+    def __init__(self, dataset, indices):
+        super().__init__(dataset, indices)
+
+    @property
+    def metadata(self):
+        if hasattr(self.dataset, "metadata"):
+            return self.dataset.metadata.iloc[self.indices]
+        return pd.DataFrame()
+
+    @property
+    def targets(self):
+        if hasattr(self.dataset, "targets"):
+            return self.dataset.targets[self.indices]
+        return []
+
+    @property
+    def groups(self):
+        if hasattr(self.dataset, "groups"):
+            return self.dataset.groups[self.indices]
+        return []
+
+
 class CustomDataModule:
     """
     DataModule to define data loaders.
@@ -282,6 +314,12 @@ class CustomDataModule:
     :type num_workers: int
     :param seed:
     :type seed: int
+    :param debug:
+    :type debug: bool
+    :param train_batch_size:
+    :type train_batch_size: int
+    :param validation_batch_size:
+    :type validation_batch_size: int
     """
 
     def __init__(
@@ -295,6 +333,9 @@ class CustomDataModule:
         grouped=False,
         num_workers=0,
         seed=None,
+        debug=False,
+        train_batch_size=32,
+        validation_batch_size=16,
     ):
         self.__data = data
 
@@ -324,6 +365,24 @@ class CustomDataModule:
         )
 
         self.__number_of_workers = num_workers
+        self.__debug = debug
+
+        if self.__debug:
+            train_idx, validation_idx = stratified_grouped_train_test_split(
+                self.__train_data.metadata,
+                self.__train_data.targets,
+                self.__train_data.groups,
+                test_size=validation_batch_size,
+                train_size=train_batch_size,
+                random_state=seed,
+            )
+
+            # first the validation data should be defined
+            # otherwise the train data will be overwritten
+            self.__validation_data = CustomSubset(self.__train_data, validation_idx)
+
+            self.__train_data = CustomSubset(self.__train_data, train_idx)
+            self.__push_data = CustomSubset(self.__push_data, train_idx)
 
         self.__init_cross_validation(
             cross_validation_folds, stratified, balanced, grouped, seed
@@ -446,7 +505,7 @@ class CustomDataModule:
         """
         Get a data loader for a given dataset
         :param dataset:
-        :type dataset: CustomVisionDataset
+        :type dataset: CustomVisionDataset | CustomSubset
         :param kwargs:
         :type kwargs: typ.Dict[str, typ.Any]
         :return: data loader
@@ -475,10 +534,44 @@ class CustomDataModule:
                 "sampler": sampler,
             }
 
+        if self.__debug:
+            batch_size = len(self.__train_data)
+
         kwargs = kwargs | param | {"batch_size": batch_size}
 
         return self.__get_data_loader(
             self.__train_data,
+            **kwargs,
+        )
+
+    def validation_dataloader(self, batch_size, sampler=None, **kwargs):
+        """
+        Get a data loader for the validation set
+        :param batch_size:
+        :type batch_size: int
+        :param sampler:
+        :type sampler: torch.utils.data.Sampler | typ.Iterable[int] | None
+        :param kwargs:
+        :type kwargs: typ.Dict[str, typ.Any]
+        :return: validation data loader
+        :rtype: DataLoader
+        """
+        if sampler is None:
+            param = {
+                "shuffle": False,
+            }
+        else:
+            param = {
+                "sampler": sampler,
+            }
+
+        if self.__debug:
+            batch_size = len(self.__validation_data)
+
+        kwargs = kwargs | param | {"batch_size": batch_size}
+
+        return self.__get_data_loader(
+            self.__validation_data or self.__train_data,
             **kwargs,
         )
 
@@ -502,6 +595,9 @@ class CustomDataModule:
             param = {
                 "sampler": sampler,
             }
+
+        if self.__debug:
+            batch_size = len(self.__train_data)
 
         kwargs = (
             kwargs

@@ -160,6 +160,9 @@ class DataModule:
     grouped: bool = False
     num_workers: int = 0
     seed: int = 1234
+    debug: bool = False
+    train_batch_size: int = 32
+    validation_batch_size: int = 16
 
 
 @dc.dataclass

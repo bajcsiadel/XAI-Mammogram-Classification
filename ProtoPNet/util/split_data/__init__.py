@@ -59,6 +59,19 @@ def stratified_grouped_train_test_split(X, y, groups, test_size=0.3, train_size=
     if len(X) != len(y) != len(groups):
         raise ValueError("X, y and groups must have the same length")
 
+    label_count = np.vstack(np.unique(y, return_counts=True)).T
+    train_sample_per_class = train_size // label_count.shape[0]
+    test_sample_per_class = test_size // label_count.shape[0]
+
+    smallest_class = np.min(label_count[:, 1])
+
+    if train_sample_per_class + test_sample_per_class > smallest_class:
+        raise ValueError("Not enough samples in the dataset to create a stratified split\n"
+                         f"{label_count[0, np.argmin(label_count[:, 1])]} has"
+                         f"{smallest_class} < "
+                         f"{train_sample_per_class + test_sample_per_class}"
+                         "samples")
+
     # split the indices
     # define case distribution
     cases_distribution = __get_case_distribution(y, groups)
@@ -76,9 +89,9 @@ def stratified_grouped_train_test_split(X, y, groups, test_size=0.3, train_size=
     test_indices = np.where([patient_id in test_patients for patient_id in groups])[0]
 
     if len(train_indices) > train_size:
-        train_indices = np.random.choice(train_indices, train_size, replace=False)
+        train_indices = __random_choice(train_indices, train_size, X, y, train_sample_per_class, random_state)
     if len(test_indices) > test_size:
-        test_indices = np.random.choice(test_indices, test_size, replace=False)
+        test_indices = __random_choice(test_indices, test_size, X, y, test_sample_per_class, random_state)
 
     # if there are fewer elements in the generated set than needed
     # then add the single classes to the sets
@@ -89,6 +102,47 @@ def stratified_grouped_train_test_split(X, y, groups, test_size=0.3, train_size=
         test_indices, _ = __add_single_classes(test_indices, test_size, single_classes, i, groups)
 
     return train_indices, test_indices
+
+
+def __random_choice(selected_indices, preferred_set_size, X, y, sample_per_class, random_state):
+    """
+    Randomly select indices from the dataset.
+
+    :param sample_per_class: subset of indices
+    :type sample_per_class: np.ndarray
+    :param preferred_set_size:
+    :type preferred_set_size: int
+    :param X:
+    :type X: pd.DataFrame | list | np.ndarray
+    :param y:
+    :type y: np.ndarray
+    :param sample_per_class:
+    :type sample_per_class: int
+    :param random_state:
+    :type random_state: int
+    :return:
+    """
+    if not isinstance(X, pd.DataFrame):
+        X = pd.DataFrame(X)
+
+    data = X.reset_index()
+    if "index" not in data.columns:
+        data["index"] = range(len(data))
+
+    # filter the selected indices
+    data = data.iloc[selected_indices]
+    selected = (
+        data
+        .groupby(y[selected_indices])
+        .apply(lambda x: x.sample(sample_per_class, random_state=random_state))
+    )["index"].to_numpy()
+    if len(selected) < preferred_set_size:
+        remaining = np.setdiff1d(selected_indices, selected)
+        selected = np.concatenate((
+            selected,
+            np.random.choice(remaining, preferred_set_size - len(selected))
+        ))
+    return selected
 
 
 def __add_single_classes(set_, preferred_set_size, single_classes, index, groups):
@@ -103,6 +157,7 @@ def __add_single_classes(set_, preferred_set_size, single_classes, index, groups
     :param index:
     :type index: int
     :param groups:
+    :type groups: np.ndarray
     :return:
     """
     difference = preferred_set_size - len(set_)

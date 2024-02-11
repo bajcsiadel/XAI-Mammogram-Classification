@@ -380,7 +380,7 @@ class PPNet(nn.Module):
         self.set_last_layer_incorrect_connection(incorrect_strength=-0.5)
 
 
-# the equvalent backbone model
+# the equivalent backbone model
 class BBNet(nn.Module):
     def __init__(
         self,
@@ -388,6 +388,7 @@ class BBNet(nn.Module):
         img_shape,
         prototype_shape,
         num_classes,
+        color_channels=3,
         add_on_layers_type="bottleneck",
     ):
         super(BBNet, self).__init__()
@@ -458,8 +459,8 @@ class BBNet(nn.Module):
                 nn.Sigmoid(),
             )
 
-        # TODO: change second 1 to the number of channels
-        x = torch.randn(1, 1, *img_shape)
+        x = torch.randn(1, color_channels, *img_shape)
+
         x = self.features(x)
         x = self.add_on_layers(x)
         n, d, w, h = x.size()
@@ -514,6 +515,7 @@ def construct_PPNet(
             img_shape=img_shape,
             prototype_shape=prototype_shape,
             num_classes=num_classes,
+            color_channels=color_channels,
             add_on_layers_type=add_on_layers_type,
         )
     else:
