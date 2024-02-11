@@ -5,4 +5,4 @@ pretrained: true
 
 backbone_only: false
 
-add_on_layer_type: regular  # regular | bottleneck
+add_on_layer_type: bottleneck  # regular | bottleneck
