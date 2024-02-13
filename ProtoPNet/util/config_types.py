@@ -310,7 +310,7 @@ class JobProperties:
     def __setattr__(self, key, value):
         match key:
             case "number_of_workers":
-                if value <= 0:
+                if value < 0:
                     raise ValueError(f"Number of workers must be greater than 0.\n{key} = {value}")
 
         super().__setattr__(key, value)
@@ -319,7 +319,7 @@ class JobProperties:
 @dc.dataclass
 class Gpu:
     disabled: bool = False
-    device: str = "cpu"
+    device: str = "cuda" if platform.system() != "Darwin" else "mps"
 
     def __setattr__(self, key, value):
         match key:
@@ -331,7 +331,7 @@ class Gpu:
                         case "Darwin":
                             self.device = "mps"
                         case _:
-                            raise ValueError(f"Platform {platform.system()} not supported.")
+                            self.device = "cpu"
 
         super().__setattr__(key, value)
 

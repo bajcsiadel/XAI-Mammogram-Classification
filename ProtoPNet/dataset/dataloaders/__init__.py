@@ -15,8 +15,10 @@ from icecream import ic
 from ProtoPNet.dataset.metadata import DataFilter
 from ProtoPNet.util import config_types as conf_typ
 from ProtoPNet.util import log
+from ProtoPNet.util.split_data import stratified_grouped_train_test_split 
 from torch.utils.data import DataLoader, SubsetRandomSampler
 from torchvision import datasets
+from icecream import ic
 
 
 def _target_transform(target):
@@ -205,7 +207,7 @@ class CustomVisionDataset(datasets.VisionDataset):
         :return:
         :rtype: str
         """
-        formatted_transform = "\n\t".join(str(self.__transform).split("\n"))
+        formatted_transform = "\n\t\t".join(str(self.__transform).split("\n"))
 
         dataset_ = (
             self.__dataset_meta.name
@@ -213,11 +215,13 @@ class CustomVisionDataset(datasets.VisionDataset):
             else "CustomVisionDataset"
         )
         return (
-            f"Dataset {dataset_}\n"
-            f"\tSubset: {self.__subset}\n"
-            f"\tNumber of datapoints: {len(self)}\n"
-            f"\tImage location: {self.__dataset_meta.image_dir}\n"
-            f"\tTransform: {formatted_transform}\n"
+            f"CustomVisionDataset(\n"
+            f"\tname={dataset_},\n"
+            f"\tsubset={self.__subset},\n"
+            f"\tn_samples={len(self)},\n"
+            f"\tlocation={self.__dataset_meta.image_dir},\n"
+            f"\ttransform={formatted_transform},\n"
+            f")"
         )
 
     def __len__(self):
@@ -290,6 +294,16 @@ class CustomSubset(torch.utils.data.Subset):
         if hasattr(self.dataset, "groups"):
             return self.dataset.groups[self.indices]
         return []
+
+    def __repr__(self):
+        return (
+            f"CustomSubset(\n"
+            f"\tdataset={self.dataset},\n"
+            f"\tindices={self.indices},\n"
+            f"\tmin(indices)={min(*self.indices)},\n"
+            f"\tmax(indices)={max(*self.indices)},\n"
+            f")"
+        )
 
 
 class CustomDataModule:
@@ -404,7 +418,7 @@ class CustomDataModule:
         :param seed:
         :type seed: int
         """
-        if cross_validation_folds in [None, 0, 1]:
+        if cross_validation_folds in [None, 0, 1] or self.__debug:
             self.__fold_generator = [(None, None)]
             return
 
@@ -444,6 +458,10 @@ class CustomDataModule:
         )
 
         self.__fold_generator = cross_validator.split(self.__train_data, **cv_kwargs)
+
+    @property
+    def debug(self):
+        return self.__debug
 
     @property
     def dataset(self):

@@ -77,7 +77,6 @@ def set_gpu_usage(gpu, logger):
     """
     logger.info("GPU settings")
     if not gpu.disabled:
-        logger.info(f"\t{cross} disabled")
         match platform.system():
             case "Windows" | "Linux":
                 logger.info(f"\t{tick if torch.cuda.is_available() else cross} available CUDA")
@@ -114,6 +113,7 @@ def run_experiment(cfg: conf_typ.Config, logger: Log):
     img_dir.mkdir(parents=True, exist_ok=True)
 
     if cfg.cross_validation.folds > 1:
+        logger.info("")
         logger.info(f"{tick} cross validation")
         logger.info(f"\t{cfg.cross_validation.folds} folds")
         logger.info(f"\t{tick if cfg.cross_validation.stratified else cross} stratified")
@@ -134,6 +134,10 @@ def run_experiment(cfg: conf_typ.Config, logger: Log):
     )
     class_specific = True
 
+    logger.info("")
+    logger.info(f"{tick if dataset_module.debug else cross} debug")
+
+    logger.info("")
     logger.info("data settings")
     logger.info(f"\t{cfg.data.set.name}")
     logger.info(f"\t{cfg.data.set.state}")
@@ -145,11 +149,13 @@ def run_experiment(cfg: conf_typ.Config, logger: Log):
     logger.info(f"\t{cfg.data.set.image_properties.mean} mean")
     logger.info(f"\t{number_of_classes} classes")
 
+    logger.info("")
     logger.info("prototype settings")
     logger.info(f"\t{cfg.prototypes.per_class} prototypes per class")
     logger.info(f"\t{cfg.prototypes.size} prototype size")
     logger.info(f"\t{' x '.join(map(str, prototype_shape))} prototype shape")
 
+    logger.info("")
     logger.info("network settings")
     logger.info(f"\t{cfg.network.name} backbone")
     logger.info(f"\t{cfg.network.add_on_layer_type} add on layer")
@@ -163,8 +169,9 @@ def run_experiment(cfg: conf_typ.Config, logger: Log):
         "class_specific": class_specific,
         "loss_coefficients": cfg.loss.coefficients,
         "use_bce": cfg.loss.binary_cross_entropy,
-        "log": logger,
         "backbone_only": cfg.network.backbone_only,
+        "log": logger,
+        "device": cfg.gpu.device
     }
     partial_train = partial(tnt.train, **train_test_parameters)
     partial_test = partial(tnt.test, **train_test_parameters)
@@ -194,7 +201,7 @@ def run_experiment(cfg: conf_typ.Config, logger: Log):
             positive_weights_in_classifier=False,
         )
         if not cfg.gpu.disabled:
-            ppnet = ppnet.device(cfg.gpu.device)
+            ppnet = ppnet.to(cfg.gpu.device)
 
         ppnet_multi = torch.nn.DataParallel(ppnet)
 
@@ -247,7 +254,7 @@ def run_experiment(cfg: conf_typ.Config, logger: Log):
 
         dataset_module.log_data_information(logger)
 
-        if not cfg.network.backbone_only:
+        if not cfg.network.backbone_only and cfg.phases.warm.epochs > 0:
             tnt.warm_only(
                 model=ppnet_multi, log=logger, backbone_only=cfg.network.backbone_only
             )
@@ -358,6 +365,7 @@ def run_experiment(cfg: conf_typ.Config, logger: Log):
                     proto_bound_boxes_filename_prefix=cfg.outputs.file_prefixes.bounding_box,
                     save_prototype_class_identity=True,
                     log=logger,
+                    device=cfg.gpu.device,
                 )
 
                 logger.csv_log_index(
