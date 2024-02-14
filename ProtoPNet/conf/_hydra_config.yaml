@@ -1,9 +1,6 @@
 hydra:
-  run:
-    dir: ${oc.env:PROJECT_ROOT}/runs/${hydra.job.name}/${data.set.name}-${format_backbone_only:${network.backbone_only}}${network.name}-${data.set.state}-${data.set.target.name}/${now:%Y-%m-%d}/${now:%H-%M-%S}
   sweep:
     dir: ${oc.env:PROJECT_ROOT}/runs/${hydra.job.name}
-    subdir: ${data.set.name}-${network.name}-${data.set.state}-${format_backbone_only:${network.backbone_only}}${data.set.target.name}/${now:%Y-%m-%d}/${now:%H-%M-%S}
   output_subdir: conf
   job_logging:
     formatters:

@@ -4,7 +4,9 @@ defaults:
   - data/set: MIAS
 
 hydra:
+  run:
+    dir: ${oc.env:PROJECT_ROOT}/runs/${hydra.job.name}/${data.set.name}/${data.set.state}
   sweep:
-    subdir: ${data.set.name}
+    subdir: ${data.set.name}/${data.set.state}
 
 target: normal_vs_abnormal  # normal_vs_abnormal | benign_vs_malignant | normal_vs_benign_vs_malignant
