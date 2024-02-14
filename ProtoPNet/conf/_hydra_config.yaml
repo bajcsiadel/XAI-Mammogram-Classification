@@ -1,6 +1,6 @@
 hydra:
   sweep:
-    dir: ${oc.env:PROJECT_ROOT}/runs/${hydra.job.name}
+    dir: ${oc.env:RUNS_DIR}/${hydra.job.name}
   output_subdir: conf
   job_logging:
     formatters:
