@@ -3,12 +3,12 @@ import typing as typ
 
 import albumentations as A
 import cv2
-import matplotlib.pyplot as plt
 import numpy as np
 import omegaconf
 import pandas as pd
 import pipe
 import torch
+
 from albumentations.pytorch import ToTensorV2
 from hydra.utils import instantiate
 from icecream import ic
@@ -18,7 +18,6 @@ from ProtoPNet.util import log
 from ProtoPNet.util.split_data import stratified_grouped_train_test_split 
 from torch.utils.data import DataLoader, SubsetRandomSampler
 from torchvision import datasets
-from icecream import ic
 
 
 def _target_transform(target):
@@ -46,9 +45,12 @@ class CustomVisionDataset(datasets.VisionDataset):
     :type data_filters: typ.List[DataFilter] | None
     :param transform: Transform to apply to the images
     :type transform: albumentations.BasicTransform |
-    list[albumentations.BasicTransform]
-    :param target_transform: Transform to apply to the targets
-    :type target_transform: callable
+        list[albumentations.BasicTransform]
+    :param target_transform: Transform to apply to the targets.
+        Should return a tensor representing the target.
+    :type target_transform: typ.Callable[[], torch.Tensor]
+    :param debug: flag to mark debug mode, defaults to False
+    :type debug: bool
     """
 
     def __init__(
@@ -60,6 +62,7 @@ class CustomVisionDataset(datasets.VisionDataset):
         normalize=True,
         transform=A.NoOp(),
         target_transform=_target_transform,
+        debug=False,
     ):
         if isinstance(transform, A.BasicTransform):
             transform = [transform]
@@ -72,13 +75,14 @@ class CustomVisionDataset(datasets.VisionDataset):
 
         if normalize:
             transform.append(
+                # normalize transform will be applied after ToFloat,
+                # which already converts the images between 0 and 1
                 A.Normalize(
                     mean=dataset_meta.image_properties.mean,
                     std=dataset_meta.image_properties.std,
-                    max_pixel_value=dataset_meta.image_properties.max_value,
+                    max_pixel_value=1.0,
                 )
             )
-            dataset_meta.image_properties.max_value = 1.0
 
         transform = A.Compose(
             [
@@ -97,6 +101,8 @@ class CustomVisionDataset(datasets.VisionDataset):
             transform=transform,
             target_transform=target_transform,
         )
+
+        self.__debug = debug
 
         assert subset in [
             "train",
@@ -200,6 +206,20 @@ class CustomVisionDataset(datasets.VisionDataset):
         """
         return self.__meta_information.copy()
 
+    def debug(self, state="on"):
+        """
+        Switch debug mode on and off.
+
+        :param state: if ``"on"``, debug mode is turned on.
+            If ``"off"``, debug mode is turned off.
+            Defaults to ``"on"``
+        :type state: str
+        :return: current state of debug mode
+        :rtype: bool
+        """
+        self.__debug = state == "on"
+        return self.__debug
+
     def __repr__(self):
         """
         Get the representation of the dataset
@@ -231,7 +251,10 @@ class CustomVisionDataset(datasets.VisionDataset):
         :return: number of images
         :rtype: int
         """
-        return len(self.__meta_information)
+        # if debug mode is turned on we iterate through the data twice:
+        # first originals are returned than the transformed ones
+        # 1 + True = 2
+        return len(self.__meta_information) * (1 + self.__debug)
 
     def __getitem__(self, index):
         """
@@ -240,22 +263,27 @@ class CustomVisionDataset(datasets.VisionDataset):
         :param index: Index of the sample
         :type index: int
         :return: Return the image and its label at a given index
-        :rtype: tuple(torch.Tensor, torch.Tensor)
+        :rtype: typ.Tuple[torch.Tensor, torch.Tensor]
         """
-        sample = self.__meta_information.iloc[index]
+        # if debug mode is on the indices should be divided by 2
+        sample = self.__meta_information.iloc[index // (1 + self.__debug)]
 
         # Load the image
-        image_path = self.__dataset_meta.image_dir / (
-            f"{sample.name[1]}" f"{self.__dataset_meta.image_properties.extension}"
+        image_path = (
+            self.__dataset_meta.image_dir /
+            f"{sample.name[1]}{self.__dataset_meta.image_properties.extension}"
         )
 
-        if self.__dataset_meta.image_properties.extension in [".npy", ".npz"]:
-            # quicker to load than cv2.imread
-            image = np.load(image_path)["image"]
-        else:
-            image = cv2.imread(str(image_path), cv2.IMREAD_GRAYSCALE)
+        image = (
+            np.load(image_path, allow_pickle=True)["image"]
+            if self.__dataset_meta.image_properties.extension in [".npy", ".npz"] else
+            cv2.imread(str(image_path), cv2.IMREAD_GRAYSCALE)
+        )
 
         target = self.__class_to_number[sample[self.__classification, "label"]]
+
+        if self.__debug and index % 2 == 0:
+            return image, target
 
         # apply transforms
         image = self.__transform(image=image)["image"]
@@ -650,9 +678,9 @@ class CustomDataModule:
 
 if __name__ == "__main__":
     import os
-    from pathlib import Path
-
     import hydra
+    import matplotlib.pyplot as plt
+    from pathlib import Path
     from dotenv import load_dotenv
     import ProtoPNet.util.config_types as conf_typ
 
@@ -678,5 +706,32 @@ if __name__ == "__main__":
             ic(vl)
             if vl is not None:
                 ic(len(vl))
+
+        data = module.test_data
+        data.debug()
+        data_iterator = iter(data)
+
+        _, axs = plt.subplots(1, 2)
+
+        image, label = next(data_iterator)
+        axs[0].imshow(image.squeeze(), cmap="gray")
+        axs[0].set_title("Original Image")
+        axs[0].axis("off")
+        ic("Original")
+        ic(image.min())
+        ic(image.max())
+        ic(image.std())
+        ic(image.mean())
+
+        image, label = next(data_iterator)
+        axs[1].imshow(image.squeeze(), cmap="gray")
+        axs[1].set_title("Augmented Image")
+        axs[1].axis("off")
+        ic("Augmented")
+        ic(image.min())
+        ic(image.max())
+        ic(image.std())
+        ic(image.mean())
+        plt.show()
 
     test()
