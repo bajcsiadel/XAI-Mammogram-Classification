@@ -9,4 +9,9 @@ hydra:
   sweep:
     subdir: ${data.set.name}/${data.set.state}
 
-target: normal_vs_abnormal  # normal_vs_abnormal | benign_vs_malignant | normal_vs_benign_vs_malignant
+dataset:
+  _target_: ProtoPNet.dataset.dataloaders.CustomVisionDataset
+  dataset_meta: ${data.set}
+  classification: ${data.set.target.name}
+  subset: all
+  normalize: false
