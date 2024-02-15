@@ -36,7 +36,7 @@ def convert_images(cfg: Config):
     for filepath in tqdm(
         images,
         desc=f"Processing files for '{cfg.data.set.name}."
-        f"{cfg.data.set.size}.{cfg.data.set.state}'",
+        f"{cfg.data.set.target.size}.{cfg.data.set.state}'",
     ):
         if filepath.is_file() and filepath.suffix == ".png":
             new_filepath = filepath.with_suffix(".npz")
@@ -49,5 +49,5 @@ def convert_images(cfg: Config):
 
 try:
     convert_images()
-except omegaconf.errors.MissingMandatoryValues:
+except omegaconf.errors.MissingMandatoryValue:
     ic("skipped")
