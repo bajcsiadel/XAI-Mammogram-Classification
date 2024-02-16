@@ -13,6 +13,8 @@ from dotenv import load_dotenv
 from hydra.utils import instantiate
 from icecream import ic
 
+from ProtoPNet.add_on_layers import AddOnLayers
+
 load_dotenv()
 sys.path.append(os.getenv("PROJECT_ROOT"))
 
@@ -36,7 +38,9 @@ def main(cfg: conf_typ.Config):
     logger = Log(__name__)
 
     try:
-        warnings.showwarning = lambda message, *args: logger.exception(message, warn_only=True)
+        warnings.showwarning = lambda message, *args: logger.exception(
+            message, warn_only=True
+        )
 
         logger.log_command_line()
 
@@ -79,10 +83,16 @@ def set_gpu_usage(gpu, logger):
     if not gpu.disabled:
         match platform.system():
             case "Windows" | "Linux":
-                logger.info(f"\t{tick if torch.cuda.is_available() else cross} available CUDA")
-                logger.info(f"\tVisible devices set to: {os.getenv('CUDA_VISIBLE_DEVICES')}")
+                logger.info(
+                    f"\t{tick if torch.cuda.is_available() else cross} available CUDA"
+                )
+                logger.info(
+                    f"\tVisible devices set to: {os.getenv('CUDA_VISIBLE_DEVICES')}"
+                )
             case "Darwin":
-                logger.info(f"\t{tick if torch.backends.mps.is_available() else cross} available MPS")
+                logger.info(
+                    f"\t{tick if torch.backends.mps.is_available() else cross} available MPS"
+                )
 
     else:
         logger.info(f"\t{tick} disabled")
@@ -116,7 +126,9 @@ def run_experiment(cfg: conf_typ.Config, logger: Log):
         logger.info("")
         logger.info(f"{tick} cross validation")
         logger.info(f"\t{cfg.cross_validation.folds} folds")
-        logger.info(f"\t{tick if cfg.cross_validation.stratified else cross} stratified")
+        logger.info(
+            f"\t{tick if cfg.cross_validation.stratified else cross} stratified"
+        )
         logger.info(f"\t{tick if cfg.cross_validation.balanced else cross} balanced")
         logger.info(f"\t{tick if cfg.cross_validation.grouped else cross} grouped")
     else:
@@ -158,7 +170,11 @@ def run_experiment(cfg: conf_typ.Config, logger: Log):
     logger.info("")
     logger.info("network settings")
     logger.info(f"\t{cfg.network.name} backbone")
-    logger.info(f"\t{cfg.network.add_on_layer_type} add on layer")
+    logger.info(f"\t{cfg.network.add_on_layer_properties.type} add on layer type")
+    logger.info(
+        f"\t{cfg.network.add_on_layer_properties.activation} add on activation "
+        f"({AddOnLayers.get_reference(cfg.network.add_on_layer_properties.activation)})"
+    )
     logger.info(f"\t{tick if cfg.network.pretrained else cross} pretrained")
     logger.info(f"\t{tick if cfg.network.backbone_only else cross} backbone only")
 
@@ -171,7 +187,7 @@ def run_experiment(cfg: conf_typ.Config, logger: Log):
         "use_bce": cfg.loss.binary_cross_entropy,
         "backbone_only": cfg.network.backbone_only,
         "log": logger,
-        "device": cfg.gpu.device
+        "device": cfg.gpu.device,
     }
     partial_train = partial(tnt.train, **train_test_parameters)
     partial_test = partial(tnt.test, **train_test_parameters)
@@ -186,7 +202,9 @@ def run_experiment(cfg: conf_typ.Config, logger: Log):
     # train the model
     logger.info("start training")
 
-    for fold, (train_sampler, validation_sampler) in enumerate(dataset_module.folds, start=1):
+    for fold, (train_sampler, validation_sampler) in enumerate(
+        dataset_module.folds, start=1
+    ):
         # construct the model
         ppnet = model.construct_PPNet(
             base_architecture=cfg.network.name,
@@ -196,7 +214,7 @@ def run_experiment(cfg: conf_typ.Config, logger: Log):
             prototype_shape=prototype_shape,
             num_classes=number_of_classes,
             prototype_activation_function=cfg.prototypes.activation_fn,
-            add_on_layers_type=cfg.network.add_on_layer_type,
+            add_on_layers_type=cfg.network.add_on_layer_properties.type,
             backbone_only=cfg.network.backbone_only,
             positive_weights_in_classifier=False,
         )
