@@ -122,7 +122,11 @@ class Dataset:
     image_properties: ImageProperties
     metadata: MetadataInformation
     number_of_classes: int = 0
-    input_size: list[int] = dc.field(default_factory=list)
+    input_size: tuple[int, int] = (0, 0)
+
+    # possible values
+    __subset_values = ["original", "masked", "preprocessed", "masked_preprocessed"]
+    __size_values = ["full", "cropped"]
 
     def __setattr__(self, key, value):
         match key:
@@ -133,23 +137,16 @@ class Dataset:
                 if not value.exists() or not value.is_dir():
                     raise NotADirectoryError(f"Image directory {value} does not exist.")
             case "size":
-                size_values = ["full", "cropped"]
-                if value not in size_values:
+                if value not in self.__size_values:
                     raise ValueError(
                         f"Dataset size {value} not supported. "
-                        f"Choose one of {', '.join(size_values)}."
+                        f"Choose one of {', '.join(self.__size_values)}."
                     )
             case "subset":
-                subset_values = [
-                    "original",
-                    "masked",
-                    "preprocessed",
-                    "masked_preprocessed",
-                ]
-                if value not in subset_values:
+                if value not in self.__subset_values:
                     raise ValueError(
                         f"Dataset subset {value} not supported. "
-                        f"Choose one of f{', '.join(subset_values)}."
+                        f"Choose one of f{', '.join(self.__subset_values)}."
                     )
             case "number_of_classes" | "input_size":
                 if key in self.__dict__:

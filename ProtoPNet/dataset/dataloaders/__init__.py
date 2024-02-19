@@ -179,8 +179,13 @@ class CustomVisionDataset(datasets.VisionDataset):
             ):
                 # save the width and height of the image after the
                 # last augmentation modifying the size
-                self.__dataset_meta.input_size = [transform.height, transform.width]
+                self.__dataset_meta.input_size = (transform.height, transform.width)
                 break
+        else:
+            self.__dataset_meta.input_size = (
+                dataset_meta.image_properties.height,
+                dataset_meta.image_properties.width,
+            )
 
     @property
     def targets(self):

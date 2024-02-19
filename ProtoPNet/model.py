@@ -1,3 +1,5 @@
+from abc import abstractmethod
+
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
@@ -72,7 +74,75 @@ class PositiveLinear(nn.Module):
         return nn.functional.linear(input_, self.weight.exp(), self.bias)
 
 
-class PPNet(nn.Module):
+class Base(nn.Module):
+    """
+    Base class for the PPNet and BBNet models.
+
+    :param features: features of the backbone architecture,
+        responsible for the feature extraction
+    :type features: nn.Module
+    :param img_shape: shape of the input image
+    :type img_shape: (int, int)
+    :param prototype_shape: shape of the prototype tensor
+    :type prototype_shape: (int, int, int, int)
+    :param num_classes: number of classes in the data
+    :type num_classes: int
+    :param add_on_layers_type: type of the add-on layers.
+        Defaults to ``"bottleneck"``.
+    :type add_on_layers_type: str
+    :param add_on_layers_activation: activation function for the add-on layers.
+        Defaults to ``"A"``.
+    :type add_on_layers_activation: str
+    """
+
+    def __init__(self, features,
+                 img_shape,
+                 prototype_shape,
+                 num_classes,
+                 add_on_layers_type="bottleneck",
+                 add_on_layers_activation="A",
+                 ):
+        super(Base, self).__init__()
+        self.img_shape = img_shape
+        self.prototype_shape = prototype_shape
+        self.num_classes = num_classes
+        self.epsilon = 1e-4
+
+        self.features = features
+        features_name = str(self.features).upper()
+        if features_name.startswith("VGG") or features_name.startswith("RES"):
+            first_add_on_layer_in_channels = [
+                i for i in self.features.modules() if isinstance(i, nn.Conv2d)
+            ][-1].out_channels
+        elif features_name.startswith("DENSE"):
+            first_add_on_layer_in_channels = [
+                i for i in self.features.modules() if isinstance(i, nn.BatchNorm2d)
+            ][-1].num_features
+        else:
+            raise Exception("other base base_architecture NOT implemented")
+
+        self.add_on_layers = AddOnLayers.with_type(
+            add_on_layers_type,
+            first_add_on_layer_in_channels,
+            self.prototype_shape[1],
+            add_on_layers_activation,
+        )
+
+    @abstractmethod
+    def forward(self, x):
+        ...
+
+    def __repr__(self):
+        """
+        Get the representation of the model (layers and parameters).
+
+        :return: module structure and parameters
+        :rtype: str
+        """
+        return super().__repr__()
+
+
+class PPNet(Base):
     """
     ProtoPNet model [Chen+18]_ for prototypical image recognition.
 
@@ -121,12 +191,15 @@ class PPNet(nn.Module):
         add_on_layers_activation="A",
         positive_weights_in_classifier=False,
     ):
-        super(PPNet, self).__init__()
-        self.img_shape = img_shape
-        self.prototype_shape = prototype_shape
+        super(PPNet, self).__init__(
+            features,
+            img_shape,
+            prototype_shape,
+            num_classes,
+            add_on_layers_type,
+            add_on_layers_activation,
+        )
         self.num_prototypes = prototype_shape[0]
-        self.num_classes = num_classes
-        self.epsilon = 1e-4
 
         # prototype_activation_function could be 'log', 'linear',
         # or a generic function that converts distance to similarity score
@@ -147,28 +220,6 @@ class PPNet(nn.Module):
             self.prototype_class_identity[j, j // num_prototypes_per_class] = 1
 
         self.proto_layer_rf_info = proto_layer_rf_info
-
-        # this has to be named features to allow the precise loading
-        self.features = features
-
-        features_name = str(self.features).upper()
-        if features_name.startswith("VGG") or features_name.startswith("RES"):
-            first_add_on_layer_in_channels = [
-                i for i in features.modules() if isinstance(i, nn.Conv2d)
-            ][-1].out_channels
-        elif features_name.startswith("DENSE"):
-            first_add_on_layer_in_channels = [
-                i for i in features.modules() if isinstance(i, nn.BatchNorm2d)
-            ][-1].num_features
-        else:
-            raise Exception("other base base_architecture NOT implemented")
-
-        self.add_on_layers = AddOnLayers.with_type(
-            add_on_layers_type,
-            first_add_on_layer_in_channels,
-            self.prototype_shape[1],
-            add_on_layers_activation,
-        )
 
         self.prototype_vectors = nn.Parameter(
             torch.rand(self.prototype_shape), requires_grad=True
@@ -205,10 +256,10 @@ class PPNet(nn.Module):
         filter of shape P * c * h1 * w1
         weight of shape P * c * h1 * w1
         """
-        input2 = input_**2
+        input2 = input_ ** 2
         input_patch_weighted_norm2 = F.conv2d(input=input2, weight=weights)
 
-        filter2 = filter_**2
+        filter2 = filter_ ** 2
         weighted_filter2 = filter2 * weights
         filter_weighted_norm2 = torch.sum(weighted_filter2, dim=(1, 2, 3))
         filter_weighted_norm2_reshape = filter_weighted_norm2.view(-1, 1, 1)
@@ -229,7 +280,7 @@ class PPNet(nn.Module):
         """
         apply self.prototype_vectors as l2-convolution filters on input x
         """
-        x2 = x**2
+        x2 = x ** 2
         x2_patch_sum = F.conv2d(input=x2, weight=self.ones)
 
         p = (
@@ -237,7 +288,7 @@ class PPNet(nn.Module):
             if detach_prototypes
             else self.prototype_vectors
         )
-        p2 = p**2
+        p2 = p ** 2
         p2 = torch.sum(p2, dim=(1, 2, 3))
         # p2 is a vector of shape (num_prototypes,)
         # then we reshape it to (num_prototypes, 1, 1)
@@ -366,7 +417,7 @@ class PPNet(nn.Module):
 
 
 # the equivalent backbone model
-class BBNet(nn.Module):
+class BBNet(Base):
     def __init__(
         self,
         features,
@@ -377,32 +428,13 @@ class BBNet(nn.Module):
         add_on_layers_type="bottleneck",
         add_on_layers_activation="A",
     ):
-        super(BBNet, self).__init__()
-        self.img_shape = img_shape
-        self.prototype_shape = prototype_shape
-        self.num_classes = num_classes
-        self.epsilon = 1e-4
-
-        # this has to be named features to allow the precise loading
-        self.features = features
-
-        features_name = str(self.features).upper()
-        if features_name.startswith("VGG") or features_name.startswith("RES"):
-            first_add_on_layer_in_channels = [
-                i for i in features.modules() if isinstance(i, nn.Conv2d)
-            ][-1].out_channels
-        elif features_name.startswith("DENSE"):
-            first_add_on_layer_in_channels = [
-                i for i in features.modules() if isinstance(i, nn.BatchNorm2d)
-            ][-1].num_features
-        else:
-            raise Exception("other base base_architecture NOT implemented")
-
-        self.add_on_layers = AddOnLayers.with_type(
+        super(BBNet, self).__init__(
+            features,
+            img_shape,
+            prototype_shape,
+            num_classes,
             add_on_layers_type,
-            first_add_on_layer_in_channels,
-            self.prototype_shape[1],
-            add_on_layers_activation,
+            add_on_layers_activation
         )
 
         x = torch.randn(1, color_channels, *img_shape)
