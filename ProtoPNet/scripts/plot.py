@@ -35,7 +35,7 @@ args = parser.parse_args()
 output_file = args.output_file
 if output_file.root == "":
     # if the path is relative then concatenate it to the project root
-    output_file = os.getenv("RUNS_DIR") / output_file
+    output_file = pathlib.Path(os.getenv("RUNS_DIR")) / output_file
 
 if not output_file.exists():
     raise ValueError(f"Output file {output_file} does not exist")
@@ -62,9 +62,6 @@ push_epochs = train_data[
     train_data["phase"].apply(lambda value: value.startswith("push")).values
 ]["epoch"].values
 
-print(f"Number of warm epochs: {warm_epochs}")
-print(f"Push epochs: {push_epochs}")
-
 train_data = train_data[
     train_data["phase"]
     .apply(lambda value: re.fullmatch(r"(warm )?(train|validation)", value) is not None)
@@ -75,14 +72,23 @@ train_data["phase"] = train_data["phase"].apply(lambda value: value.split(" ")[-
 ax = sns.lineplot(
     train_data, x=train_data["epoch"], y=train_data["accuracy"], hue=train_data["phase"]
 )
-ax.axvline(x=warm_epochs, color="k", linestyle="--", label="end of warm")
 
-for push_epoch in push_epochs:
-    line = ax.axvline(x=push_epoch, color="orange", linestyle="--")
-# set label to only the last line
-line.set_label("push")
+if "only" not in str(output_file):
+    print(f"Number of warm epochs: {warm_epochs}")
+    print(f"Push epochs: {push_epochs}")
+
+    ax.axvline(x=warm_epochs, color=sns.set_hls_values("black", l=0.5), linestyle="--", label="end of warm")
+
+    line = None
+    for push_epoch in push_epochs:
+        line = ax.axvline(x=push_epoch, color=sns.set_hls_values("orange", l=0.8), linestyle="--")
+    # set label to only the last line
+    if line is not None:
+        line.set_label("push")
+
 # show legend with the updated labels (defined by the axvline)
 plt.legend()
+plt.tight_layout()
 
 if args.save:
     plt.savefig(
