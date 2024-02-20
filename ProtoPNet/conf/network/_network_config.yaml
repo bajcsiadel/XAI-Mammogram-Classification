@@ -7,4 +7,4 @@ backbone_only: false
 
 add_on_layer_properties:
   type: bottleneck  # regular | bottleneck
-  activation: B     # A | B
+  activation: A     # A | B
