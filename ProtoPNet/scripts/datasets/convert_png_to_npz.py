@@ -13,7 +13,7 @@ from tqdm import tqdm
 load_dotenv()
 sys.path.append(os.getenv("PROJECT_ROOT"))
 
-from ProtoPNet.util.config_types import Config
+from ProtoPNet.util.config_types import Config, init_config_store
 
 conf_dir = (
     Path(os.getenv("PROJECT_ROOT"))
@@ -43,9 +43,11 @@ def convert_images(cfg: Config):
             if not new_filepath.is_file():
                 image = cv2.imread(str(filepath), cv2.IMREAD_GRAYSCALE)
                 np.savez(new_filepath, image=image)
-                # os.remove(filepath)
-                # print(f"Converted {filepath} to {new_filepath}")
+            os.remove(filepath)
+            # print(f"Converted {filepath} to {new_filepath}")
 
+
+init_config_store()
 
 try:
     convert_images()
