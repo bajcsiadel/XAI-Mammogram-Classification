@@ -221,6 +221,9 @@ def run_experiment(cfg: conf_typ.Config, logger: Log):
         if not cfg.gpu.disabled:
             ppnet = ppnet.to(cfg.gpu.device)
 
+        if fold == 1:
+            logger.info(f"\n{ppnet}\n")
+
         ppnet_multi = torch.nn.DataParallel(ppnet)
 
         warm_optimizer_specs = [

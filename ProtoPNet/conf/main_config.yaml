@@ -25,7 +25,7 @@ data:
     grouped: ${cross_validation.grouped}
     num_workers: ${job.number_of_workers}
     seed: ${seed}
-    debug: true
+    debug: false
 
 seed: 42
 
