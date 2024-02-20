@@ -1,6 +1,7 @@
 import os
 
 import matplotlib.pyplot as plt
+import numpy as np
 import torch
 
 
@@ -23,6 +24,8 @@ def save_model_w_condition(
 
 
 def save_image(fname, arr):
+    if np.max(arr) > 1:
+        arr = arr / 255.0
     if arr.shape[-1] == 1:
         plt.imsave(
             fname=fname,

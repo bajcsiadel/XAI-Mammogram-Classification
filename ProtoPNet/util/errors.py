@@ -4,3 +4,7 @@ class UnsupportedExtensionError(Exception):
 
 class CsvMismatchedColumnsError(Exception):
     pass
+
+
+class AbstractClassError(TypeError):
+    pass

@@ -31,7 +31,7 @@ sys.path.append(os.getenv("PROJECT_ROOT"))
 
 from ProtoPNet.dataset.dataloaders import CustomVisionDataset, my_collate_function
 from ProtoPNet.util import helpers
-from ProtoPNet.util.config_types import Config
+from ProtoPNet.util.config_types import Config, init_config_store
 
 conf_dir = (
     Path(os.getenv("PROJECT_ROOT"))
@@ -68,16 +68,11 @@ def compute_mean_and_std_of_dataset(cfg: Config):
         cfg = helpers.DotDict.new(OmegaConf.to_object(cfg))
 
         logger.info(f"Dataset: {cfg.data.set.name}")
-        logger.info(f"Size: {cfg.data.set.size}")
+        logger.info(f"Size: {cfg.data.set.target.size}")
         logger.info(f"State: {cfg.data.set.state}")
-        logger.info(f"Target: {cfg.target}")
+        logger.info(f"Target: {cfg.data.set.target.name}")
 
-        dataset = CustomVisionDataset(
-            cfg.data.set,
-            cfg.target,
-            subset="all",
-            normalize=False,
-        )
+        dataset = hydra.utils.instantiate(cfg.dataset)
 
         loader = DataLoader(
             dataset,
@@ -127,11 +122,12 @@ def compute_mean_and_std_of_dataset(cfg: Config):
 
     except conf_errors.MissingMandatoryValue as e:
         logger.info(f"Dataset: {cfg['data']['set'].name}")
-        logger.info(f"Size: {cfg['data']['set'].size}")
+        logger.info(f"Size: {cfg['data']['set']['target'].size}")
         logger.info(f"State: {cfg['data']['set'].state}")
         logger.exception(e)
     except Exception as e:
         logger.exception(e)
 
 
+init_config_store()
 compute_mean_and_std_of_dataset()

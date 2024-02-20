@@ -1,11 +1,11 @@
 hydra:
-  run:
-    dir: ${oc.env:PROJECT_ROOT}/runs/${hydra.job.name}/${data.set.name}-${network.name}-${data.set.state}-${data.set.target}/${now:%Y-%m-%d}/${now:%H-%M-%S}
   sweep:
-    dir: ${oc.env:PROJECT_ROOT}/runs/${hydra.job.name}
-    subdir: ${data.set.name}-${network.name}-${data.set.state}-${data.set.target}/${now:%Y-%m-%d}/${now:%H-%M-%S}
+    dir: ${oc.env:RUNS_DIR}/${hydra.job.name}
   output_subdir: conf
   job_logging:
     formatters:
       simple:
         format: '[%(asctime)s %(levelname)s] %(message)s'
+    handlers:
+      file:
+        encoding: utf-8

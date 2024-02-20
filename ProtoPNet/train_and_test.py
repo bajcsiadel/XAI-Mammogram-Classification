@@ -18,8 +18,9 @@ def _train_or_test(
     use_l1_mask=True,
     loss_coefficients=None,
     use_bce=False,
-    log=print,
     backbone_only=False,
+    log=print,
+    device="cpu",
 ):
     """
 
@@ -51,8 +52,8 @@ def _train_or_test(
     predicted_labels = np.array([])
 
     for image, label in dataloader:
-        input = image.cuda()
-        target = label.cuda()
+        input_ = image.to(device)
+        target_ = label.to(device)
         true_labels = np.append(true_labels, label.numpy())
 
         # torch.enable_grad() has no effect outside of no_grad()
@@ -61,19 +62,19 @@ def _train_or_test(
             # nn.Module has implemented __call__() function
             # so no need to call .forward
             if backbone_only:
-                output = model(input)
+                output = model(input_)
             else:
-                output, additional_out = model(input)
+                output, additional_out = model(input_)
                 min_distances = additional_out["min_distances"]
 
             # compute loss
             if use_bce:
-                one_hot_target = torch.nn.functional.one_hot(target, number_of_classes)
+                one_hot_target = torch.nn.functional.one_hot(target_, number_of_classes)
                 cross_entropy = torch.nn.functional.binary_cross_entropy_with_logits(
                     output, one_hot_target.float(), reduction="sum"
                 )
             else:
-                cross_entropy = torch.nn.functional.cross_entropy(output, target)
+                cross_entropy = torch.nn.functional.cross_entropy(output, target_)
 
             if not backbone_only:
                 if class_specific:
@@ -88,7 +89,7 @@ def _train_or_test(
                     # calculate cluster cost
                     prototypes_of_correct_class = torch.t(
                         model.module.prototype_class_identity[:, label]
-                    ).cuda()
+                    ).to(device)
                     inverted_distances, target_proto_index = torch.max(
                         (max_dist - min_distances) * prototypes_of_correct_class,
                         dim=1,
@@ -112,7 +113,7 @@ def _train_or_test(
                     elif separation_type == "avg":
                         min_distances_detached_prototype_vectors = (
                             model.module.prototype_min_distances(
-                                input, detach_prototypes=True
+                                input_, detach_prototypes=True
                             )[0]
                         )
                         # calculate avg cluster cost
@@ -128,7 +129,7 @@ def _train_or_test(
                                 model.module.prototype_vectors[:, :, 0, 0],
                                 model.module.prototype_vectors[:, :, 0, 0].t(),
                             )
-                            - torch.eye(prototype_shape[0]).cuda()
+                            - torch.eye(prototype_shape[0]).to(device)
                         ).norm(p=2)
 
                         separation_cost = avg_separation_cost
@@ -184,7 +185,7 @@ def _train_or_test(
 
                     if use_l1_mask:
                         l1_mask = (
-                            1 - torch.t(model.module.prototype_class_identity).cuda()
+                            1 - torch.t(model.module.prototype_class_identity).to(device)
                         )
                         l1 = (model.module.last_layer.weight * l1_mask).norm(p=1)
                     else:
@@ -199,8 +200,8 @@ def _train_or_test(
 
             # evaluation statistics
             _, predicted = torch.max(output.data, 1)
-            n_examples += target.size(0)
-            n_correct += (predicted == target).sum().item()
+            n_examples += target_.size(0)
+            n_correct += (predicted == target_).sum().item()
 
             n_batches += 1
             total_cross_entropy += cross_entropy.item()
@@ -254,8 +255,8 @@ def _train_or_test(
 
         predicted_labels = np.append(predicted_labels, predicted.cpu().numpy())
 
-        del input
-        del target
+        del input_
+        del target_
         del output
         del predicted
         if not backbone_only:
@@ -322,8 +323,9 @@ def train(
     class_specific=False,
     loss_coefficients=None,
     use_bce=False,
-    log=print,
     backbone_only=False,
+    log=print,
+    device="cpu",
 ):
     assert optimizer is not None
 
@@ -339,8 +341,9 @@ def train(
         class_specific=class_specific,
         loss_coefficients=loss_coefficients,
         use_bce=use_bce,
-        log=log,
         backbone_only=backbone_only,
+        log=log,
+        device=device,
     )
 
 
@@ -353,8 +356,9 @@ def test(
     class_specific=False,
     loss_coefficients=None,
     use_bce=False,
-    log=print,
     backbone_only=False,
+    log=print,
+    device="cpu",
 ):
     log("INFO: \t\t\ttest")
     model.eval()
@@ -368,8 +372,9 @@ def test(
         class_specific=class_specific,
         loss_coefficients=loss_coefficients,
         use_bce=use_bce,
-        log=log,
         backbone_only=backbone_only,
+        log=log,
+        device=device,
     )
 
 
@@ -383,7 +388,7 @@ def last_only(model, log=print, backbone_only=False):
     for p in model.module.last_layer.parameters():
         p.requires_grad = True
 
-    log("INFO: \t\t\tlast layer")
+    log("INFO: \tlast layer")
 
 
 def warm_only(model, log=print, backbone_only=False):
@@ -396,7 +401,7 @@ def warm_only(model, log=print, backbone_only=False):
     for p in model.module.last_layer.parameters():
         p.requires_grad = True
 
-    log("INFO: \t\t\twarm")
+    log("INFO: \twarm")
 
 
 def joint(model, log=print, backbone_only=False):
@@ -409,4 +414,4 @@ def joint(model, log=print, backbone_only=False):
     for p in model.module.last_layer.parameters():
         p.requires_grad = True
 
-    log("INFO: \t\t\tjoint")
+    log("INFO: \tjoint")

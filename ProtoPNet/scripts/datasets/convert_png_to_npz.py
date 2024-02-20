@@ -13,7 +13,7 @@ from tqdm import tqdm
 load_dotenv()
 sys.path.append(os.getenv("PROJECT_ROOT"))
 
-from ProtoPNet.util.config_types import Config
+from ProtoPNet.util.config_types import Config, init_config_store
 
 conf_dir = (
     Path(os.getenv("PROJECT_ROOT"))
@@ -36,18 +36,20 @@ def convert_images(cfg: Config):
     for filepath in tqdm(
         images,
         desc=f"Processing files for '{cfg.data.set.name}."
-        f"{cfg.data.set.size}.{cfg.data.set.state}'",
+        f"{cfg.data.set.target.size}.{cfg.data.set.state}'",
     ):
         if filepath.is_file() and filepath.suffix == ".png":
             new_filepath = filepath.with_suffix(".npz")
             if not new_filepath.is_file():
                 image = cv2.imread(str(filepath), cv2.IMREAD_GRAYSCALE)
                 np.savez(new_filepath, image=image)
-                # os.remove(filepath)
-                # print(f"Converted {filepath} to {new_filepath}")
+            os.remove(filepath)
+            # print(f"Converted {filepath} to {new_filepath}")
 
+
+init_config_store()
 
 try:
     convert_images()
-except omegaconf.errors.MissingMandatoryValues:
+except omegaconf.errors.MissingMandatoryValue:
     ic("skipped")

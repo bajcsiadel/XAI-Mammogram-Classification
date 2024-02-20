@@ -7,6 +7,12 @@ defaults:
   - cross_validation: stratified
   - network: resnet18
 
+hydra:
+  run:
+    dir: ${oc.env:RUNS_DIR}/${hydra.job.name}/${data.set.name}-${format_backbone_only:${network.backbone_only}}${network.name}-${data.set.state}-${data.set.target.name}/${now:%Y-%m-%d}/${now:%H-%M-%S}
+  sweep:
+    subdir: ${data.set.name}-${network.name}-${data.set.state}-${format_backbone_only:${network.backbone_only}}${data.set.target.name}/${now:%Y-%m-%d}/${now:%H-%M-%S}
+
 data:
   datamodule:
     _target_: ProtoPNet.dataset.dataloaders.CustomDataModule
@@ -19,6 +25,7 @@ data:
     grouped: ${cross_validation.grouped}
     num_workers: ${job.number_of_workers}
     seed: ${seed}
+    debug: false
 
 seed: 42
 

@@ -5,4 +5,6 @@ pretrained: true
 
 backbone_only: false
 
-add_on_layer_type: regular  # regular | bottleneck
+add_on_layer_properties:
+  type: bottleneck  # regular | bottleneck
+  activation: A     # A | B

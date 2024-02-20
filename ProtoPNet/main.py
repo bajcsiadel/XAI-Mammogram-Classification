@@ -1,4 +1,5 @@
 import os
+import platform
 import shutil
 import sys
 import warnings
@@ -11,6 +12,8 @@ import torch
 from dotenv import load_dotenv
 from hydra.utils import instantiate
 from icecream import ic
+
+from ProtoPNet.add_on_layers import AddOnLayers
 
 load_dotenv()
 sys.path.append(os.getenv("PROJECT_ROOT"))
@@ -35,7 +38,9 @@ def main(cfg: conf_typ.Config):
     logger = Log(__name__)
 
     try:
-        warnings.showwarning = lambda message, *args: logger.exception(message, warn_only=True)
+        warnings.showwarning = lambda message, *args: logger.exception(
+            message, warn_only=True
+        )
 
         logger.log_command_line()
 
@@ -67,6 +72,7 @@ def main(cfg: conf_typ.Config):
 def set_gpu_usage(gpu, logger):
     """
     Set the gpu usage according to the given configuration.
+
     :param gpu:
     :type gpu: conf_typ.Gpu
     :param logger:
@@ -75,16 +81,30 @@ def set_gpu_usage(gpu, logger):
     """
     logger.info("GPU settings")
     if not gpu.disabled:
-        logger.info(f"\t{cross} disabled")
-        gpu.ids = os.getenv("CUDA_VISIBLE_DEVICES").split(",")
-        logger.info(f"\t{tick if torch.cuda.is_available() else cross} available")
-        logger.info(f"\tVisible devices set to: {os.getenv('CUDA_VISIBLE_DEVICES')}")
+        match platform.system():
+            case "Windows" | "Linux":
+                logger.info(
+                    f"\t{tick if torch.cuda.is_available() else cross} available CUDA"
+                )
+                logger.info(
+                    f"\tVisible devices set to: {os.getenv('CUDA_VISIBLE_DEVICES')}"
+                )
+            case "Darwin":
+                logger.info(
+                    f"\t{tick if torch.backends.mps.is_available() else cross} available MPS"
+                )
+
     else:
         logger.info(f"\t{tick} disabled")
 
 
 def set_seeds(seed):
-    # set seeds
+    """
+    Set the seeds for all used libraries to the given value.
+    :param seed:
+    :type seed: int | None
+    :return:
+    """
     np.random.seed(seed)
     torch.manual_seed(seed)
     torch.cuda.manual_seed(seed)
@@ -92,8 +112,8 @@ def set_seeds(seed):
 
 def run_experiment(cfg: conf_typ.Config, logger: Log):
     # save last commit number (source of the used code)
-    commit_fie = logger.metadata_dir / "commit_hash"
-    commit_fie.write_bytes(helpers.get_current_commit_hash())
+    commit_file = logger.metadata_dir / "commit_hash"
+    commit_file.write_bytes(helpers.get_current_commit_hash())
 
     shutil.copy(cfg.data.set.metadata.file, logger.metadata_dir)
 
@@ -103,20 +123,16 @@ def run_experiment(cfg: conf_typ.Config, logger: Log):
     img_dir.mkdir(parents=True, exist_ok=True)
 
     if cfg.cross_validation.folds > 1:
+        logger.info("")
+        logger.info(f"{tick} cross validation")
+        logger.info(f"\t{cfg.cross_validation.folds} folds")
         logger.info(
-            "using cross-validation with:\n" f"\t{cfg.cross_validation.folds} folds"
+            f"\t{tick if cfg.cross_validation.stratified else cross} stratified"
         )
-        if cfg.cross_validation.stratified:
-            logger.info("\tstratified")
-        elif cfg.cross_validation.balanced:
-            logger.info("\tbalanced")
-        if cfg.cross_validation.grouped:
-            logger.info("\tgrouped")
-
-    logger.info(f"number of prototypes per class: {cfg.prototypes.per_class}")
-
-    # train the model
-    logger.info("start training")
+        logger.info(f"\t{tick if cfg.cross_validation.balanced else cross} balanced")
+        logger.info(f"\t{tick if cfg.cross_validation.grouped else cross} grouped")
+    else:
+        logger.info(f"{cross} cross validation")
 
     dataset_module = instantiate(cfg.data.datamodule)
 
@@ -130,15 +146,37 @@ def run_experiment(cfg: conf_typ.Config, logger: Log):
     )
     class_specific = True
 
-    logger.info(f"\t{' x '.join(map(str, prototype_shape))} prototype shape")
+    logger.info("")
+    logger.info(f"{tick if dataset_module.debug else cross} debug")
 
+    logger.info("")
     logger.info("data settings")
+    logger.info(f"\t{cfg.data.set.name}")
+    logger.info(f"\t{cfg.data.set.state}")
+    logger.info(f"\t{cfg.data.set.target.size}")
     logger.info(f"\t{cfg.data.set.target.name}")
     logger.info(f"\t{' x '.join(map(str, image_size))} image size")
     logger.info(f"\t{cfg.data.set.image_properties.color_channels} color channels")
     logger.info(f"\t{cfg.data.set.image_properties.std} std")
     logger.info(f"\t{cfg.data.set.image_properties.mean} mean")
     logger.info(f"\t{number_of_classes} classes")
+
+    logger.info("")
+    logger.info("prototype settings")
+    logger.info(f"\t{cfg.prototypes.per_class} prototypes per class")
+    logger.info(f"\t{cfg.prototypes.size} prototype size")
+    logger.info(f"\t{' x '.join(map(str, prototype_shape))} prototype shape")
+
+    logger.info("")
+    logger.info("network settings")
+    logger.info(f"\t{cfg.network.name} backbone")
+    logger.info(f"\t{cfg.network.add_on_layer_properties.type} add on layer type")
+    logger.info(
+        f"\t{cfg.network.add_on_layer_properties.activation} add on activation "
+        f"({AddOnLayers.get_reference(cfg.network.add_on_layer_properties.activation)})"
+    )
+    logger.info(f"\t{tick if cfg.network.pretrained else cross} pretrained")
+    logger.info(f"\t{tick if cfg.network.backbone_only else cross} backbone only")
 
     train_test_parameters = {
         "prototype_shape": prototype_shape,
@@ -147,8 +185,9 @@ def run_experiment(cfg: conf_typ.Config, logger: Log):
         "class_specific": class_specific,
         "loss_coefficients": cfg.loss.coefficients,
         "use_bce": cfg.loss.binary_cross_entropy,
-        "log": logger,
         "backbone_only": cfg.network.backbone_only,
+        "log": logger,
+        "device": cfg.gpu.device,
     }
     partial_train = partial(tnt.train, **train_test_parameters)
     partial_test = partial(tnt.test, **train_test_parameters)
@@ -160,7 +199,12 @@ def run_experiment(cfg: conf_typ.Config, logger: Log):
     }
     partial_preprocess = partial(preprocess, **preprocess_parameters)
 
-    for fold, (train_sampler, validation_sampler) in dataset_module.folds:
+    # train the model
+    logger.info("start training")
+
+    for fold, (train_sampler, validation_sampler) in enumerate(
+        dataset_module.folds, start=1
+    ):
         # construct the model
         ppnet = model.construct_PPNet(
             base_architecture=cfg.network.name,
@@ -170,12 +214,15 @@ def run_experiment(cfg: conf_typ.Config, logger: Log):
             prototype_shape=prototype_shape,
             num_classes=number_of_classes,
             prototype_activation_function=cfg.prototypes.activation_fn,
-            add_on_layers_type=cfg.network.add_on_layer_type,
+            add_on_layers_type=cfg.network.add_on_layer_properties.type,
             backbone_only=cfg.network.backbone_only,
             positive_weights_in_classifier=False,
         )
         if not cfg.gpu.disabled:
-            ppnet = ppnet.cuda()
+            ppnet = ppnet.to(cfg.gpu.device)
+
+        if fold == 1:
+            logger.info(f"\n{ppnet}\n")
 
         ppnet_multi = torch.nn.DataParallel(ppnet)
 
@@ -226,12 +273,9 @@ def run_experiment(cfg: conf_typ.Config, logger: Log):
         ]
         last_layer_optimizer = torch.optim.Adam(last_layer_optimizer_specs)
 
-        logger.info(f"\tFOLD {fold}")
-        logger.info(f"\t\ttrain set size: {len(train_sampler)}")
-        logger.info(f"\t\tvalidation set size: {len(validation_sampler)}")
+        dataset_module.log_data_information(logger)
 
-        if not cfg.network.backbone_only:
-            logger.info(f"\t\tbatch size: {cfg.phases.warm.batch_size}")
+        if not cfg.network.backbone_only and cfg.phases.warm.epochs > 0:
             tnt.warm_only(
                 model=ppnet_multi, log=logger, backbone_only=cfg.network.backbone_only
             )
@@ -240,10 +284,14 @@ def run_experiment(cfg: conf_typ.Config, logger: Log):
                 sampler=train_sampler,
                 batch_size=cfg.phases.warm.batch_size,
             )
-            validation_loader = dataset_module.train_dataloader(
+            validation_loader = dataset_module.validation_dataloader(
                 sampler=validation_sampler,
                 batch_size=cfg.phases.warm.batch_size,
             )
+
+            logger.info(f"\tbatch size: {train_loader.batch_size}")
+            logger.info(f"\t\ttrain: {train_loader.batch_size}")
+            logger.info(f"\t\tvalidation: {validation_loader.batch_size}")
 
             for epoch in np.arange(cfg.phases.warm.epochs) + 1:
                 logger.info(f"\t\twarm epoch: \t{epoch}")
@@ -269,6 +317,8 @@ def run_experiment(cfg: conf_typ.Config, logger: Log):
                 )
 
             logger.info("\t\tfinished warmup")
+        else:
+            cfg.phases.warm.epochs = 0
 
         tnt.joint(
             model=ppnet_multi, log=logger, backbone_only=cfg.network.backbone_only
@@ -278,7 +328,7 @@ def run_experiment(cfg: conf_typ.Config, logger: Log):
             sampler=train_sampler,
             batch_size=cfg.phases.joint.batch_size,
         )
-        validation_loader = dataset_module.train_dataloader(
+        validation_loader = dataset_module.validation_dataloader(
             sampler=validation_sampler,
             batch_size=cfg.phases.joint.batch_size,
         )
@@ -286,6 +336,11 @@ def run_experiment(cfg: conf_typ.Config, logger: Log):
             sampler=train_sampler,
             batch_size=cfg.phases.push.batch_size,
         )
+
+        logger.info("\t\tbatch size:")
+        logger.info(f"\t\t\ttrain: {train_loader.batch_size}")
+        logger.info(f"\t\t\tvalidation: {validation_loader.batch_size}")
+        logger.info(f"\t\t\tpush: {push_loader.batch_size}")
 
         for epoch in np.arange(cfg.phases.joint.epochs) + 1:
             real_epoch_number = epoch + cfg.phases.warm.epochs
@@ -331,6 +386,7 @@ def run_experiment(cfg: conf_typ.Config, logger: Log):
                     proto_bound_boxes_filename_prefix=cfg.outputs.file_prefixes.bounding_box,
                     save_prototype_class_identity=True,
                     log=logger,
+                    device=cfg.gpu.device,
                 )
 
                 logger.csv_log_index(
