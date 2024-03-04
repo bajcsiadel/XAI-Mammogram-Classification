@@ -1,6 +1,5 @@
 import os
 import sys
-from pathlib import Path
 
 import cv2
 import hydra
@@ -15,16 +14,10 @@ sys.path.append(os.getenv("PROJECT_ROOT"))
 
 from ProtoPNet.util.config_types import Config, init_config_store
 
-conf_dir = (
-    Path(os.getenv("PROJECT_ROOT"))
-    / os.getenv("MODULE_NAME")
-    / os.getenv("CONFIG_DIR_NAME")
-)
-
 
 @hydra.main(
     version_base=None,
-    config_path=str(conf_dir),
+    config_path=os.getenv("CONFIG_PATH"),
     config_name="script_define_mean_config",
 )
 def convert_images(cfg: Config):

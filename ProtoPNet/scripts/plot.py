@@ -77,11 +77,18 @@ if "only" not in str(output_file):
     print(f"Number of warm epochs: {warm_epochs}")
     print(f"Push epochs: {push_epochs}")
 
-    ax.axvline(x=warm_epochs, color=sns.set_hls_values("black", l=0.5), linestyle="--", label="end of warm")
+    ax.axvline(
+        x=warm_epochs,
+        color=sns.set_hls_values("black", l=0.5),
+        linestyle="--",
+        label="end of warm",
+    )
 
     line = None
     for push_epoch in push_epochs:
-        line = ax.axvline(x=push_epoch, color=sns.set_hls_values("orange", l=0.8), linestyle="--")
+        line = ax.axvline(
+            x=push_epoch, color=sns.set_hls_values("orange", l=0.8), linestyle="--"
+        )
     # set label to only the last line
     if line is not None:
         line.set_label("push")

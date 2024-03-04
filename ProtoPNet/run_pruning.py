@@ -1,20 +1,22 @@
 import argparse
-import gin
 import pickle
+
 # import os
 import shutil
-import torch
-
-from dotenv import load_dotenv
 from pathlib import Path
+
+import gin
+import torch
+from dotenv import load_dotenv
+
 load_dotenv()
 
-from ProtoPNet.dataset.dataloaders import CustomDataModule
 import ProtoPNet.prune as prune
 import ProtoPNet.train_and_test as tnt
+import ProtoPNet.util.save as save
+from ProtoPNet.dataset.dataloaders import CustomDataModule
 from ProtoPNet.util.log import Log
 from ProtoPNet.util.preprocess import preprocess
-import ProtoPNet.util.save as save
 
 parser = argparse.ArgumentParser()
 parser.add_argument("--model-dir", type=str, required=True)
@@ -31,7 +33,7 @@ k = 6
 prune_threshold = 3
 
 original_model_dir = Path(args.model_dir)  # './runs/run-name/models/'
-original_model_name = args.model     # '10_16push0.8007.pth'
+original_model_name = args.model  # '10_16push0.8007.pth'
 original_model_path = original_model_dir / original_model_name
 
 # pruning must happen after push
@@ -51,7 +53,9 @@ if "-" in epoch:
 else:
     epoch = int(epoch)
 
-model_dir = original_model_dir / f"pruned_prototypes_epoch{epoch}_k{k}_pt{prune_threshold}"
+model_dir = (
+    original_model_dir / f"pruned_prototypes_epoch{epoch}_k{k}_pt{prune_threshold}"
+)
 model_dir.mkdir(parents=True, exist_ok=True)
 shutil.copy(src=Path.cwd() / __file__, dst=model_dir)
 
@@ -67,7 +71,7 @@ data_module = CustomDataModule(
     train_args.used_images,
     train_args.target,
     num_workers=train_args.number_of_workers,
-    seed=train_args.seed
+    seed=train_args.seed,
 )
 
 train_batch_size = 80
@@ -125,9 +129,7 @@ save.save_model_w_condition(
 
 # last layer optimization
 if optimize_last_layer:
-    last_layer_optimizer_specs = [
-        {"params": ppnet.last_layer.parameters(), "lr": 1e-4}
-    ]
+    last_layer_optimizer_specs = [{"params": ppnet.last_layer.parameters(), "lr": 1e-4}]
     last_layer_optimizer = torch.optim.Adam(last_layer_optimizer_specs)
 
     logger("INFO: optimize last layer")
@@ -148,10 +150,7 @@ if optimize_last_layer:
         save.save_model_w_condition(
             model=ppnet,
             model_dir=model_dir,
-            model_name=original_model_name.split("push")[0]
-            + "_"
-            + str(i)
-            + "prune",
+            model_name=original_model_name.split("push")[0] + "_" + str(i) + "prune",
             accu=accu,
             target_accu=0.70,
             log=logger,

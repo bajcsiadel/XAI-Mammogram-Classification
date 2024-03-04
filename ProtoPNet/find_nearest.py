@@ -1,16 +1,18 @@
 import heapq
+
 # import os
 import time
+from pathlib import Path
 
 import cv2
 import matplotlib.pyplot as plt
 import numpy as np
 import torch
+from tqdm import tqdm
+
 from ProtoPNet.receptive_field import compute_rf_prototype
 from ProtoPNet.util.helpers import find_high_activation_crop
 from ProtoPNet.util.save import save_image
-from pathlib import Path
-from tqdm import tqdm
 
 
 def imsave_with_bbox(
@@ -123,9 +125,7 @@ def find_k_nearest_patches_to_prototypes(
             for j in range(n_prototypes):
                 # find the closest patches in this batch to prototype j
 
-                closest_patch_distance_to_prototype_j = np.amin(
-                    distance_map[j]
-                )
+                closest_patch_distance_to_prototype_j = np.amin(distance_map[j])
 
                 if full_save:
                     closest_patch_indices_in_distance_map_j = list(
@@ -145,12 +145,12 @@ def find_k_nearest_patches_to_prototypes(
                     closest_patch = search_batch_input[
                         img_idx,
                         :,
-                        closest_patch_indices_in_img[
-                            1
-                        ] : closest_patch_indices_in_img[2],
-                        closest_patch_indices_in_img[
-                            3
-                        ] : closest_patch_indices_in_img[4],
+                        closest_patch_indices_in_img[1] : closest_patch_indices_in_img[
+                            2
+                        ],
+                        closest_patch_indices_in_img[3] : closest_patch_indices_in_img[
+                            4
+                        ],
                     ]
                     closest_patch = closest_patch.numpy()
                     closest_patch = np.transpose(closest_patch, (1, 2, 0))
@@ -253,26 +253,24 @@ def find_k_nearest_patches_to_prototypes(
                 )
                 heatmap = np.float32(heatmap) / 255
                 heatmap = heatmap[..., ::-1]
-                overlayed_original_img = (
-                    0.5 * patch.original_img + 0.3 * heatmap
-                )
+                overlayed_original_img = 0.5 * patch.original_img + 0.3 * heatmap
                 save_image(
-                    fname=dir_for_saving_images /  f"nearest-{i + 1}_original_with_heatmap.png",
+                    fname=dir_for_saving_images
+                    / f"nearest-{i + 1}_original_with_heatmap.png",
                     arr=overlayed_original_img,
                 )
 
                 # if different from original image,
                 # save the patch (i.e. receptive field)
-                if (
-                    patch.patch.shape[0] != img_h
-                    or patch.patch.shape[1] != img_w
-                ):
+                if patch.patch.shape[0] != img_h or patch.patch.shape[1] != img_w:
                     np.save(
-                        dir_for_saving_images / f"nearest-{i + 1}_receptive_field_indices.npy",
+                        dir_for_saving_images
+                        / f"nearest-{i + 1}_receptive_field_indices.npy",
                         patch.patch_indices,
                     )
                     save_image(
-                        fname=dir_for_saving_images / f"nearest-{i + 1}_receptive_field.png",
+                        fname=dir_for_saving_images
+                        / f"nearest-{i + 1}_receptive_field.png",
                         arr=patch.patch,
                     )
                     # save the receptive field patch with heatmap
@@ -282,7 +280,8 @@ def find_k_nearest_patches_to_prototypes(
                         :,
                     ]
                     save_image(
-                        fname=dir_for_saving_images / f"nearest-{i + 1}_receptive_field_with_heatmap.png",
+                        fname=dir_for_saving_images
+                        / f"nearest-{i + 1}_receptive_field_with_heatmap.png",
                         arr=overlayed_patch,
                     )
 
@@ -296,7 +295,8 @@ def find_k_nearest_patches_to_prototypes(
                     :,
                 ]
                 np.save(
-                    dir_for_saving_images / f"nearest-{i + 1}_high_act_patch_indices.npy",
+                    dir_for_saving_images
+                    / f"nearest-{i + 1}_high_act_patch_indices.npy",
                     high_act_patch_indices,
                 )
                 save_image(
@@ -306,7 +306,8 @@ def find_k_nearest_patches_to_prototypes(
                 # save the original image with bounding box
                 # showing high activation patch
                 imsave_with_bbox(
-                    fname=dir_for_saving_images /  f"nearest-{i + 1}_high_act_patch_in_original_img.png",
+                    fname=dir_for_saving_images
+                    / f"nearest-{i + 1}_high_act_patch_in_original_img.png",
                     img_rgb=patch.original_img,
                     bbox_height_start=high_act_patch_indices[0],
                     bbox_height_end=high_act_patch_indices[1],

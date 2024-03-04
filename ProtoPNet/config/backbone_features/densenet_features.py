@@ -1,6 +1,6 @@
-from collections import OrderedDict
 import os
 import re
+from collections import OrderedDict
 
 import torch
 import torch.nn as nn
@@ -68,9 +68,7 @@ class _DenseLayer(nn.Sequential):
 
 
 class _DenseBlock(nn.Sequential):
-    def __init__(
-        self, num_layers, num_input_features, bn_size, growth_rate, drop_rate
-    ):
+    def __init__(self, num_layers, num_input_features, bn_size, growth_rate, drop_rate):
         super(_DenseBlock, self).__init__()
         self.block_kernel_sizes = []
         self.block_strides = []

@@ -1,6 +1,4 @@
-from . import densenet_features
-from . import resnet_features
-from . import vgg_features
+from . import densenet_features, resnet_features, vgg_features
 
 BACKBONE_MODELS = [
     *densenet_features.model_urls.keys(),

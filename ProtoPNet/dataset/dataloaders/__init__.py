@@ -8,16 +8,16 @@ import omegaconf
 import pandas as pd
 import pipe
 import torch
-
 from albumentations.pytorch import ToTensorV2
 from hydra.utils import instantiate
 from icecream import ic
+from torch.utils.data import DataLoader, SubsetRandomSampler
+from torchvision import datasets
+
 from ProtoPNet.dataset.metadata import DataFilter
 from ProtoPNet.util import config_types as conf_typ
 from ProtoPNet.util import log
-from ProtoPNet.util.split_data import stratified_grouped_train_test_split 
-from torch.utils.data import DataLoader, SubsetRandomSampler
-from torchvision import datasets
+from ProtoPNet.util.split_data import stratified_grouped_train_test_split
 
 
 def _target_transform(target):
@@ -36,7 +36,7 @@ class CustomVisionDataset(datasets.VisionDataset):
     Custom Vision Dataset class for PyTorch.
 
     :param dataset_meta: Dataset metadata
-    :type dataset_meta: conf_typ.Dataset
+    :type dataset_meta: ProtoPNet.util.config_types.Dataset
     :param classification: Classification type
     :type classification: str
     :param subset: Subset to use
@@ -163,9 +163,7 @@ class CustomVisionDataset(datasets.VisionDataset):
                 == self.__subset
             ]
         self.__classes = (
-            self.__meta_information[(self.__classification, "label")]
-            .unique()
-            .tolist()
+            self.__meta_information[(self.__classification, "label")].unique().tolist()
         )
         self.__dataset_meta.number_of_classes = len(self.__classes)
         self.__class_to_number = {cls: i for i, cls in enumerate(self.__classes)}
@@ -275,14 +273,14 @@ class CustomVisionDataset(datasets.VisionDataset):
 
         # Load the image
         image_path = (
-            self.__dataset_meta.image_dir /
-            f"{sample.name[1]}{self.__dataset_meta.image_properties.extension}"
+            self.__dataset_meta.image_dir
+            / f"{sample.name[1]}{self.__dataset_meta.image_properties.extension}"
         )
 
         image = (
             np.load(image_path, allow_pickle=True)["image"]
-            if self.__dataset_meta.image_properties.extension in [".npy", ".npz"] else
-            cv2.imread(str(image_path), cv2.IMREAD_GRAYSCALE)
+            if self.__dataset_meta.image_properties.extension in [".npy", ".npz"]
+            else cv2.imread(str(image_path), cv2.IMREAD_GRAYSCALE)
         )
 
         target = self.__class_to_number[sample[self.__classification, "label"]]
@@ -683,22 +681,23 @@ class CustomDataModule:
 
 if __name__ == "__main__":
     import os
+
     import hydra
     import matplotlib.pyplot as plt
-    from pathlib import Path
     from dotenv import load_dotenv
+
     import ProtoPNet.util.config_types as conf_typ
 
     load_dotenv()
     conf_typ.init_config_store()
 
-    conf_dir = (
-        Path(os.getenv("PROJECT_ROOT"))
-        / os.getenv("MODULE_NAME")
-        / os.getenv("CONFIG_DIR_NAME")
-    )
+    assert os.getenv("CONFIG_PATH") is not None, "CONFIG_PATH is not set in .env file."
 
-    @hydra.main(version_base=None, config_path=str(conf_dir), config_name="main_config")
+    @hydra.main(
+        version_base=None,
+        config_path=os.getenv("CONFIG_PATH"),
+        config_name="main_config",
+    )
     def test(cfg: conf_typ.Config):
         module = hydra.utils.instantiate(cfg.data.datamodule)
         for f, (tr, vl) in enumerate(module.folds, start=1):

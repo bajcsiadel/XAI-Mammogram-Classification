@@ -9,6 +9,7 @@ import hydra
 import numpy as np
 import omegaconf
 import torch
+import torchvision
 from dotenv import load_dotenv
 from hydra.utils import instantiate
 from icecream import ic
@@ -31,47 +32,48 @@ cross = "\u2718"
 
 @hydra.main(
     version_base=None,
-    config_path=os.getenv("CONFIG_DIR_NAME"),
+    config_path=os.getenv("CONFIG_PATH"),
     config_name="main_config",
 )
 def main(cfg: conf_typ.Config):
-    logger = Log(__name__)
+    with Log(__name__) as logger:
+        try:
+            warnings.showwarning = lambda message, *args: logger.exception(
+                message, warn_only=True
+            )
 
-    try:
-        warnings.showwarning = lambda message, *args: logger.exception(
-            message, warn_only=True
-        )
+            logger.log_command_line()
 
-        logger.log_command_line()
+            logger.create_csv_log(
+                "train_model",
+                ("fold", "epoch", "phase"),
+                "time",
+                "cross entropy",
+                "cluster_loss",
+                "separation_loss",
+                "accuracy",
+                "micro_f1",
+                "macro_f1",
+                "l1",
+                "prototype_distances",
+            )
 
-        logger.create_csv_log(
-            "train_model",
-            ("fold", "epoch", "phase"),
-            "time",
-            "cross entropy",
-            "cluster_loss",
-            "separation_loss",
-            "accuracy",
-            "micro_f1",
-            "macro_f1",
-            "l1",
-            "prototype_distances",
-        )
+            cfg = omegaconf.OmegaConf.to_object(cfg)
 
-        cfg = omegaconf.OmegaConf.to_object(cfg)
+            set_seeds(cfg.seed)
 
-        set_seeds(cfg.seed)
+            log_gpu_usage(cfg.gpu, logger)
+            if cfg.gpu.disabled:
+                cfg.gpu.device = "cpu"
 
-        set_gpu_usage(cfg.gpu, logger)
-
-        run_experiment(cfg, logger)
-    except Exception as e:
-        logger.exception(e)
+            run_experiment(cfg, logger)
+        except Exception as e:
+            logger.exception(e)
 
 
-def set_gpu_usage(gpu, logger):
+def log_gpu_usage(gpu, logger):
     """
-    Set the gpu usage according to the given configuration.
+    Log the gpu usage according to the given configuration.
 
     :param gpu:
     :type gpu: conf_typ.Gpu
@@ -205,6 +207,7 @@ def run_experiment(cfg: conf_typ.Config, logger: Log):
     for fold, (train_sampler, validation_sampler) in enumerate(
         dataset_module.folds, start=1
     ):
+        step = 0
         # construct the model
         ppnet = model.construct_PPNet(
             base_architecture=cfg.network.name,
@@ -220,11 +223,13 @@ def run_experiment(cfg: conf_typ.Config, logger: Log):
         )
         if not cfg.gpu.disabled:
             ppnet = ppnet.to(cfg.gpu.device)
+            ppnet_multi = torch.nn.DataParallel(ppnet)
+        else:
+            ppnet_multi = ppnet
 
         if fold == 1:
-            logger.info(f"\n{ppnet}\n")
-
-        ppnet_multi = torch.nn.DataParallel(ppnet)
+            logger.info("\n")
+            logger.info(f"{ppnet}\n")
 
         warm_optimizer_specs = [
             {
@@ -295,17 +300,22 @@ def run_experiment(cfg: conf_typ.Config, logger: Log):
 
             for epoch in np.arange(cfg.phases.warm.epochs) + 1:
                 logger.info(f"\t\twarm epoch: \t{epoch}")
+
+                step += len(train_loader)
                 logger.csv_log_index("train_model", (fold, epoch, "warm train"))
                 _ = partial_train(
                     model=ppnet_multi,
                     dataloader=train_loader,
                     optimizer=warm_optimizer,
+                    step=step,
                 )
 
+                step += len(validation_loader)
                 logger.csv_log_index("train_model", (fold, epoch, "warm validation"))
                 accu = partial_test(
                     model=ppnet_multi,
                     dataloader=validation_loader,
+                    step=step,
                 )
                 save.save_model_w_condition(
                     model=ppnet,
@@ -337,6 +347,14 @@ def run_experiment(cfg: conf_typ.Config, logger: Log):
             batch_size=cfg.phases.push.batch_size,
         )
 
+        if fold == 1:
+            first_batch = next(iter(train_loader))[0]
+            logger.tensorboard.default.add_image(
+                f"{cfg.data.set.name} examples",
+                torchvision.utils.make_grid(first_batch),
+            )
+            logger.tensorboard.default.add_graph(ppnet, first_batch.to(cfg.gpu.device))
+
         logger.info("\t\tbatch size:")
         logger.info(f"\t\t\ttrain: {train_loader.batch_size}")
         logger.info(f"\t\t\tvalidation: {validation_loader.batch_size}")
@@ -348,17 +366,21 @@ def run_experiment(cfg: conf_typ.Config, logger: Log):
             if epoch > 1:
                 joint_lr_scheduler.step()
 
+            step += len(train_loader)
             logger.csv_log_index("train_model", (fold, real_epoch_number, "train"))
             _ = partial_train(
                 model=ppnet_multi,
                 dataloader=train_loader,
                 optimizer=joint_optimizer,
+                step=step,
             )
 
+            step += len(validation_loader)
             logger.csv_log_index("train_model", (fold, real_epoch_number, "validation"))
             accu = partial_test(
                 model=ppnet_multi,
                 dataloader=validation_loader,
+                step=step,
             )
             save.save_model_w_condition(
                 model=ppnet,
