@@ -8,7 +8,8 @@ from icecream import ic
 from sklearn.model_selection import train_test_split
 
 
-def stratified_grouped_train_test_split(X, y, groups, test_size=0.3, train_size=None, random_state=1234):
+def stratified_grouped_train_test_split(X, y, groups, test_size=0.3, train_size=None,
+                                        random_state=1234):
     """
     Create a grouped, stratified split of the dataset.
 
@@ -81,23 +82,42 @@ def stratified_grouped_train_test_split(X, y, groups, test_size=0.3, train_size=
 
     train_ratio = train_size / (train_size + test_size)
     test_ratio = 1 - train_ratio
-    train_patients, test_patients = train_test_split(cases_distribution.index.to_numpy(),
-                                                     test_size=test_ratio, train_size=train_ratio,
-                                                     stratify=cases_distribution.values, random_state=random_state)
+
+    # we subtract 0.05 from the ratios to make sure that less than 100% of the data is used
+    train_ratio -= 0.05
+    test_ratio -= 0.05
+
+    train_patients, test_patients = train_test_split(
+        cases_distribution.index.to_numpy(),
+        test_size=test_ratio, train_size=train_ratio,
+        stratify=cases_distribution.values,
+        random_state=random_state
+    )
 
     train_indices = np.where([patient_id in train_patients for patient_id in groups])[0]
     test_indices = np.where([patient_id in test_patients for patient_id in groups])[0]
 
     if len(train_indices) > train_size:
-        train_indices = __random_choice(train_indices, train_size, X, y, train_sample_per_class, random_state)
+        train_indices = __random_choice(
+            train_indices, train_size,
+            X, y,
+            train_sample_per_class,
+            random_state
+        )
     if len(test_indices) > test_size:
-        test_indices = __random_choice(test_indices, test_size, X, y, test_sample_per_class, random_state)
+        test_indices = __random_choice(
+            test_indices, test_size,
+            X, y,
+            test_sample_per_class,
+            random_state
+        )
 
     # if there are fewer elements in the generated set than needed
     # then add the single classes to the sets
     i = 0
     if len(train_indices) < train_size:
-        train_indices, i = __add_single_classes(train_indices, train_size, single_classes, i, groups)
+        train_indices, i = __add_single_classes(train_indices, train_size, single_classes, i,
+                                                groups)
     if len(test_indices) < test_size:
         test_indices, _ = __add_single_classes(test_indices, test_size, single_classes, i, groups)
 
@@ -226,9 +246,9 @@ if __name__ == "__main__":
 
     conf_typ.init_config_store()
 
+
     @hydra.main(version_base=None, config_path="../../conf", config_name="main_config")
     def test_split(cfg: conf_typ.Config):
-
         cfg = omegaconf.OmegaConf.to_object(cfg)
 
         data_module: CustomDataModule = hydra.utils.instantiate(cfg.data.datamodule)
@@ -242,5 +262,6 @@ if __name__ == "__main__":
         )
         ic(len(train_indices), train_indices)
         ic(len(test_indices), test_indices)
+
 
     test_split()
