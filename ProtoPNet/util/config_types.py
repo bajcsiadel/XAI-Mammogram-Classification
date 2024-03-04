@@ -1,4 +1,5 @@
 import dataclasses as dc
+import os
 import platform
 import typing as typ
 from pathlib import Path
@@ -382,7 +383,7 @@ class Gpu:
     def __setattr__(self, key, value):
         match key:
             case "disabled":
-                if value:
+                if not value:
                     match platform.system():
                         case "Windows" | "Linux":
                             self.device = "cuda"
@@ -390,6 +391,8 @@ class Gpu:
                             self.device = "mps"
                         case _:
                             self.device = "cpu"
+                else:
+                    self.device = "cpu"
 
         super().__setattr__(key, value)
 
@@ -454,12 +457,17 @@ def add_custom_solvers():
     )
 
 
-@hydra.main(version_base=None, config_path="../conf", config_name="main_config")
-def process_config(cfg: Config):
+@hydra.main(
+    version_base=None,
+    config_path=os.getenv("CONFIG_PATH"),
+    config_name="main_config"
+)
+def process_config(cfg):
     """
     Process the information in the config file using hydra
 
     :param cfg: config information read from file
+    :type cfg: Config
     :return: the processed and validated config
     """
     cfg: Config = omegaconf.OmegaConf.to_object(cfg)

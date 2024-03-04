@@ -31,7 +31,7 @@ cross = "\u2718"
 
 @hydra.main(
     version_base=None,
-    config_path=os.getenv("CONFIG_DIR_NAME"),
+    config_path=os.getenv("CONFIG_PATH"),
     config_name="main_config",
 )
 def main(cfg: conf_typ.Config):

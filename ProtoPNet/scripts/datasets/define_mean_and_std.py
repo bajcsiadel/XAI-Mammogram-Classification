@@ -15,7 +15,6 @@ References & Footnotes
 import logging
 import os
 import sys
-from pathlib import Path
 
 import hydra
 import numpy as np
@@ -29,15 +28,9 @@ from torch.utils.data import DataLoader
 load_dotenv()
 sys.path.append(os.getenv("PROJECT_ROOT"))
 
-from ProtoPNet.dataset.dataloaders import CustomVisionDataset, my_collate_function
+from ProtoPNet.dataset.dataloaders import my_collate_function
 from ProtoPNet.util import helpers
 from ProtoPNet.util.config_types import Config, init_config_store
-
-conf_dir = (
-    Path(os.getenv("PROJECT_ROOT"))
-    / os.getenv("MODULE_NAME")
-    / os.getenv("CONFIG_DIR_NAME")
-)
 
 
 def flatten(lst: list) -> np.ndarray:
@@ -58,7 +51,7 @@ def flatten(lst: list) -> np.ndarray:
 
 @hydra.main(
     version_base=None,
-    config_path=str(conf_dir),
+    config_path=os.getenv("CONFIG_PATH"),
     config_name="script_define_mean_config",
 )
 def compute_mean_and_std_of_dataset(cfg: Config):
