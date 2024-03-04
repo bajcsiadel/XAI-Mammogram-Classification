@@ -7,9 +7,7 @@ def compute_layer_rf_info(
     n_in = previous_layer_rf_info[0]  # input size
     j_in = previous_layer_rf_info[1]  # receptive field jump of input layer
     r_in = previous_layer_rf_info[2]  # receptive field size of input layer
-    start_in = previous_layer_rf_info[
-        3
-    ]  # center of receptive field of input layer
+    start_in = previous_layer_rf_info[3]  # center of receptive field of input layer
 
     if layer_padding == "SAME":
         n_out = math.ceil(float(n_in) / float(layer_stride))
@@ -18,20 +16,16 @@ def compute_layer_rf_info(
         else:
             pad = max(layer_filter_size - (n_in % layer_stride), 0)
         assert (
-            n_out
-            == math.floor((n_in - layer_filter_size + pad) / layer_stride) + 1
+            n_out == math.floor((n_in - layer_filter_size + pad) / layer_stride) + 1
         )  # sanity check
         assert (
             pad == (n_out - 1) * layer_stride - n_in + layer_filter_size
         )  # sanity check
     elif layer_padding == "VALID":
-        n_out = math.ceil(
-            float(n_in - layer_filter_size + 1) / float(layer_stride)
-        )
+        n_out = math.ceil(float(n_in - layer_filter_size + 1) / float(layer_stride))
         pad = 0
         assert (
-            n_out
-            == math.floor((n_in - layer_filter_size + pad) / layer_stride) + 1
+            n_out == math.floor((n_in - layer_filter_size + pad) / layer_stride) + 1
         )  # sanity check
         assert (
             pad == (n_out - 1) * layer_stride - n_in + layer_filter_size

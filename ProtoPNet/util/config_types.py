@@ -458,9 +458,7 @@ def add_custom_solvers():
 
 
 @hydra.main(
-    version_base=None,
-    config_path=os.getenv("CONFIG_PATH"),
-    config_name="main_config"
+    version_base=None, config_path=os.getenv("CONFIG_PATH"), config_name="main_config"
 )
 def process_config(cfg):
     """

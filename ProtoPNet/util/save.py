@@ -5,9 +5,7 @@ import numpy as np
 import torch
 
 
-def save_model_w_condition(
-    model, model_dir, model_name, accu, target_accu, log=print
-):
+def save_model_w_condition(model, model_dir, model_name, accu, target_accu, log=print):
     """
     model: this is not the multigpu model
     """

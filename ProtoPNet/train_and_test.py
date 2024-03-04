@@ -195,9 +195,7 @@ def _train_or_test(
                         )
 
                     if use_l1_mask:
-                        l1_mask = (
-                            1 - torch.t(model.prototype_class_identity).to(device)
-                        )
+                        l1_mask = 1 - torch.t(model.prototype_class_identity).to(device)
                         l1 = (model.last_layer.weight * l1_mask).norm(p=1)
                     else:
                         l1 = model.last_layer.weight.norm(p=1)

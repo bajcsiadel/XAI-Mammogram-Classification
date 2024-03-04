@@ -7,8 +7,8 @@ from datetime import datetime
 from pathlib import Path
 
 from hydra.core.hydra_config import HydraConfig
-from torch.utils.tensorboard import SummaryWriter
 from icecream import ic
+from torch.utils.tensorboard import SummaryWriter
 
 from ProtoPNet.util import errors
 
@@ -145,7 +145,7 @@ class Log(logging.Logger):
             fd.write("\n")
             fd.write(f"screen -dmS {screen_name}\n")
             fd.write(
-                f'screen -S {screen_name} -X stuff '
+                f"screen -S {screen_name} -X stuff "
                 f'"poetry run python {python_file} {params}"\n'
             )
             fd.write("# attaching the screen\n")
@@ -274,6 +274,7 @@ class _TensorBoardWriter:
         Defaults to ``"train"``
     :type mode: str
     """
+
     def __init__(self, log, mode="train"):
         self._parent = log
 
@@ -287,8 +288,8 @@ class _TensorBoardWriter:
                     log_dir=str(self._parent.tensorboard_dir / "train")
                 )
                 self.validation = SummaryWriter(
-                    log_dir=str(self._parent.tensorboard_dir / "validation"
-                                ))
+                    log_dir=str(self._parent.tensorboard_dir / "validation")
+                )
                 self.test = None
             case "test":
                 self.train = None

@@ -95,13 +95,15 @@ class Base(nn.Module):
     :type add_on_layers_activation: str
     """
 
-    def __init__(self, features,
-                 img_shape,
-                 prototype_shape,
-                 num_classes,
-                 add_on_layers_type="bottleneck",
-                 add_on_layers_activation="A",
-                 ):
+    def __init__(
+        self,
+        features,
+        img_shape,
+        prototype_shape,
+        num_classes,
+        add_on_layers_type="bottleneck",
+        add_on_layers_activation="A",
+    ):
         super(Base, self).__init__()
         self.img_shape = img_shape
         self.prototype_shape = prototype_shape
@@ -256,10 +258,10 @@ class PPNet(Base):
         filter of shape P * c * h1 * w1
         weight of shape P * c * h1 * w1
         """
-        input2 = input_ ** 2
+        input2 = input_**2
         input_patch_weighted_norm2 = F.conv2d(input=input2, weight=weights)
 
-        filter2 = filter_ ** 2
+        filter2 = filter_**2
         weighted_filter2 = filter2 * weights
         filter_weighted_norm2 = torch.sum(weighted_filter2, dim=(1, 2, 3))
         filter_weighted_norm2_reshape = filter_weighted_norm2.view(-1, 1, 1)
@@ -280,7 +282,7 @@ class PPNet(Base):
         """
         apply self.prototype_vectors as l2-convolution filters on input x
         """
-        x2 = x ** 2
+        x2 = x**2
         x2_patch_sum = F.conv2d(input=x2, weight=self.ones)
 
         p = (
@@ -288,7 +290,7 @@ class PPNet(Base):
             if detach_prototypes
             else self.prototype_vectors
         )
-        p2 = p ** 2
+        p2 = p**2
         p2 = torch.sum(p2, dim=(1, 2, 3))
         # p2 is a vector of shape (num_prototypes,)
         # then we reshape it to (num_prototypes, 1, 1)
@@ -434,7 +436,7 @@ class BBNet(Base):
             prototype_shape,
             num_classes,
             add_on_layers_type,
-            add_on_layers_activation
+            add_on_layers_activation,
         )
 
         x = torch.randn(1, color_channels, *img_shape)

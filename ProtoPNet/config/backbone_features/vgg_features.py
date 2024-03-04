@@ -104,9 +104,7 @@ class VGG_features(nn.Module):
     def _initialize_weights(self):
         for m in self.modules():
             if isinstance(m, nn.Conv2d):
-                nn.init.kaiming_normal_(
-                    m.weight, mode="fan_out", nonlinearity="relu"
-                )
+                nn.init.kaiming_normal_(m.weight, mode="fan_out", nonlinearity="relu")
                 if m.bias is not None:
                     nn.init.constant_(m.bias, 0)
             elif isinstance(m, nn.BatchNorm2d):
@@ -117,7 +115,6 @@ class VGG_features(nn.Module):
                 nn.init.constant_(m.bias, 0)
 
     def _make_layers(self, cfg, batch_norm):
-
         self.n_layers = 0
 
         layers = []
@@ -175,7 +172,9 @@ def vgg11_features(pretrained=False, **kwargs):
         kwargs["init_weights"] = False
     model = VGG_features(cfg["A"], batch_norm=False, **kwargs)
     if pretrained:
-        my_dict = model_zoo.load_url(model_urls["vgg11"], model_dir=PRETRAINED_MODELS_DIR)
+        my_dict = model_zoo.load_url(
+            model_urls["vgg11"], model_dir=PRETRAINED_MODELS_DIR
+        )
         keys_to_remove = set()
         for key in my_dict:
             if key.startswith("classifier"):
@@ -219,7 +218,9 @@ def vgg13_features(pretrained=False, **kwargs):
         kwargs["init_weights"] = False
     model = VGG_features(cfg["B"], batch_norm=False, **kwargs)
     if pretrained:
-        my_dict = model_zoo.load_url(model_urls["vgg13"], model_dir=PRETRAINED_MODELS_DIR)
+        my_dict = model_zoo.load_url(
+            model_urls["vgg13"], model_dir=PRETRAINED_MODELS_DIR
+        )
         keys_to_remove = set()
         for key in my_dict:
             if key.startswith("classifier"):
@@ -263,7 +264,9 @@ def vgg16_features(pretrained=False, **kwargs):
         kwargs["init_weights"] = False
     model = VGG_features(cfg["D"], batch_norm=False, **kwargs)
     if pretrained:
-        my_dict = model_zoo.load_url(model_urls["vgg16"], model_dir=PRETRAINED_MODELS_DIR)
+        my_dict = model_zoo.load_url(
+            model_urls["vgg16"], model_dir=PRETRAINED_MODELS_DIR
+        )
         keys_to_remove = set()
         for key in my_dict:
             if key.startswith("classifier"):
@@ -307,7 +310,9 @@ def vgg19_features(pretrained=False, **kwargs):
         kwargs["init_weights"] = False
     model = VGG_features(cfg["E"], batch_norm=False, **kwargs)
     if pretrained:
-        my_dict = model_zoo.load_url(model_urls["vgg19"], model_dir=PRETRAINED_MODELS_DIR)
+        my_dict = model_zoo.load_url(
+            model_urls["vgg19"], model_dir=PRETRAINED_MODELS_DIR
+        )
         keys_to_remove = set()
         for key in my_dict:
             if key.startswith("classifier"):
@@ -342,7 +347,6 @@ def vgg19_bn_features(pretrained=False, **kwargs):
 
 
 if __name__ == "__main__":
-
     vgg11_f = vgg11_features(pretrained=True)
     print(vgg11_f)
 
