@@ -7,6 +7,7 @@ from datetime import datetime
 from pathlib import Path
 
 from hydra.core.hydra_config import HydraConfig
+from torch.utils.tensorboard import SummaryWriter
 from icecream import ic
 
 from ProtoPNet.util import errors
@@ -18,9 +19,11 @@ class Log(logging.Logger):
 
     :param name: The name of the logger
     :type name: str
+    :param mode: The mode of the logger (train or test).
+        Defaults to ``"train"``
     """
 
-    def __init__(self, name):
+    def __init__(self, name, mode="train"):
         super().__init__(name)
         self.parent = logging.root
 
@@ -31,6 +34,9 @@ class Log(logging.Logger):
         self.log_dir.mkdir(parents=True, exist_ok=True)
         self.metadata_dir.mkdir(parents=True, exist_ok=True)
         self.checkpoint_dir.mkdir(parents=True, exist_ok=True)
+        self.tensorboard_dir.mkdir(parents=True, exist_ok=True)
+
+        self.__tensorboard_writer = _TensorBoardWriter(self, mode)
 
         logging.getLogger().manager.loggerDict[name] = self
 
@@ -45,6 +51,14 @@ class Log(logging.Logger):
     @property
     def metadata_dir(self):
         return self.__log_dir / "metadata"
+
+    @property
+    def tensorboard_dir(self):
+        return self.__log_dir / os.getenv("TENSORBOARD_LOG_DIR", "tensorboard")
+
+    @property
+    def tensorboard(self):
+        return self.__tensorboard_writer
 
     def _log(
         self,
@@ -204,7 +218,7 @@ class Log(logging.Logger):
         :param log_name: The name of the log file
         :type log_name: str
         :param values: value attributes that will be stored in the log
-        :type values: str
+        :type values: typ.Any
         :raises FileNotFoundError: If the log file does not exist
         :raises errors.CsvMismatchedColumnsError: If the number of
         values does not match the number of columns
@@ -236,3 +250,59 @@ class Log(logging.Logger):
         """
         self.csv_log_index(log_name, key)
         self.csv_log_values(log_name, *values)
+
+    def __enter__(self):
+        """
+        Enter the context manager
+        """
+        return self
+
+    def __exit__(self, exc_type, exc_val, exc_tb):
+        """
+        Close the tensorboard writer at the end of the experiment.
+        """
+        self.__tensorboard_writer.__exit__(exc_type, exc_val, exc_tb)
+
+
+class _TensorBoardWriter:
+    """
+    Context manager for tensorboard writers.
+
+    :param log: The log object
+    :type log: Log
+    :param mode: The mode of the tensorboard writer (train or test).
+        Defaults to ``"train"``
+    :type mode: str
+    """
+    def __init__(self, log, mode="train"):
+        self._parent = log
+
+        self.default = SummaryWriter(
+            log_dir=str(self._parent.tensorboard_dir / "default")
+        )
+
+        match mode:
+            case "train":
+                self.train = SummaryWriter(
+                    log_dir=str(self._parent.tensorboard_dir / "train")
+                )
+                self.validation = SummaryWriter(
+                    log_dir=str(self._parent.tensorboard_dir / "validation"
+                                ))
+                self.test = None
+            case "test":
+                self.train = None
+                self.validation = None
+                self.test = SummaryWriter(
+                    log_dir=str(self._parent.tensorboard_dir / "test")
+                )
+            case _:
+                raise ValueError(f"Invalid mode {mode}. Expected 'train' or 'test'")
+
+    def __enter__(self):
+        return self
+
+    def __exit__(self, exc_type, exc_val, exc_tb):
+        for writer in (self.train, self.validation, self.test):
+            if writer is not None:
+                writer.close()

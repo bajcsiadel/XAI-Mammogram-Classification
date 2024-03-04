@@ -13,13 +13,14 @@ def _train_or_test(
     prototype_shape,
     separation_type,
     number_of_classes,
+    step,
+    log,
     optimizer=None,
     class_specific=True,
     use_l1_mask=True,
     loss_coefficients=None,
     use_bce=False,
     backbone_only=False,
-    log=print,
     device="cpu",
 ):
     """
@@ -27,15 +28,24 @@ def _train_or_test(
     :param model: the multi-gpu model
     :param dataloader:
     :param prototype_shape:
+    :type prototype_shape: tuple
     :param separation_type:
+    :type separation_type: str
     :param number_of_classes:
-    :param optimizer: if None, will be test evaluation
-    :param class_specific:
-    :param use_l1_mask:
+    :param optimizer: optimizer used during training. If ``None``, then it
+        is a test evaluation
+    :param class_specific: Defaults to ``True``
+    :type class_specific: bool
+    :param use_l1_mask: Defaults to ``True``
+    :type use_l1_mask: bool
     :param loss_coefficients:
-    :param use_bce:
+    :type loss_coefficients: dict
+    :param use_bce: Defaults to ``False``
+    :type use_bce: bool
     :param log:
-    :param backbone_only:
+    :type log: ProtoPNet.util.log.Log
+    :param backbone_only: Defaults to ``False``
+    :type backbone_only: bool
     :return:
     """
     is_train = optimizer is not None
@@ -50,6 +60,9 @@ def _train_or_test(
 
     true_labels = np.array([])
     predicted_labels = np.array([])
+
+    if isinstance(model, torch.nn.DataParallel):
+        model = model.module
 
     for image, label in dataloader:
         input_ = image.to(device)
@@ -79,16 +92,16 @@ def _train_or_test(
             if not backbone_only:
                 if class_specific:
                     max_dist = (
-                        model.module.prototype_shape[1]
-                        * model.module.prototype_shape[2]
-                        * model.module.prototype_shape[3]
+                        model.prototype_shape[1]
+                        * model.prototype_shape[2]
+                        * model.prototype_shape[3]
                     )
 
                     # prototypes_of_correct_class is a tensor
                     # of shape batch_size * num_prototypes
                     # calculate cluster cost
                     prototypes_of_correct_class = torch.t(
-                        model.module.prototype_class_identity[:, label]
+                        model.prototype_class_identity[:, label]
                     ).to(device)
                     inverted_distances, target_proto_index = torch.max(
                         (max_dist - min_distances) * prototypes_of_correct_class,
@@ -112,7 +125,7 @@ def _train_or_test(
                         )
                     elif separation_type == "avg":
                         min_distances_detached_prototype_vectors = (
-                            model.module.prototype_min_distances(
+                            model.prototype_min_distances(
                                 input_, detach_prototypes=True
                             )[0]
                         )
@@ -126,8 +139,8 @@ def _train_or_test(
 
                         l2 = (
                             torch.mm(
-                                model.module.prototype_vectors[:, :, 0, 0],
-                                model.module.prototype_vectors[:, :, 0, 0].t(),
+                                model.prototype_vectors[:, :, 0, 0],
+                                model.prototype_vectors[:, :, 0, 0].t(),
                             )
                             - torch.eye(prototype_shape[0]).to(device)
                         ).norm(p=2)
@@ -181,22 +194,20 @@ def _train_or_test(
                             """
                         )
 
-                    # print(separation_cost.item())
-
                     if use_l1_mask:
                         l1_mask = (
-                            1 - torch.t(model.module.prototype_class_identity).to(device)
+                            1 - torch.t(model.prototype_class_identity).to(device)
                         )
-                        l1 = (model.module.last_layer.weight * l1_mask).norm(p=1)
+                        l1 = (model.last_layer.weight * l1_mask).norm(p=1)
                     else:
-                        l1 = model.module.last_layer.weight.norm(p=1)
+                        l1 = model.last_layer.weight.norm(p=1)
 
                 else:
                     min_distance, _ = torch.min(min_distances, dim=1)
                     cluster_cost = torch.mean(min_distance)
-                    l1 = model.module.last_layer.weight.norm(p=1)
+                    l1 = model.last_layer.weight.norm(p=1)
             else:
-                l1 = model.module.last_layer.weight.norm(p=1)
+                l1 = model.last_layer.weight.norm(p=1)
 
             # evaluation statistics
             _, predicted = torch.max(output.data, 1)
@@ -272,14 +283,14 @@ def _train_or_test(
         if not backbone_only and class_specific
         else None
     )
-    accuracy = n_correct / n_examples * 100
+    accuracy = n_correct / n_examples
     micro_f1 = f1_score(true_labels, predicted_labels, average="micro")
     macro_f1 = f1_score(true_labels, predicted_labels, average="macro")
-    l1_norm = model.module.last_layer.weight.norm(p=1).item()
+    l1_norm = model.last_layer.weight.norm(p=1).item()
 
     p_avg_pair_dist = None
     if not backbone_only:
-        p = model.module.prototype_vectors.view(model.module.num_prototypes, -1).cpu()
+        p = model.prototype_vectors.view(model.num_prototypes, -1).cpu()
         with torch.no_grad():
             p_avg_pair_dist = torch.mean(list_of_distances(p, p)).item()
 
@@ -289,9 +300,9 @@ def _train_or_test(
         log(f"INFO: \t\t\t\t{'cluster: ':<13}{cluster_cost}")
         if class_specific:
             log(f"INFO: \t\t\t\t{'separation: ':<13}{separation_cost}")
-    log(f"INFO: \t\t\t\t{'accu: ':<13}{accuracy}%")
-    log(f"INFO: \t\t\t\t{'micro f1: ':<13}{micro_f1}")
-    log(f"INFO: \t\t\t\t{'macro f1: ':<13}{macro_f1}")
+    log(f"INFO: \t\t\t\t{'accu: ':<13}{accuracy:.2%}")
+    log(f"INFO: \t\t\t\t{'micro f1: ':<13}{micro_f1:.2%}")
+    log(f"INFO: \t\t\t\t{'macro f1: ':<13}{macro_f1:.2%}")
     log(f"INFO: \t\t\t\t{'l1: ':<13}{l1_norm}")
     if not backbone_only:
         log(f"INFO: \t\t\t\t{'p dist pair: ':<13}{p_avg_pair_dist}")
@@ -310,7 +321,60 @@ def _train_or_test(
             p_avg_pair_dist,
         )
 
-    return n_correct / n_examples
+        if is_train:
+            writer = log.tensorboard.train
+        else:
+            writer = log.tensorboard.validation
+
+        writer.add_scalar("accuracy", accuracy, step)
+        write_loss = {
+            "cross_entropy": cross_entropy,
+            "l1": l1_norm,
+        }
+
+        if is_train:
+            write_loss["loss"] = loss.item()
+
+        if not backbone_only:
+            write_loss["cluster_cost"] = cluster_cost
+            if class_specific:
+                write_loss["separation_cost"] = separation_cost
+        writer.add_scalars("loss", write_loss, step)
+
+    return accuracy
+
+
+def test(
+    model,
+    dataloader,
+    prototype_shape,
+    separation_type,
+    number_of_classes,
+    step,
+    log,
+    class_specific=False,
+    loss_coefficients=None,
+    use_bce=False,
+    backbone_only=False,
+    device="cpu",
+):
+    log("INFO: \t\t\ttest")
+    model.eval()
+    return _train_or_test(
+        model=model,
+        dataloader=dataloader,
+        prototype_shape=prototype_shape,
+        separation_type=separation_type,
+        number_of_classes=number_of_classes,
+        optimizer=None,
+        step=step,
+        log=log,
+        class_specific=class_specific,
+        loss_coefficients=loss_coefficients,
+        use_bce=use_bce,
+        backbone_only=backbone_only,
+        device=device,
+    )
 
 
 def train(
@@ -320,11 +384,12 @@ def train(
     separation_type,
     number_of_classes,
     optimizer,
+    step,
+    log,
     class_specific=False,
     loss_coefficients=None,
     use_bce=False,
     backbone_only=False,
-    log=print,
     device="cpu",
 ):
     assert optimizer is not None
@@ -338,80 +403,59 @@ def train(
         separation_type=separation_type,
         number_of_classes=number_of_classes,
         optimizer=optimizer,
+        step=step,
+        log=log,
         class_specific=class_specific,
         loss_coefficients=loss_coefficients,
         use_bce=use_bce,
         backbone_only=backbone_only,
-        log=log,
-        device=device,
-    )
-
-
-def test(
-    model,
-    dataloader,
-    prototype_shape,
-    separation_type,
-    number_of_classes,
-    class_specific=False,
-    loss_coefficients=None,
-    use_bce=False,
-    backbone_only=False,
-    log=print,
-    device="cpu",
-):
-    log("INFO: \t\t\ttest")
-    model.eval()
-    return _train_or_test(
-        model=model,
-        dataloader=dataloader,
-        prototype_shape=prototype_shape,
-        separation_type=separation_type,
-        number_of_classes=number_of_classes,
-        optimizer=None,
-        class_specific=class_specific,
-        loss_coefficients=loss_coefficients,
-        use_bce=use_bce,
-        backbone_only=backbone_only,
-        log=log,
         device=device,
     )
 
 
 def last_only(model, log=print, backbone_only=False):
-    for p in model.module.features.parameters():
+    if isinstance(model, torch.nn.DataParallel):
+        model = model.module
+
+    for p in model.features.parameters():
         p.requires_grad = False
     if not backbone_only:
-        for p in model.module.add_on_layers.parameters():
+        for p in model.add_on_layers.parameters():
             p.requires_grad = False
-        model.module.prototype_vectors.requires_grad = False
-    for p in model.module.last_layer.parameters():
+        model.prototype_vectors.requires_grad = False
+    for p in model.last_layer.parameters():
         p.requires_grad = True
 
     log("INFO: \tlast layer")
 
 
 def warm_only(model, log=print, backbone_only=False):
+    if isinstance(model, torch.nn.DataParallel):
+        model = model.module
+
     for p in model.module.features.parameters():
         p.requires_grad = False
     if not backbone_only:
-        for p in model.module.add_on_layers.parameters():
+        for p in model.add_on_layers.parameters():
             p.requires_grad = True
-        model.module.prototype_vectors.requires_grad = True
-    for p in model.module.last_layer.parameters():
+        model.prototype_vectors.requires_grad = True
+    for p in model.last_layer.parameters():
         p.requires_grad = True
 
     log("INFO: \twarm")
 
 
 def joint(model, log=print, backbone_only=False):
-    for p in model.module.features.parameters():
+    if isinstance(model, torch.nn.DataParallel):
+        model = model.module
+
+    for p in model.features.parameters():
         p.requires_grad = True
     if not backbone_only:
-        for p in model.module.add_on_layers.parameters():
+        for p in model.add_on_layers.parameters():
             p.requires_grad = True
-        model.module.prototype_vectors.requires_grad = True
-    for p in model.module.last_layer.parameters():
+        model.prototype_vectors.requires_grad = True
+    for p in model.last_layer.parameters():
         p.requires_grad = True
 
     log("INFO: \tjoint")

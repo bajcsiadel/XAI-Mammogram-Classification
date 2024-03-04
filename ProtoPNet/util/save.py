@@ -12,7 +12,7 @@ def save_model_w_condition(
     model: this is not the multigpu model
     """
     if accu > target_accu:
-        log(f"INFO: \t\t\tabove {target_accu * 100:.2f}%")
+        log(f"INFO: \t\t\tabove {target_accu:.2%}")
         # torch.save(
         #     obj=model.state_dict(),
         #     f=os.path.join(model_dir, f'{model_name}{accu:.4f}.pth')

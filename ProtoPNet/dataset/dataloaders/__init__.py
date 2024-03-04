@@ -36,7 +36,7 @@ class CustomVisionDataset(datasets.VisionDataset):
     Custom Vision Dataset class for PyTorch.
 
     :param dataset_meta: Dataset metadata
-    :type dataset_meta: conf_typ.Dataset
+    :type dataset_meta: ProtoPNet.util.config_types.Dataset
     :param classification: Classification type
     :type classification: str
     :param subset: Subset to use
@@ -685,20 +685,19 @@ if __name__ == "__main__":
     import os
     import hydra
     import matplotlib.pyplot as plt
-    from pathlib import Path
     from dotenv import load_dotenv
     import ProtoPNet.util.config_types as conf_typ
 
     load_dotenv()
     conf_typ.init_config_store()
 
-    conf_dir = (
-        Path(os.getenv("PROJECT_ROOT"))
-        / os.getenv("MODULE_NAME")
-        / os.getenv("CONFIG_DIR_NAME")
-    )
+    assert os.getenv("CONFIG_PATH") is not None, "CONFIG_PATH is not set in .env file."
 
-    @hydra.main(version_base=None, config_path=str(conf_dir), config_name="main_config")
+    @hydra.main(
+        version_base=None,
+        config_path=os.getenv("CONFIG_PATH"),
+        config_name="main_config"
+    )
     def test(cfg: conf_typ.Config):
         module = hydra.utils.instantiate(cfg.data.datamodule)
         for f, (tr, vl) in enumerate(module.folds, start=1):
