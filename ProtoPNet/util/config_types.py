@@ -18,6 +18,18 @@ Augmentation = dict[str, typ.Any]
 
 
 @dc.dataclass
+class BatchSize:
+    train: int = 1
+    validation: int = 1
+
+    def __setattr__(self, key, value):
+        if value <= 0:
+            raise ValueError(f"{key} size must be positive.\n{key} = {value}")
+
+        super().__setattr__(key, value)
+
+
+@dc.dataclass
 class Augmentations:
     train: list[Augmentation]
     push: list[Augmentation]
@@ -70,7 +82,7 @@ class ImageProperties:
             case "mean" | "std":
                 if len(value) != self.color_channels:
                     raise ValueError(
-                        f"{key[0].upper()}{key[1:]} must have the same number of elements "
+                        f"{key} must have the same number of elements "
                         f"as the number of color channels.\n"
                         f"{self.color_channels = }\n"
                         f"{len(self.mean) = }\n"
@@ -78,7 +90,7 @@ class ImageProperties:
                     )
                 if not np.all(np.array(value) > 0.0):
                     raise ValueError(
-                        f"{key[0].upper()}{key[1:]} must be positive.\n{key} = {value}"
+                        f"{key} must be positive.\n{key} = {value}"
                     )
 
         super().__setattr__(key, value)
@@ -179,8 +191,7 @@ class DataModule:
     num_workers: int = 0
     seed: int = 1234
     debug: bool = False
-    train_batch_size: int = 32
-    validation_batch_size: int = 16
+    batch_size: BatchSize = dc.field(default_factory=lambda: BatchSize(32, 16))
 
 
 @dc.dataclass
@@ -296,21 +307,18 @@ class PrototypeProperties:
 
 @dc.dataclass
 class Phase:
-    batch_size: int = 1
-    epochs: int = 0
+    batch_size: BatchSize = dc.field(default_factory=BatchSize)
+    epochs: int = 1
     learning_rates: dict[str, float] = dc.field(default_factory=dict)
     weight_decay: float = 0.0
-    start: int = 0
-    interval: int = 0
     scheduler: dict[str, typ.Any] = dc.field(default_factory=dict)
-    push_epochs: list[int] = dc.field(default_factory=list)
 
     def __setattr__(self, key, value):
         match key:
-            case "batch_size" | "epochs" | "start" | "interval" | "weight_decay":
+            case "epochs" | "weight_decay":
                 if value < 0:
                     raise ValueError(
-                        f"{key[0].upper()}{key[1:]} size must be positive.\n{key} = {value}"
+                        f"{key} size must be positive.\n{key} = {value}"
                     )
             case "learning_rates":
                 for lr_key, lr_value in value.items():
@@ -323,10 +331,31 @@ class Phase:
 
 
 @dc.dataclass
+class PushPhase(Phase):
+    batch_size: int = 1
+    start: int = 0
+    interval: int = 0
+    push_epochs: list[int] = dc.field(default_factory=list)
+
+    def __setattr__(self, key, value):
+        match key:
+            case "batch_size":
+                if value <= 0:
+                    raise ValueError(f"{key} size must be positive.\n{key} = {value}")
+            case "start" | "interval":
+                if value < 0:
+                    raise ValueError(
+                        f"{key} size must be positive.\n{key} = {value}"
+                    )
+
+        super().__setattr__(key, value)
+
+
+@dc.dataclass
 class Phases:
     warm: Phase = dc.field(default_factory=Phase)
     joint: Phase = dc.field(default_factory=Phase)
-    push: Phase = dc.field(default_factory=Phase)
+    push: PushPhase = dc.field(default_factory=PushPhase)
     finetune: Phase = dc.field(default_factory=Phase)
 
     def __post_init__(self):
@@ -469,6 +498,7 @@ def process_config(cfg):
     :return: the processed and validated config
     """
     cfg: Config = omegaconf.OmegaConf.to_object(cfg)
+    ic(cfg)
 
     ic(cfg.data.set.image_properties.augmentations)
     ic(instantiate(cfg.data.set.image_properties.augmentations.train))

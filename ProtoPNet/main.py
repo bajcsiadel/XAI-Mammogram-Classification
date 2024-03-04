@@ -13,6 +13,7 @@ import torchvision
 from dotenv import load_dotenv
 from hydra.utils import instantiate
 from icecream import ic
+from torchsummary import summary
 
 from ProtoPNet.add_on_layers import AddOnLayers
 
@@ -205,7 +206,7 @@ def run_experiment(cfg: conf_typ.Config, logger: Log):
     logger.info("start training")
 
     for fold, (train_sampler, validation_sampler) in enumerate(
-        dataset_module.folds, start=1
+            dataset_module.folds, start=1
     ):
         step = 0
         # construct the model
@@ -221,6 +222,7 @@ def run_experiment(cfg: conf_typ.Config, logger: Log):
             backbone_only=cfg.network.backbone_only,
             positive_weights_in_classifier=False,
         )
+
         if not cfg.gpu.disabled:
             ppnet = ppnet.to(cfg.gpu.device)
             ppnet_multi = torch.nn.DataParallel(ppnet)
@@ -228,8 +230,22 @@ def run_experiment(cfg: conf_typ.Config, logger: Log):
             ppnet_multi = ppnet
 
         if fold == 1:
-            logger.info("\n")
+            logger.info("")
             logger.info(f"{ppnet}\n")
+
+            logger.info("")
+            logger.info(
+                str(summary(
+                    ppnet,
+                    (
+                        cfg.data.set.image_properties.color_channels,
+                        cfg.data.set.image_properties.height,
+                        cfg.data.set.image_properties.width,
+                    ),
+                    device=torch.device(cfg.gpu.device),
+                    verbose=0,
+                ))
+            )
 
         warm_optimizer_specs = [
             {
@@ -287,11 +303,11 @@ def run_experiment(cfg: conf_typ.Config, logger: Log):
 
             train_loader = dataset_module.train_dataloader(
                 sampler=train_sampler,
-                batch_size=cfg.phases.warm.batch_size,
+                batch_size=cfg.phases.warm.batch_size.train,
             )
             validation_loader = dataset_module.validation_dataloader(
                 sampler=validation_sampler,
-                batch_size=cfg.phases.warm.batch_size,
+                batch_size=cfg.phases.warm.batch_size.validation,
             )
 
             logger.info(f"\tbatch size: {train_loader.batch_size}")
@@ -336,11 +352,11 @@ def run_experiment(cfg: conf_typ.Config, logger: Log):
 
         train_loader = dataset_module.train_dataloader(
             sampler=train_sampler,
-            batch_size=cfg.phases.joint.batch_size,
+            batch_size=cfg.phases.joint.batch_size.train,
         )
         validation_loader = dataset_module.validation_dataloader(
             sampler=validation_sampler,
-            batch_size=cfg.phases.joint.batch_size,
+            batch_size=cfg.phases.joint.batch_size.validation,
         )
         push_loader = dataset_module.push_dataloader(
             sampler=train_sampler,

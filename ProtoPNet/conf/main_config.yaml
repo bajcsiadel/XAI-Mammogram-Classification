@@ -36,14 +36,18 @@ prototypes:
 
 phases:
   warm:
-    batch_size: 32
+    batch_size:
+      train: 32
+      validation: 16
     epochs: 4
     learning_rates:
       add_on_layers: 3e-3
       prototype_vectors: 3e-3
     weight_decay: 1e-3
   joint:
-    batch_size: 8
+    batch_size:
+      train: 16
+      validation: 8
     epochs: 10
     learning_rates:
       features: 1e-4
@@ -59,7 +63,9 @@ phases:
     start: 2
     interval: 5
   finetune:
-    batch_size: 32
+    batch_size:
+      train: 32
+      validation: 16
     epochs: 4
     learning_rates:
       features: 1e-4

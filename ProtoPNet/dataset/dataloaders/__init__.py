@@ -361,10 +361,8 @@ class CustomDataModule:
     :type seed: int
     :param debug:
     :type debug: bool
-    :param train_batch_size:
-    :type train_batch_size: int
-    :param validation_batch_size:
-    :type validation_batch_size: int
+    :param batch_size:
+    :type batch_size: conf_typ.BatchSize
     """
 
     def __init__(
@@ -379,8 +377,7 @@ class CustomDataModule:
         num_workers=0,
         seed=None,
         debug=False,
-        train_batch_size=32,
-        validation_batch_size=16,
+        batch_size=conf_typ.BatchSize(32, 16),
     ):
         self.__data = data
 
@@ -417,8 +414,8 @@ class CustomDataModule:
                 self.__train_data.metadata,
                 self.__train_data.targets,
                 self.__train_data.groups,
-                test_size=validation_batch_size,
-                train_size=train_batch_size,
+                test_size=batch_size.validation,
+                train_size=batch_size.train,
                 random_state=seed,
             )
 
