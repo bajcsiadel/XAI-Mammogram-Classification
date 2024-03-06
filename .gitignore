@@ -5,3 +5,5 @@ runs/
 pretrained_models/
 
 .env
+
+poetry.lock
