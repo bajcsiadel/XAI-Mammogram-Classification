@@ -9,9 +9,9 @@ defaults:
 
 hydra:
   run:
-    dir: ${oc.env:RUNS_DIR}/${hydra.job.name}/${data.set.name}-${format_backbone_only:${network.backbone_only}}${network.name}-${data.set.state}-${data.set.target.name}/${now:%Y-%m-%d}/${now:%H-%M-%S}
+    dir: ${oc.env:RUNS_DIR}/${hydra.job.name}/${network.name}-${format_backbone_only:${network.backbone_only}}-${data.set.name}-${data.set.state}-${data.set.target.name}/${now:%Y-%m-%d}/${now:%H-%M-%S}
   sweep:
-    subdir: ${data.set.name}-${network.name}-${data.set.state}-${format_backbone_only:${network.backbone_only}}${data.set.target.name}/${now:%Y-%m-%d}/${now:%H-%M-%S}
+    subdir: ${network.name}-${format_backbone_only:${network.backbone_only}}-${data.set.name}-${data.set.state}-${data.set.target.name}/${now:%Y-%m-%d}/${now:%H-%M-%S}
 
 data:
   datamodule:

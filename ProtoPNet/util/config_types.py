@@ -256,7 +256,7 @@ class CrossValidationParameters:
     def __setattr__(self, key, value):
         match key:
             case "folds":
-                if value <= 1:
+                if value < 1:
                     raise ValueError(
                         f"Number of cross validation folds must greater than 1. {key} = {value}"
                     )
@@ -482,7 +482,8 @@ def init_config_store():
 
 def add_custom_solvers():
     omegaconf.OmegaConf.register_new_resolver(
-        "format_backbone_only", lambda backbone_only: "only-" if backbone_only else ""
+        "format_backbone_only",
+        lambda backbone_only: "only" if backbone_only else "features"
     )
 
 
