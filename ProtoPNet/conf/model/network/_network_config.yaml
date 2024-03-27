@@ -1,0 +1,2 @@
+_target_: ProtoPNet.utils.config.types.Network
+pretrained: true

@@ -5,13 +5,13 @@ defaults:
   - data/set: MIAS
   - data/filters: default
   - cross_validation: stratified
-  - network: resnet18
+  - model: protopnet
 
 hydra:
   run:
-    dir: ${oc.env:RUNS_DIR}/${hydra.job.name}/${data.set.name}-${format_backbone_only:${network.backbone_only}}${network.name}-${data.set.state}-${data.set.target.name}/${now:%Y-%m-%d}/${now:%H-%M-%S}
+    dir: ${run_location:}/${model.name}/${data.set.name}-${format_backbone_only:${model.backbone_only}}${model.network.name}-${data.set.state}-${data.set.target.name}/${now:%Y-%m-%d}/${now:%H-%M-%S}
   sweep:
-    subdir: ${data.set.name}-${network.name}-${data.set.state}-${format_backbone_only:${network.backbone_only}}${data.set.target.name}/${now:%Y-%m-%d}/${now:%H-%M-%S}
+    subdir: ${model.name}/${data.set.name}-${format_backbone_only:${model.backbone_only}}${model.network.name}-${data.set.state}-${data.set.target.name}/${now:%Y-%m-%d}/${now:%H-%M-%S}
 
 data:
   datamodule:
@@ -29,65 +29,15 @@ data:
 
 seed: 42
 
-prototypes:
-  per_class: 10
-  size: 256
-  activation_fn: log  # log | linear | relu | sigmoid | tanh
-
-phases:
-  warm:
-    batch_size:
-      train: 32
-      validation: 16
-    epochs: 4
-    learning_rates:
-      add_on_layers: 3e-3
-      prototype_vectors: 3e-3
-    weight_decay: 1e-3
-  joint:
-    batch_size:
-      train: 16
-      validation: 8
-    epochs: 10
-    learning_rates:
-      features: 1e-4
-      add_on_layers: 3e-3
-      prototype_vectors: 3e-3
-    scheduler:
-      _target_: torch.optim.lr_scheduler.StepLR
-      _partial_: true
-      step_size: 5
-      gamma: 0.1
-  push:
-    batch_size: 16
-    start: 2
-    interval: 5
-  finetune:
-    batch_size:
-      train: 32
-      validation: 16
-    epochs: 4
-    learning_rates:
-      features: 1e-4
-
-loss:
-  binary_cross_entropy: false
-  separation_type: avg  # avg | max | margin
-  coefficients:
-    cross_entropy: 1.0
-    clustering: 8e-1
-    separation: 6e-1
-    separation_margin: 0
-    l1: 1e-4
-    l2: 1e-2
-
 job:
   number_of_workers: 4
 
 outputs:
   dirs:
-    model: model
+    checkpoints: checkpoints
     image: img
+    metadata: metadata
+    tensorboard: tensorboard
   file_prefixes:
     prototype: prototype-img
     self_activation: prototype-self-act

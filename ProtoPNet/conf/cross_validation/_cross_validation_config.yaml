@@ -1,5 +1,5 @@
 defaults:
   - _cross_validation_validation  # type verification defined in config_types.py
 
-folds: 5
+folds: 1
 grouped: true

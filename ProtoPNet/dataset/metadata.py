@@ -1,18 +1,10 @@
 import abc
 import dataclasses as dc
-import os
 import typing as typ
-from pathlib import Path
 
-import albumentations as A
 import pipe
 
-from ProtoPNet.util import helpers
-
-DATA_DIR = Path(os.getenv("DATASET_LOCATION"))
-assert (
-    DATA_DIR is not None
-), "Please set the environment variable DATASET_LOCATION in .env file"
+from ProtoPNet.utils import helpers
 
 
 @dc.dataclass
@@ -79,7 +71,7 @@ class ExactDataFilter(DataFilter):
         """
         if self.field_in_df not in data.columns:
             raise ValueError(
-                f"The given data does not contain the field '{self.field_in_df}'"
+                f"The given data does not contain the field {self.field_in_df!r}"
             )
 
         return data[data[self.field_in_df] == self.value]

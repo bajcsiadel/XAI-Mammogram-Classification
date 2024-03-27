@@ -20,7 +20,6 @@ import hydra
 import numpy as np
 import pipe
 from dotenv import load_dotenv
-from icecream import ic
 from omegaconf import OmegaConf
 from omegaconf import errors as conf_errors
 from torch.utils.data import DataLoader
@@ -29,8 +28,8 @@ load_dotenv()
 sys.path.append(os.getenv("PROJECT_ROOT"))
 
 from ProtoPNet.dataset.dataloaders import my_collate_function
-from ProtoPNet.util import helpers
-from ProtoPNet.util.config_types import Config, init_config_store
+from ProtoPNet.utils import helpers
+from ProtoPNet.utils.config.types import Config, init_config_store
 
 
 def flatten(lst: list) -> np.ndarray:

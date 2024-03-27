@@ -3,7 +3,7 @@ defaults:
 
 name: DDSM
 
-root: ${oc.env:DATASET_LOCATION}/DDSM/
+root: ${oc.env:DATA_ROOT}/DDSM/
 
 image_properties:
   width: 1024

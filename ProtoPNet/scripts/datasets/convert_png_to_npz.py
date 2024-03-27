@@ -12,7 +12,7 @@ from tqdm import tqdm
 load_dotenv()
 sys.path.append(os.getenv("PROJECT_ROOT"))
 
-from ProtoPNet.util.config_types import Config, init_config_store
+from ProtoPNet.utils.config.types import Config, init_config_store
 
 
 @hydra.main(

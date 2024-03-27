@@ -3,7 +3,7 @@ defaults:
 
 name: MIAS
 
-root: ${oc.env:DATASET_LOCATION}/MIAS/
+root: ${oc.env:DATA_ROOT}/MIAS/
 
 image_properties:
   color_channels: 1

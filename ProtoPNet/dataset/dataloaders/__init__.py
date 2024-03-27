@@ -1,5 +1,4 @@
 import copy
-import typing as typ
 
 import albumentations as A
 import cv2
@@ -11,13 +10,11 @@ import torch
 from albumentations.pytorch import ToTensorV2
 from hydra.utils import instantiate
 from icecream import ic
-from torch.utils.data import DataLoader, SubsetRandomSampler
+from torch.utils.data import DataLoader
 from torchvision import datasets
 
-from ProtoPNet.dataset.metadata import DataFilter
-from ProtoPNet.util import config_types as conf_typ
-from ProtoPNet.util import log
-from ProtoPNet.util.split_data import stratified_grouped_train_test_split
+import ProtoPNet.utils.config.types as conf_typ
+from ProtoPNet.utils.split_data import stratified_grouped_train_test_split
 
 
 def _target_transform(target):
@@ -42,7 +39,7 @@ class CustomVisionDataset(datasets.VisionDataset):
     :param subset: Subset to use
     :type subset: str
     :param data_filters: Filters to apply to the data
-    :type data_filters: typ.List[DataFilter] | None
+    :type data_filters: list[ProtoPNet.dataset.metadata.DataFilter] | None
     :param transform: Transform to apply to the images
     :type transform: albumentations.BasicTransform |
         list[albumentations.BasicTransform]
@@ -60,10 +57,12 @@ class CustomVisionDataset(datasets.VisionDataset):
         subset="train",
         data_filters=None,
         normalize=True,
-        transform=A.NoOp(),
+        transform=None,
         target_transform=_target_transform,
         debug=False,
     ):
+        if transform is None:
+            transform = A.NoOp()
         if isinstance(transform, A.BasicTransform):
             transform = [transform]
         elif isinstance(transform, omegaconf.ListConfig):
@@ -346,7 +345,7 @@ class CustomDataModule:
     :param classification:
     :type classification: str
     :param data_filters: Filters to apply to the data
-    :type data_filters: typ.List[typ.Callable[[pd.DataFrame], pd.DataFrame]] | None
+    :type data_filters: list[(pd.DataFrame) -> pd.DataFrame] | None
     :param cross_validation_folds: Number of cross validation folds
     :type cross_validation_folds: int
     :param stratified:
@@ -377,10 +376,12 @@ class CustomDataModule:
         num_workers=0,
         seed=None,
         debug=False,
-        batch_size=conf_typ.BatchSize(32, 16),
+        batch_size=None,
     ):
-        self.__data = data
+        if batch_size is None:
+            batch_size = conf_typ.BatchSize(32, 16)
 
+        self.__data = data
         dataset_params = {
             "dataset_meta": self.__data,
             "classification": classification,
@@ -460,7 +461,7 @@ class CustomDataModule:
             cv_kwargs["y"] = targets
 
         if balanced:
-            from ProtoPNet.util.split_data.cross_validation import BalancedGroupKFold
+            from ProtoPNet.utils.split_data.cross_validation import BalancedGroupKFold
 
             cross_validator_class = BalancedGroupKFold
         elif stratified and groups:
@@ -516,7 +517,7 @@ class CustomDataModule:
         """
         Generate the folds and the corresponding samplers
         :return: fold number, (train sampler, validation sampler)
-        :rtype: typ.Generator[int, typ.Tuple[SubsetRandomSampler, SubsetRandomSampler]]
+        :rtype: typing.Generator[int, tuple[torch.utils.data.SubsetRandomSampler, torch.utils.data.SubsetRandomSampler]]
         """
         yield from self.__fold_generator
 
@@ -536,7 +537,7 @@ class CustomDataModule:
         """
         Log information about a dataset
         :param logger:
-        :type logger: log.Log
+        :type logger: ProtoPNet.utils.log.Log
         :param data:
         :type data: CustomSubset | CustomVisionDataset
         :param name:
@@ -553,7 +554,7 @@ class CustomDataModule:
         :param dataset:
         :type dataset: CustomVisionDataset | CustomSubset
         :param kwargs:
-        :type kwargs: typ.Dict[str, typ.Any]
+        :type kwargs: dict[str, typing.Any]
         :return: data loader
         :rtype: DataLoader
         """
@@ -565,9 +566,9 @@ class CustomDataModule:
         :param batch_size:
         :type batch_size: int
         :param sampler:
-        :type sampler: torch.utils.data.Sampler | typ.Iterable[int] | None
+        :type sampler: torch.utils.data.Sampler | typing.Iterable[int] | None
         :param kwargs:
-        :type kwargs: typ.Dict[str, typ.Any]
+        :type kwargs: dict[str, typing.Any]
         :return: train data loader
         :rtype: DataLoader
         """
@@ -596,9 +597,9 @@ class CustomDataModule:
         :param batch_size:
         :type batch_size: int
         :param sampler:
-        :type sampler: torch.utils.data.Sampler | typ.Iterable[int] | None
+        :type sampler: torch.utils.data.Sampler | typing.Iterable[int] | None
         :param kwargs:
-        :type kwargs: typ.Dict[str, typ.Any]
+        :type kwargs: dict[str, typing.Any]
         :return: validation data loader
         :rtype: DataLoader
         """
@@ -627,9 +628,9 @@ class CustomDataModule:
         :param batch_size:
         :type batch_size: int
         :param sampler:
-        :type sampler: torch.utils.data.Sampler | typ.Iterable[int] | None
+        :type sampler: torch.utils.data.Sampler | typing.Iterable[int] | None
         :param kwargs:
-        :type kwargs: typ.Dict[str, typ.Any]
+        :type kwargs: dict[str, typing.Any]
         :return: push data loader
         :rtype: DataLoader
         """
@@ -664,7 +665,7 @@ class CustomDataModule:
         :param batch_size:
         :type batch_size: int
         :param kwargs:
-        :type kwargs: typ.Dict[str, typ.Any]
+        :type kwargs: dict[str, typing.Any]
         :return: test data loader
         :rtype: DataLoader
         """
@@ -677,22 +678,16 @@ class CustomDataModule:
 
 
 if __name__ == "__main__":
-    import os
-
     import hydra
     import matplotlib.pyplot as plt
-    from dotenv import load_dotenv
 
-    import ProtoPNet.util.config_types as conf_typ
+    from ProtoPNet.utils.environment import get_env
 
-    load_dotenv()
     conf_typ.init_config_store()
-
-    assert os.getenv("CONFIG_PATH") is not None, "CONFIG_PATH is not set in .env file."
 
     @hydra.main(
         version_base=None,
-        config_path=os.getenv("CONFIG_PATH"),
+        config_path=get_env("CONFIG_PATH"),
         config_name="main_config",
     )
     def test(cfg: conf_typ.Config):
