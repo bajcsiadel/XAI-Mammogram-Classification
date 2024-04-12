@@ -202,7 +202,13 @@ class BackboneTrainer(ProtoPNetTrainer):
                 epoch=self._epoch,
             )
             self.logger.save_model_w_condition(
-                model=self.model,
-                model_name=self.model_name(f"{self._epoch}-no_push"),
+                state={
+                    "state_dict": self.model.state_dict(),
+                    "optimizer": joint_optimizer.state_dict(),
+                    "scheduler": joint_lr_scheduler.state_dict(),
+                    "epoch": epoch,
+                    "accu": accu,
+                },
+                model_name=self.model_name(f"{self._epoch}-backbone"),
                 accu=accu,
             )

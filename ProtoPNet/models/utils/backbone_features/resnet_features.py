@@ -1,13 +1,14 @@
-import torch
+from abc import abstractmethod
+from functools import partial
+
+import numpy as np
 import torch.nn as nn
-import torch.nn.functional as F
-import torch.utils.model_zoo as model_zoo
+from torchsummary import summary
 
-from ProtoPNet.utils.environment import get_env
+from ProtoPNet.models.utils.helpers import get_state_dict
 
-from ._classes import BackboneFeatureMeta
+from ProtoPNet.models.utils.backbone_features._classes import BackboneFeatureMeta
 
-PRETRAINED_MODELS_DIR = get_env("PRETRAINED_MODELS_DIR")
 
 __model_urls = {
     "resnet18": "https://download.pytorch.org/models/resnet18-5c106cde.pth",
@@ -18,49 +19,64 @@ __model_urls = {
 }
 
 
-def conv3x3(in_planes, out_planes, stride=1):
+def conv3x3(in_channels, out_channels, stride=1, padding=1):
     """3x3 convolution with padding"""
     return nn.Conv2d(
-        in_planes,
-        out_planes,
+        in_channels,
+        out_channels,
         kernel_size=3,
         stride=stride,
-        padding=1,
+        padding=padding,
         bias=False,
     )
 
 
-def conv1x1(in_planes, out_planes, stride=1):
+def conv1x1(in_channels, out_channels, stride=1):
     """1x1 convolution"""
     return nn.Conv2d(
-        in_planes,
-        out_planes,
+        in_channels,
+        out_channels,
         kernel_size=1,
         stride=stride,
         bias=False,
     )
 
 
-class BasicBlock(nn.Module):
+class ResidualBlock(nn.Module):
+    expansion = None
+    num_layers = None
+
+    def __init__(self, in_channels, out_channels):
+        super(ResidualBlock, self).__init__()
+        self.in_channels = in_channels
+        self.out_channels = out_channels
+
+    @abstractmethod
+    def forward(self, x):
+        ...
+
+
+class BasicBlock(ResidualBlock):
     # class attribute
     expansion = 1
     num_layers = 2
 
-    def __init__(self, inplanes, planes, stride=1, downsample=None):
-        super(BasicBlock, self).__init__()
+    def __init__(self, in_channels, out_channels, stride=1, down_sample=None, **kwargs):
+        super(BasicBlock, self).__init__(in_channels, out_channels)
         # only conv with possibly not 1 stride
-        self.conv1 = conv3x3(inplanes, planes, stride)
-        self.bn1 = nn.BatchNorm2d(planes)
+        self.conv1 = conv3x3(in_channels, out_channels, stride)
+        self.bn1 = nn.BatchNorm2d(out_channels)
         self.relu = nn.ReLU(inplace=True)
-        self.conv2 = conv3x3(planes, planes)
-        self.bn2 = nn.BatchNorm2d(planes)
+        self.conv2 = conv3x3(out_channels, out_channels)
+        self.bn2 = nn.BatchNorm2d(out_channels)
 
-        # if stride is not 1 then self.downsample cannot be None
-        self.downsample = downsample
+        # if stride is not 1 then self.down_sample cannot be None
+        self.down_sample = down_sample
         self.stride = stride
+        self.in_channels = in_channels
 
     def forward(self, x):
-        identity = x
+        residual = x
 
         out = self.conv1(x)
         out = self.bn1(out)
@@ -69,11 +85,11 @@ class BasicBlock(nn.Module):
         out = self.conv2(out)
         out = self.bn2(out)
 
-        if self.downsample is not None:
-            identity = self.downsample(x)
+        if self.down_sample is not None:
+            residual = self.down_sample(x)
 
         # the residual connection
-        out += identity
+        out += residual
         out = self.relu(out)
 
         return out
@@ -86,28 +102,36 @@ class BasicBlock(nn.Module):
         return block_kernel_sizes, block_strides, block_paddings
 
 
-class Bottleneck(nn.Module):
+class Bottleneck(ResidualBlock):
     # class attribute
     expansion = 4
     num_layers = 3
 
-    def __init__(self, inplanes, planes, stride=1, downsample=None):
-        super(Bottleneck, self).__init__()
-        self.conv1 = conv1x1(inplanes, planes)
-        self.bn1 = nn.BatchNorm2d(planes)
-        # only conv with possibly not 1 stride
-        self.conv2 = conv3x3(planes, planes, stride)
-        self.bn2 = nn.BatchNorm2d(planes)
-        self.conv3 = conv1x1(planes, planes * self.expansion)
-        self.bn3 = nn.BatchNorm2d(planes * self.expansion)
+    def __init__(self, in_channels, out_channels, kernel_size=3, stride=1, padding=1, down_sample=None):
+        super(Bottleneck, self).__init__(in_channels, out_channels * self.expansion)
+        self.conv1 = conv1x1(in_channels, out_channels)
+        self.bn1 = nn.BatchNorm2d(out_channels)
+
+        if kernel_size == 3:
+            make_conv_layer = partial(conv3x3, padding=padding)
+        else:
+            padding = 0
+            make_conv_layer = conv1x1
+        self.conv2 = make_conv_layer(out_channels, out_channels, stride)
+        self.bn2 = nn.BatchNorm2d(out_channels)
+
+        self.conv3 = conv1x1(out_channels, out_channels * self.expansion)
+        self.bn3 = nn.BatchNorm2d(out_channels * self.expansion)
         self.relu = nn.ReLU(inplace=True)
 
-        # if stride is not 1 then self.downsample cannot be None
-        self.downsample = downsample
+        # if stride is not 1 then self.down_sample cannot be None
+        self.kernel_size = kernel_size
         self.stride = stride
+        self.padding = padding
+        self.down_sample = down_sample
 
     def forward(self, x):
-        identity = x
+        residual = x
 
         out = self.conv1(x)
         out = self.bn1(out)
@@ -120,128 +144,90 @@ class Bottleneck(nn.Module):
         out = self.conv3(out)
         out = self.bn3(out)
 
-        if self.downsample is not None:
-            identity = self.downsample(x)
+        if self.down_sample is not None:
+            residual = self.down_sample(x)
 
-        out += identity
+        if residual.size(-1) != out.size(-1):
+            diff = residual.size(-1) - out.size(-1)
+            residual = residual[:, :, :-diff, :-diff]
+
+        out += residual
         out = self.relu(out)
 
         return out
 
     def block_conv_info(self):
-        block_kernel_sizes = [1, 3, 1]
+        block_kernel_sizes = [1, self.kernel_size, 1]
         block_strides = [1, self.stride, 1]
-        block_paddings = [0, 1, 0]
+        block_paddings = [0, self.padding, 0]
 
         return block_kernel_sizes, block_strides, block_paddings
 
 
-class DownsampleLayer(nn.Module):
-    def __init__(self, planes):
-        super(DownsampleLayer, self).__init__()
-        self.planes = planes
-
-    def forward(self, x):
-        return F.pad(
-            x[:, :, ::2, ::2],
-            (0, 0, 0, 0, self.planes // 4, self.planes // 4),
-            "constant",
-            0,
-        )
-
-
-class ResNetFeatures(nn.Module):
-    """
-    the convolutional layers of ResNet
-    the average pooling and final fully convolutional layer is removed
-    """
-
+class BaseResNet(nn.Module):
     def __init__(
         self,
         block,
         layers,
-        option="A",
-        color_channels=3,
+        in_channels,
+        channels_per_layer=None,
+        kernels=None,
+        strides=None,
+        paddings=None,
         zero_init_residual=False,
     ):
-        super(ResNetFeatures, self).__init__()
-        self.option = option
+        super(BaseResNet, self).__init__()
 
-        if option == "A":
-            self.inplanes = 64
-        elif option == "B":
-            self.inplanes = 16
+        if channels_per_layer is None:
+            channels_per_layer = [2 ** (6 + i) for i in range(len(layers))]
+        elif len(channels_per_layer) != len(layers):
+            raise ValueError(f"channels_per_layer ({len(channels_per_layer)}) does "
+                             f"not have same length as layers ({len(layers)})")
 
-        # the first convolutional layer before the structured sequence of blocks
-        if option == "A":
-            self.conv1 = nn.Conv2d(
-                color_channels,
-                64,
-                kernel_size=7,
-                stride=2,
-                padding=3,
-                bias=False,
-            )
-            self.bn1 = nn.BatchNorm2d(64)
-            self.relu = nn.ReLU(inplace=True)
-            self.maxpool = nn.MaxPool2d(kernel_size=3, stride=2, padding=1)
-        elif option == "B":
-            self.conv1 = nn.Conv2d(
-                color_channels,
-                16,
-                kernel_size=3,
-                stride=1,
-                padding=1,
-                bias=False,
-            )
-            self.bn1 = nn.BatchNorm2d(16)
-            self.relu = nn.ReLU(inplace=True)
+        if block is Bottleneck:
+            if kernels is None:
+                kernels = [[3] * num_blocks for num_blocks in layers]
+            elif type(kernels) is int:
+                kernels = [[kernels] * num_blocks for num_blocks in layers]
+            if len(layers) != len(kernels):
+                raise ValueError(f"kernels ({len(kernels)}) does not have same "
+                                 f"length as layers ({len(layers)})")
+            else:
+                for i in range(len(kernels)):
+                    if type(kernels[i]) is int:
+                        kernels[i] = [kernels[i]] * layers[i]
+            if np.any(np.array(list(map(len, kernels))) != np.array(layers)):
+                raise ValueError(f"kernel values not specified for each layer of "
+                                 f"each block ({np.array(list(map(len, kernels)))} "
+                                 f"!= {layers})")
 
-        # comes from the first conv and the following max pool
-        if option == "A":
-            self.kernel_sizes = [7, 3]
-            self.strides = [2, 2]
-            self.paddings = [3, 1]
-        elif option == "B":
-            self.kernel_sizes = [3]
-            self.strides = [1]
-            self.paddings = [1]
+            if strides is None:
+                strides = [1] + [2] * (len(layers) - 1)
+            elif type(strides) is int:
+                strides = [strides] * len(layers)
+            if len(layers) != len(strides):
+                raise ValueError(f"strides ({len(strides)}) does not have same "
+                                 f"length as layers ({len(layers)})")
+
+            if paddings is None:
+                paddings = [1] * len(layers)
+            elif type(paddings) is int:
+                paddings = [paddings] * len(layers)
+            if len(layers) != len(paddings):
+                raise ValueError(f"paddings ({len(paddings)}) does not have same "
+                                 f"length as layers ({len(layers)})")
 
         # the following layers, each layer is a sequence of blocks
         self.block = block
         self.layers = layers
+        self.in_channels = in_channels
 
-        if option == "A":
-            self.layer1 = self._make_layer(
-                block=block, planes=64, num_blocks=self.layers[0]
-            )
-            self.layer2 = self._make_layer(
-                block=block, planes=128, num_blocks=self.layers[1], stride=2
-            )
-            self.layer3 = self._make_layer(
-                block=block, planes=256, num_blocks=self.layers[2], stride=2
-            )
-            self.layer4 = self._make_layer(
-                block=block, planes=512, num_blocks=self.layers[3], stride=2
-            )
-        elif option == "B":
-            self.layer1 = self._make_layer(
-                block=block, planes=16, num_blocks=self.layers[0]
-            )
-            self.layer2 = self._make_layer(
-                block=block, planes=32, num_blocks=self.layers[1], stride=2
-            )
-            self.layer3 = self._make_layer(
-                block=block, planes=64, num_blocks=self.layers[2], stride=2
-            )
+        self.kernel_sizes = []
+        self.strides = []
+        self.paddings = []
 
-        # initialize the parameters
-        for m in self.modules():
-            if isinstance(m, nn.Conv2d):
-                nn.init.kaiming_normal_(m.weight, mode="fan_out", nonlinearity="relu")
-            elif isinstance(m, nn.BatchNorm2d):
-                nn.init.constant_(m.weight, 1)
-                nn.init.constant_(m.bias, 0)
+        for i, (channels, num_blocks, kernel_size, stride, padding) in enumerate(zip(channels_per_layer, layers, kernels, strides, paddings, strict=True), start=1):
+            self.__setattr__(f"layer{i}", self._make_layer(block=block, channels=channels, num_blocks=num_blocks, kernel_size=kernel_size, stride=stride, padding=padding))
 
         # Zero-initialize the last BN in each residual branch,
         # so that the residual branch starts with zeros,
@@ -255,23 +241,20 @@ class ResNetFeatures(nn.Module):
                 elif isinstance(m, BasicBlock):
                     nn.init.constant_(m.bn2.weight, 0)
 
-    def _make_layer(self, block, planes, num_blocks, stride=1):
-        downsample = None
-        if stride != 1 or self.inplanes != planes * block.expansion:
-            if self.option == "A":
-                downsample = nn.Sequential(
-                    conv1x1(self.inplanes, planes * block.expansion, stride),
-                    nn.BatchNorm2d(planes * block.expansion),
-                )
-            elif self.option == "B":
-                downsample = DownsampleLayer(planes)
+    def _make_layer(self, block, channels, num_blocks, kernel_size, stride=1, padding=0):
+        down_sample = None
+        if stride != 1 or self.in_channels != channels * block.expansion:
+            down_sample = nn.Sequential(
+                conv1x1(self.in_channels, channels * block.expansion, stride),
+                nn.BatchNorm2d(channels * block.expansion),
+            )
 
-        # only the first block has downsample that is possibly not None
-        layers = [block(self.inplanes, planes, stride, downsample)]
+        # only the first block has down_sample that is possibly not None
+        layers = [block(self.in_channels, channels, kernel_size=kernel_size[0], stride=stride, down_sample=down_sample, padding=padding)]
 
-        self.inplanes = planes * block.expansion
-        for _ in range(1, num_blocks):
-            layers.append(block(self.inplanes, planes))
+        self.in_channels = channels * block.expansion
+        for i in range(1, num_blocks):
+            layers.append(block(self.in_channels, channels, kernel_size[i]))
 
         # keep track of every block's conv size, stride size, and padding size
         for each_block in layers:
@@ -287,17 +270,69 @@ class ResNetFeatures(nn.Module):
         return nn.Sequential(*layers)
 
     def forward(self, x):
-        x = self.conv1(x)
-        x = self.bn1(x)
-        x = self.relu(x)
-        if self.option == "A":
-            x = self.maxpool(x)
-
         x = self.layer1(x)
         x = self.layer2(x)
         x = self.layer3(x)
-        if self.option == "A":
-            x = self.layer4(x)
+        x = self.layer4(x)
+        return x
+
+
+class ResNetFeatures(nn.Module):
+    """
+    the convolutional layers of ResNet
+    the average pooling and final fully convolutional layer is removed
+    """
+
+    def __init__(
+        self,
+        block,
+        layers,
+        color_channels=3,
+        channels=64,
+        channels_per_layer=None,
+        kernels=None,
+        strides=None,
+        paddings=None,
+        zero_init_residual=False,
+    ):
+        super(ResNetFeatures, self).__init__()
+
+        # stem
+        # the first convolutional layer before the structured sequence of blocks
+        self.conv1 = nn.Conv2d(
+            color_channels,
+            channels,
+            kernel_size=7,
+            stride=2,
+            padding=3,
+            bias=False,
+        )
+        self.bn1 = nn.BatchNorm2d(channels)
+        self.relu = nn.ReLU(inplace=True)
+        self.max_pool = nn.MaxPool2d(kernel_size=3, stride=2, padding=1)
+
+        # comes from the first conv and the following max pool
+        self.kernel_sizes = [7, 3]
+        self.strides = [2, 2]
+        self.paddings = [3, 1]
+
+        self.residual_blocks = BaseResNet(block, layers, channels, channels_per_layer, kernels, strides, paddings, zero_init_residual)
+
+        # initialize the parameters
+        for m in self.modules():
+            if isinstance(m, nn.Conv2d):
+                nn.init.kaiming_normal_(m.weight, mode="fan_out", nonlinearity="relu")
+            elif isinstance(m, nn.BatchNorm2d):
+                nn.init.constant_(m.weight, 1)
+                nn.init.constant_(m.bias, 0)
+
+    def forward(self, x):
+        x = self.conv1(x)
+        x = self.bn1(x)
+        x = self.relu(x)
+        x = self.max_pool(x)
+
+        x = self.residual_blocks(x)
 
         return x
 
@@ -309,116 +344,123 @@ class ResNetFeatures(nn.Module):
         the number of conv layers in the network, not counting the number
         of bypass layers
         """
-        if self.option == "A":
-            return (
-                self.block.num_layers * self.layers[0]
-                + self.block.num_layers * self.layers[1]
-                + self.block.num_layers * self.layers[2]
-                + self.block.num_layers * self.layers[3]
-                + 1
-            )
-        elif self.option == "B":
-            return (
-                self.block.num_layers * self.layers[0]
-                + self.block.num_layers * self.layers[1]
-                + self.block.num_layers * self.layers[2]
-                + 1
-            )
-
-    def __repr__(self):
-        template = "resnet{}_features"
-        return template.format(self.num_layers() + 1)
-
-
-def resnet18_features(pretrained=False, **kwargs):
-    """Constructs a ResNet-18 model.
-    Args:
-        pretrained (bool): If True, returns a model pre-trained on ImageNet
-    """
-    model = ResNetFeatures(BasicBlock, [2, 2, 2, 2], **kwargs)
-    if pretrained:
-        my_dict = model_zoo.load_url(
-            __model_urls["resnet18"], model_dir=PRETRAINED_MODELS_DIR
+        return (
+            self.block.num_layers * self.layers[0]
+            + self.block.num_layers * self.layers[1]
+            + self.block.num_layers * self.layers[2]
+            + self.block.num_layers * self.layers[3]
+            + 1
         )
-        my_dict.pop("fc.weight")
-        my_dict.pop("fc.bias")
 
-        if model.conv1.weight.size(1) == 1:
-            conv1_w = my_dict.pop("conv1.weight")
-            conv1_w = torch.sum(conv1_w, dim=1, keepdim=True)
-            my_dict["conv1.weight"] = conv1_w
 
-        model.load_state_dict(my_dict, strict=False)
+def resnet18_features(color_channels=3, pretrained=False, **kwargs):
+    """
+    Constructs a ResNet-18 model.
+
+    :param color_channels: number of color channels. Defaults to ``3``.
+    :type color_channels: int
+    :param pretrained: If ``True``, returns a model pretrained on ImageNet.
+        Defaults to ``False``.
+    :type pretrained: bool
+    :return: A ResNet-18 model
+    :rtype: ResNetFeatures
+    """
+    model = ResNetFeatures(BasicBlock, [2, 2, 2, 2], color_channels=color_channels, **kwargs)
+    if pretrained:
+        pretrained_state_dict = get_state_dict(__model_urls["resnet18"], color_channels)
+        model.load_state_dict(pretrained_state_dict, strict=False)
     return model
 
 
-def resnet20_features(pretrained=False, **kwargs):
-    """Constructs a ResNet-20 model."""
-    model = ResNetFeatures(BasicBlock, [3, 3, 3], option="B", **kwargs)
+def resnet20_features(color_channels=3, pretrained=False, **kwargs):
+    """
+    Constructs a ResNet-20 model.
+
+    :param color_channels: number of color channels. Defaults to ``3``.
+    :type color_channels: int
+    :param pretrained: If ``True``, returns a model pretrained on ImageNet.
+        Defaults to ``False``.
+    :type pretrained: bool
+    :return: A ResNet-20 model
+    :rtype: ResNetFeatures
+    """
+    model = ResNetFeatures(BasicBlock, [3, 3, 3], color_channels=color_channels, channels=16, **kwargs)
     return model
 
 
-def resnet34_features(pretrained=False, **kwargs):
-    """Constructs a ResNet-34 model.
-    Args:
-        pretrained (bool): If True, returns a model pre-trained on ImageNet
+def resnet34_features(color_channels=3, pretrained=False, **kwargs):
     """
-    model = ResNetFeatures(BasicBlock, [3, 4, 6, 3], **kwargs)
+    Constructs a ResNet-34 model.
+
+    :param color_channels: number of color channels. Defaults to ``3``.
+    :type color_channels: int
+    :param pretrained: If ``True``, returns a model pretrained on ImageNet.
+        Defaults to ``False``.
+    :type pretrained: bool
+    :return: A ResNet-34 model
+    :rtype: ResNetFeatures
+    """
+    model = ResNetFeatures(BasicBlock, [3, 4, 6, 3], color_channels=color_channels, **kwargs)
     if pretrained:
-        my_dict = model_zoo.load_url(
-            __model_urls["resnet34"], model_dir=PRETRAINED_MODELS_DIR
-        )
-        my_dict.pop("fc.weight")
-        my_dict.pop("fc.bias")
-        model.load_state_dict(my_dict, strict=False)
+        pretrained_state_dict = get_state_dict(__model_urls["resnet34"], color_channels)
+        model.load_state_dict(pretrained_state_dict, strict=False)
     return model
 
 
-def resnet50_features(pretrained=False, **kwargs):
-    """Constructs a ResNet-50 model.
-    Args:
-        pretrained (bool): If True, returns a model pre-trained on ImageNet
+def resnet50_features(color_channels=3, pretrained=False, **kwargs):
     """
-    model = ResNetFeatures(Bottleneck, [3, 4, 6, 3], **kwargs)
+    Constructs a ResNet-50 model.
+
+    :param color_channels: number of color channels. Defaults to ``3``.
+    :type color_channels: int
+    :param pretrained: If ``True``, returns a model pretrained on ImageNet.
+        Defaults to ``False``.
+    :type pretrained: bool
+    :return: A ResNet-50 model
+    :rtype: ResNetFeatures
+    """
+    model = ResNetFeatures(Bottleneck, [3, 4, 6, 3], color_channels=color_channels, **kwargs)
     if pretrained:
-        my_dict = model_zoo.load_url(
-            __model_urls["resnet50"], model_dir=PRETRAINED_MODELS_DIR
-        )
-        my_dict.pop("fc.weight")
-        my_dict.pop("fc.bias")
-        model.load_state_dict(my_dict, strict=False)
+        pretrained_state_dict = get_state_dict(__model_urls["resnet50"], color_channels)
+        model.load_state_dict(pretrained_state_dict, strict=False)
     return model
 
 
-def resnet101_features(pretrained=False, **kwargs):
-    """Constructs a ResNet-101 model.
-    Args:
-        pretrained (bool): If True, returns a model pre-trained on ImageNet
+def resnet101_features(color_channels=3, pretrained=False, **kwargs):
     """
-    model = ResNetFeatures(Bottleneck, [3, 4, 23, 3], **kwargs)
+    Constructs a ResNet-101 model.
+
+    :param color_channels: number of color channels. Defaults to ``3``.
+    :type color_channels: int
+    :param pretrained: If ``True``, returns a model pretrained on ImageNet.
+        Defaults to ``False``.
+    :type pretrained: bool
+    :return: A ResNet-101 model
+    :rtype: ResNetFeatures
+    """
+    model = ResNetFeatures(Bottleneck, [3, 4, 23, 3], color_channels=color_channels, **kwargs)
     if pretrained:
-        my_dict = model_zoo.load_url(
-            __model_urls["resnet101"], model_dir=PRETRAINED_MODELS_DIR
-        )
-        my_dict.pop("fc.weight")
-        my_dict.pop("fc.bias")
-        model.load_state_dict(my_dict, strict=False)
+        pretrained_state_dict = get_state_dict(__model_urls["resnet101"], color_channels)
+        model.load_state_dict(pretrained_state_dict, strict=False)
     return model
 
 
-def resnet152_features(pretrained=False, **kwargs):
-    """Constructs a ResNet-152 model.
-    Args:
-        pretrained (bool): If True, returns a model pre-trained on ImageNet
+def resnet152_features(color_channels=3, pretrained=False, **kwargs):
     """
-    model = ResNetFeatures(Bottleneck, [3, 8, 36, 3], **kwargs)
+    Constructs a ResNet-152 model.
+
+    :param color_channels: number of color channels. Defaults to ``3``.
+    :type color_channels: int
+    :param pretrained: If ``True``, returns a model pretrained on ImageNet.
+        Defaults to ``False``.
+    :type pretrained: bool
+    :return: A ResNet-152 model
+    :rtype: ResNetFeatures
+    """
+    model = ResNetFeatures(Bottleneck, [3, 8, 36, 3], color_channels=color_channels, **kwargs)
     if pretrained:
-        my_dict = model_zoo.load_url(
-            __model_urls["resnet152"], model_dir=PRETRAINED_MODELS_DIR
-        )
-        my_dict.pop("fc.weight")
-        my_dict.pop("fc.bias")
-        model.load_state_dict(my_dict, strict=False)
+        pretrained_state_dict = get_state_dict(__model_urls["resnet152"], color_channels)
+        model.load_state_dict(pretrained_state_dict, strict=False)
     return model
 
 
@@ -442,17 +484,22 @@ all_features = {
 
 
 if __name__ == "__main__":
-    r18_features = resnet18_features(pretrained=True)
-    print(r18_features)
+    from icecream import ic
+    # r18_features = resnet18_features(pretrained=True)
+    # print(r18_features)
+    #
+    # r34_features = resnet34_features(pretrained=True)
+    # print(r34_features)
 
-    r34_features = resnet34_features(pretrained=True)
-    print(r34_features)
+    b = resnet50_features()
+    ic(summary(b, input_data=(3, 112, 112), col_names=("input_size", "output_size", "kernel_size"), depth=4))
+    # r50_features = resnet50_features(pretrained=True)
+    # ic(r50_features)
+    # for m in r50_features._modules.items():
+    #     ic(m)
 
-    r50_features = resnet50_features(pretrained=True)
-    print(r50_features)
-
-    r101_features = resnet101_features(pretrained=True)
-    print(r101_features)
-
-    r152_features = resnet152_features(pretrained=True)
-    print(r152_features)
+    # r101_features = resnet101_features(pretrained=True)
+    # print(r101_features)
+    #
+    # r152_features = resnet152_features(pretrained=True)
+    # print(r152_features)

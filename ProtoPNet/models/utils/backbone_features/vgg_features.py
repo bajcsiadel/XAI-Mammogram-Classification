@@ -158,16 +158,16 @@ def vgg11_features(pretrained=False, **kwargs):
         kwargs["init_weights"] = False
     model = VGGFeatures(cfg["A"], batch_norm=False, **kwargs)
     if pretrained:
-        my_dict = model_zoo.load_url(
+        pretrained_state_dict = model_zoo.load_url(
             __model_urls["vgg11"], model_dir=PRETRAINED_MODELS_DIR
         )
         keys_to_remove = set()
-        for key in my_dict:
+        for key in pretrained_state_dict:
             if key.startswith("classifier"):
                 keys_to_remove.add(key)
         for key in keys_to_remove:
-            del my_dict[key]
-        model.load_state_dict(my_dict, strict=False)
+            del pretrained_state_dict[key]
+        model.load_state_dict(pretrained_state_dict, strict=False)
     return model
 
 
@@ -181,16 +181,16 @@ def vgg11_bn_features(pretrained=False, **kwargs):
         kwargs["init_weights"] = False
     model = VGGFeatures(cfg["A"], batch_norm=True, **kwargs)
     if pretrained:
-        my_dict = model_zoo.load_url(
+        pretrained_state_dict = model_zoo.load_url(
             __model_urls["vgg11_bn"], model_dir=PRETRAINED_MODELS_DIR
         )
         keys_to_remove = set()
-        for key in my_dict:
+        for key in pretrained_state_dict:
             if key.startswith("classifier"):
                 keys_to_remove.add(key)
         for key in keys_to_remove:
-            del my_dict[key]
-        model.load_state_dict(my_dict, strict=False)
+            del pretrained_state_dict[key]
+        model.load_state_dict(pretrained_state_dict, strict=False)
     return model
 
 
@@ -204,16 +204,16 @@ def vgg13_features(pretrained=False, **kwargs):
         kwargs["init_weights"] = False
     model = VGGFeatures(cfg["B"], batch_norm=False, **kwargs)
     if pretrained:
-        my_dict = model_zoo.load_url(
+        pretrained_state_dict = model_zoo.load_url(
             __model_urls["vgg13"], model_dir=PRETRAINED_MODELS_DIR
         )
         keys_to_remove = set()
-        for key in my_dict:
+        for key in pretrained_state_dict:
             if key.startswith("classifier"):
                 keys_to_remove.add(key)
         for key in keys_to_remove:
-            del my_dict[key]
-        model.load_state_dict(my_dict, strict=False)
+            del pretrained_state_dict[key]
+        model.load_state_dict(pretrained_state_dict, strict=False)
     return model
 
 
@@ -227,16 +227,16 @@ def vgg13_bn_features(pretrained=False, **kwargs):
         kwargs["init_weights"] = False
     model = VGGFeatures(cfg["B"], batch_norm=True, **kwargs)
     if pretrained:
-        my_dict = model_zoo.load_url(
+        pretrained_state_dict = model_zoo.load_url(
             __model_urls["vgg13_bn"], model_dir=PRETRAINED_MODELS_DIR
         )
         keys_to_remove = set()
-        for key in my_dict:
+        for key in pretrained_state_dict:
             if key.startswith("classifier"):
                 keys_to_remove.add(key)
         for key in keys_to_remove:
-            del my_dict[key]
-        model.load_state_dict(my_dict, strict=False)
+            del pretrained_state_dict[key]
+        model.load_state_dict(pretrained_state_dict, strict=False)
     return model
 
 
@@ -250,16 +250,16 @@ def vgg16_features(pretrained=False, **kwargs):
         kwargs["init_weights"] = False
     model = VGGFeatures(cfg["D"], batch_norm=False, **kwargs)
     if pretrained:
-        my_dict = model_zoo.load_url(
+        pretrained_state_dict = model_zoo.load_url(
             __model_urls["vgg16"], model_dir=PRETRAINED_MODELS_DIR
         )
         keys_to_remove = set()
-        for key in my_dict:
+        for key in pretrained_state_dict:
             if key.startswith("classifier"):
                 keys_to_remove.add(key)
         for key in keys_to_remove:
-            del my_dict[key]
-        model.load_state_dict(my_dict, strict=False)
+            del pretrained_state_dict[key]
+        model.load_state_dict(pretrained_state_dict, strict=False)
     return model
 
 
@@ -273,16 +273,16 @@ def vgg16_bn_features(pretrained=False, **kwargs):
         kwargs["init_weights"] = False
     model = VGGFeatures(cfg["D"], batch_norm=True, **kwargs)
     if pretrained:
-        my_dict = model_zoo.load_url(
+        pretrained_state_dict = model_zoo.load_url(
             __model_urls["vgg16_bn"], model_dir=PRETRAINED_MODELS_DIR
         )
         keys_to_remove = set()
-        for key in my_dict:
+        for key in pretrained_state_dict:
             if key.startswith("classifier"):
                 keys_to_remove.add(key)
         for key in keys_to_remove:
-            del my_dict[key]
-        model.load_state_dict(my_dict, strict=False)
+            del pretrained_state_dict[key]
+        model.load_state_dict(pretrained_state_dict, strict=False)
     return model
 
 
@@ -296,16 +296,16 @@ def vgg19_features(pretrained=False, **kwargs):
         kwargs["init_weights"] = False
     model = VGGFeatures(cfg["E"], batch_norm=False, **kwargs)
     if pretrained:
-        my_dict = model_zoo.load_url(
+        pretrained_state_dict = model_zoo.load_url(
             __model_urls["vgg19"], model_dir=PRETRAINED_MODELS_DIR
         )
         keys_to_remove = set()
-        for key in my_dict:
+        for key in pretrained_state_dict:
             if key.startswith("classifier"):
                 keys_to_remove.add(key)
         for key in keys_to_remove:
-            del my_dict[key]
-        model.load_state_dict(my_dict, strict=False)
+            del pretrained_state_dict[key]
+        model.load_state_dict(pretrained_state_dict, strict=False)
     return model
 
 
@@ -319,16 +319,16 @@ def vgg19_bn_features(pretrained=False, **kwargs):
         kwargs["init_weights"] = False
     model = VGGFeatures(cfg["E"], batch_norm=True, **kwargs)
     if pretrained:
-        my_dict = model_zoo.load_url(
+        pretrained_state_dict = model_zoo.load_url(
             __model_urls["vgg19_bn"], model_dir=PRETRAINED_MODELS_DIR
         )
         keys_to_remove = set()
-        for key in my_dict:
+        for key in pretrained_state_dict:
             if key.startswith("classifier"):
                 keys_to_remove.add(key)
         for key in keys_to_remove:
-            del my_dict[key]
-        model.load_state_dict(my_dict, strict=False)
+            del pretrained_state_dict[key]
+        model.load_state_dict(pretrained_state_dict, strict=False)
     return model
 
 

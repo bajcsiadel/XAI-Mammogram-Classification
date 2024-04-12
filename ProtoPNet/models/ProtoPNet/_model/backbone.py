@@ -5,7 +5,7 @@ from ProtoPNet.models._base_classes import Backbone
 from ProtoPNet.models.ProtoPNet._model import ProtoPNetBase
 
 
-class BBNet(ProtoPNetBase, Backbone):
+class ProtoPNetBackbone(ProtoPNetBase, Backbone):
     """
     Corresponding backbone feature of an explainable ProtoPNet model.
 
@@ -19,7 +19,7 @@ class BBNet(ProtoPNetBase, Backbone):
     :param n_classes: number of classes in the data
     :type n_classes: int
     :param logger:
-    :type logger:
+    :type logger: ProtoPNet.utils.log.Log
     :param color_channels: number of color channels in the input. Defaults to ``3``.
     :type color_channels: int
     :param add_on_layers_type: type of the add-on layers.
@@ -40,7 +40,7 @@ class BBNet(ProtoPNetBase, Backbone):
         add_on_layers_type="bottleneck",
         add_on_layers_activation="A",
     ):
-        super(BBNet, self).__init__(
+        super(ProtoPNetBackbone, self).__init__(
             features,
             img_shape,
             prototype_shape,
@@ -98,5 +98,5 @@ class BBNet(ProtoPNetBase, Backbone):
             f"\timg_shape: {self._image_shape},\n"
             f"\tnum_classes: {self._n_classes},\n"
             f"\tepsilon: {self._epsilon}\n)\n"
-            f"{super(BBNet, self).__repr__()}"
+            f"{super(ProtoPNetBackbone, self).__repr__()}"
         )

@@ -289,21 +289,6 @@ class ExplainableTrainer(ProtoPNetTrainer):
         use_l1_mask=True,
         **kwargs,
     ):
-        """
-        Execute train/test steps of the model.
-
-        :param dataloader:
-        :type dataloader: torch.utils.data.dataloader.DataLoader
-        :param epoch: current step needed for Tensorboard logging. Defaults to ``None``.
-        :type epoch: int | None
-        :param optimizer: Defaults to ``None``.
-        :type optimizer: torch.optim.Optimizer
-        :param use_l1_mask: Defaults to ``True``.
-        :type use_l1_mask: bool
-        :param kwargs: other parameters
-        :return: accuracy achieved in the current step
-        :rtype: float
-        """
         is_train = optimizer is not None
         start = time.time()
         n_examples = 0
@@ -533,7 +518,12 @@ class ExplainableTrainer(ProtoPNetTrainer):
 
             self.logger.save_model_w_condition(
                 model_name=self.model_name(f"{epoch}-warm"),
-                model=self.model,
+                state={
+                    "state_dict": self.model.state_dict(),
+                    "optimizer": warm_optimizer.state_dict(),
+                    "epoch": self._epoch,
+                    "accu": accu,
+                },
                 accu=accu,
             )
 
@@ -596,7 +586,13 @@ class ExplainableTrainer(ProtoPNetTrainer):
             )
             self.logger.save_model_w_condition(
                 model_name=self.model_name(f"{self._epoch}-no_push"),
-                model=self.model,
+                state={
+                    "state_dict": self.model.state_dict(),
+                    "optimizer": joint_optimizer.state_dict(),
+                    "scheduler": joint_lr_scheduler.state_dict(),
+                    "epoch": self._epoch,
+                    "accu": accu,
+                },
                 accu=accu,
             )
 
@@ -627,7 +623,10 @@ class ExplainableTrainer(ProtoPNetTrainer):
                 )
                 self.logger.save_model_w_condition(
                     model_name=self.model_name(f"{self._epoch}-push"),
-                    model=self.model,
+                    state={
+                        "state_dict": self.model.state_dict(),
+                        "accu": accu,
+                    },
                     accu=accu,
                 )
 
@@ -670,7 +669,11 @@ class ExplainableTrainer(ProtoPNetTrainer):
                 )
                 self.logger.save_model_w_condition(
                     model_name=self.model_name(f"{self._epoch}-{i}-push"),
-                    model=self.model,
+                    state={
+                        "state_dict": self.model.state_dict(),
+                        "optimizer": last_layer_optimizer.state_dict(),
+                        "accu": accu,
+                    },
                     accu=accu,
                 )
             self.logger.info("\t\t\t\tfinished fine-tuning last layer")

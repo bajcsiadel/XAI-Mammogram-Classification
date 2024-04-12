@@ -280,14 +280,16 @@ class Log(logging.Logger):
         self.csv_log_index(log_name, key)
         self.csv_log_values(log_name, *values)
 
-    def save_model(self, model_name, model, model_location=None):
+    def save_model(self, model_name, state, model_location=None):
         """
         Save the model.
 
         :param model_name: name of the file in which the model is saved
         :type model_name: str
-        :param model: trained model
-        :type model: torch.nn.Module
+        :param state: state of the training including the model state dict, the
+            optimizer state dict and the scheduler state dict, the epoch and
+            the accuracy
+        :type state: dict[str, any]
         :param model_location: location where the model is saved. If it is
             ``None``, then the model will be saved into the ``"checkpoints"``
             folder. Defaults to ``None``.
@@ -295,20 +297,22 @@ class Log(logging.Logger):
         """
         model_location = model_location or self.checkpoint_location
         torch.save(
-            obj=model,
+            obj=state,
             f=model_location / f"{model_name}.pth",
         )
 
     def save_model_w_condition(
-        self, model_name, model, accu, target_accu=0.6, model_location=None
+        self, model_name, state, accu, target_accu=0.6, model_location=None
     ):
         """
         Save the model if it's accuracy reaches a given threshold.
 
         :param model_name: name of the file in which the model is saved
         :type model_name: str
-        :param model: trained model
-        :type model: torch.nn.Module
+        :param state: state of the training including the model state dict, the
+            optimizer state dict and the scheduler state dict, the epoch and
+            the accuracy
+        :type state: dict[str, any]
         :param accu: test accuracy of the model
         :type accu: float
         :param target_accu: accuracy threshold. Defaults to ``0.6``.
@@ -320,7 +324,7 @@ class Log(logging.Logger):
         """
         if accu > target_accu:
             self.info(f"\t\t\tabove {target_accu:.2%}")
-            self.save_model(f"{model_name}-{accu:.4f}", model, model_location)
+            self.save_model(f"{model_name}-{accu:.4f}", state, model_location)
 
     def save_image(self, image_name, image, image_location=None):
         """

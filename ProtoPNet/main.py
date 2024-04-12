@@ -54,9 +54,9 @@ def log_gpu_usage(gpu, logger):
     Log the gpu usage according to the given configuration.
 
     :param gpu:
-    :type gpu: conf_typ.Gpu
+    :type gpu: ProtoPNet.utils.config.types.Gpu
     :param logger:
-    :type logger: Log
+    :type logger: ProtoPNet.utils.log.Log
     :return:
     """
     logger.info("GPU settings")

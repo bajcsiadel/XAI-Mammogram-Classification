@@ -8,7 +8,7 @@ from ProtoPNet.models._base_classes import Explainable
 from ProtoPNet.models.ProtoPNet._model import ProtoPNetBase, _PositiveLinear
 
 
-class PPNet(ProtoPNetBase, Explainable):
+class ProtoPNet(ProtoPNetBase, Explainable):
     """
     ProtoPNet model [Chen+18]_ for prototypical image recognition.
 
@@ -28,7 +28,7 @@ class PPNet(ProtoPNetBase, Explainable):
     :param n_classes: number of classes in the data
     :type n_classes: int
     :param logger:
-    :type logger:
+    :type logger: ProtoPNet.utils.log.Log
     :param class_specific: Defaults to ``True``.
     :type class_specific: bool
     :param init_weights: flag to mark if the weights should be initialized.
@@ -67,7 +67,7 @@ class PPNet(ProtoPNetBase, Explainable):
         add_on_layers_activation="A",
         positive_weights_in_classifier=False,
     ):
-        super(PPNet, self).__init__(
+        super(ProtoPNet, self).__init__(
             features,
             img_shape,
             prototype_shape,
@@ -348,7 +348,7 @@ class PPNet(ProtoPNetBase, Explainable):
             f"\tproto_layer_rf_info: {self.proto_layer_rf_info},\n"
             f"\tnum_classes: {self._n_classes},\n"
             f"\tepsilon: {self._epsilon}\n)\n"
-            f"{super(PPNet, self).__repr__()}"
+            f"{super(ProtoPNet, self).__repr__()}"
         )
 
     def set_last_layer_incorrect_connection(self, incorrect_strength):

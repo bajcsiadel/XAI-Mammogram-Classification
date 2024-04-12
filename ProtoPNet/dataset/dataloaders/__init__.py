@@ -516,6 +516,7 @@ class CustomDataModule:
     def folds(self):
         """
         Generate the folds and the corresponding samplers
+
         :return: fold number, (train sampler, validation sampler)
         :rtype: typing.Generator[int, tuple[torch.utils.data.SubsetRandomSampler, torch.utils.data.SubsetRandomSampler]]
         """
@@ -524,8 +525,9 @@ class CustomDataModule:
     def log_data_information(self, logger):
         """
         Log information about the data
+
         :param logger:
-        :type logger: pytorch_lightning.loggers.base.LightningLoggerBase
+        :type logger: ProtoPNet.utils.log.Log
         """
         CustomDataModule.__log_data(logger, self.__train_data, "train")
         if self.__validation_data is not None:

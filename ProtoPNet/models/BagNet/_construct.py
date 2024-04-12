@@ -1,28 +1,19 @@
 import torch
 
-from ProtoPNet.models.utils.backbone_features import all_features
-
-from ._helpers.receptive_field import compute_proto_layer_rf_info_v2
-from ._model.backbone import ProtoPNetBackbone
-from ._model.explainable import ProtoPNet
-from ._trainer.backbone import BackboneTrainer
-from ._trainer.explainable import ExplainableTrainer
+from ._model.backbone import BagNetBackbone
+from ._model.explainable import all_models
+from ._trainer import BagNetTrainer
 
 
 def construct_model(
     *,
     logger,
-    base_architecture="resnet18",
+    base_architecture="bagnet17",
     pretrained=True,
     color_channels=3,
-    img_shape=(224, 224),
-    prototype_shape=(2000, 512, 1, 1),
     n_classes=200,
-    prototype_activation_function="log",
-    add_on_layers_type="bottleneck",
-    add_on_layers_activation="A",
     backbone_only=False,
-    positive_weights_in_classifier=False,
+    **kwargs,
 ):
     """
     Create a ProtoPNet model (either backbone or explainable). Parameters should
@@ -37,67 +28,27 @@ def construct_model(
     :type pretrained: bool
     :param color_channels: number of color channels in the image. Defaults to ``3``.
     :type color_channels: int
-    :param img_shape: shape of the input image. Defaults to ``(224, 224)``.
-    :type img_shape: tuple[int, int]
-    :param prototype_shape: shape of the prototype features.
-        Defaults to ``(2000, 512, 1, 1)``.
-    :type prototype_shape: tuple[int, int, int, int]
     :param n_classes: number of classes in the dataset. Defaults to ``200``.
     :type n_classes: int
-    :param prototype_activation_function: Defaults to ``"log"``.
-    :type prototype_activation_function: str
-    :param add_on_layers_type: layers added between the feature layer and
-        the classification.Defaults to ``"bottleneck"``.
-    :param add_on_layers_activation: activation of the add-on layers.
-        Defaults to ``"A"``.
     :param backbone_only: defines if only the backbone is trained.
         Defaults to ``False``.
     :type backbone_only: bool
-    :param positive_weights_in_classifier:
-    :type positive_weights_in_classifier: bool
     :return: model instance
-    :rtype: ProtoPNet.models.ProtoPNet._model.ProtoPNetBase
+    :rtype: ProtoPNet.models.BagNet._model.BagNetBase
     """
-    features = all_features[base_architecture].construct(
-        pretrained=pretrained,
-        color_channels=color_channels,
-    )
     if backbone_only:
-        return ProtoPNetBackbone(
-            features=features,
-            img_shape=img_shape,
-            prototype_shape=prototype_shape,
+        return BagNetBackbone(
             n_classes=n_classes,
             logger=logger,
             color_channels=color_channels,
-            add_on_layers_type=add_on_layers_type,
-            add_on_layers_activation=add_on_layers_activation,
+            pretrained=pretrained,
         )
     else:
-        (
-            layer_filter_sizes,
-            layer_strides,
-            layer_paddings,
-        ) = features.conv_info()
-        proto_layer_rf_info = compute_proto_layer_rf_info_v2(
-            img_size=img_shape[0],  # TODO img_size to img_shape
-            layer_filter_sizes=layer_filter_sizes,
-            layer_strides=layer_strides,
-            layer_paddings=layer_paddings,
-            prototype_kernel_size=prototype_shape[2],
-        )
-        return ProtoPNet(
-            features=features,
-            img_shape=img_shape,
-            prototype_shape=prototype_shape,
-            proto_layer_rf_info=proto_layer_rf_info,
+        return all_models[base_architecture](
             n_classes=n_classes,
             logger=logger,
-            init_weights=True,
-            prototype_activation_function=prototype_activation_function,
-            add_on_layers_type=add_on_layers_type,
-            add_on_layers_activation=add_on_layers_activation,
-            positive_weights_in_classifier=positive_weights_in_classifier,
+            color_channels=color_channels,
+            pretrained=pretrained,
         )
 
 
@@ -147,20 +98,13 @@ def construct_trainer(
         )
     if model_config is not None:
         n_classes = data_module.dataset.number_of_classes
-        image_shape = data_module.dataset.input_size
         model = construct_model(
             logger=logger,
-            base_architecture=model_config.network.name,
+            base_architecture=model_config.name,
             pretrained=model_config.network.pretrained,
             color_channels=data_module.dataset.image_properties.color_channels,
-            img_shape=image_shape,
-            prototype_shape=model_config.params.prototypes.shape,
             n_classes=n_classes,
-            prototype_activation_function=model_config.params.prototypes.activation_fn,
-            add_on_layers_type=model_config.network.add_on_layer_properties.type,
-            add_on_layers_activation=model_config.network.add_on_layer_properties.activation,
             backbone_only=model_config.backbone_only,
-            positive_weights_in_classifier=False,
         )
         if phases is None:
             phases = model_config.phases
@@ -174,12 +118,13 @@ def construct_trainer(
                 f"If model is loaded from file 'phases' "
                 f"and 'params' should be passed."
             )
+        # TODO: correct it. checkpoint contains:
+        # model.state_dict()
+        # optimizer.state_dict()
+        # scheduler.state_dict()
         model = torch.load(model_location)
 
-    if model.backbone_only:
-        trainer_class = BackboneTrainer
-    else:
-        trainer_class = ExplainableTrainer
+    trainer_class = BagNetTrainer
 
     return trainer_class(
         fold=fold,

@@ -54,7 +54,7 @@ class _PositiveLinear(nn.Module):
 
 class ProtoPNetBase(Model, ABC):
     """
-    Base class for the PPNet and BBNet models.
+    Base class for the ProtoPNet and ProtoPNetBackbone models.
 
     :param features: features of the backbone architecture,
         responsible for the feature extraction
@@ -66,7 +66,7 @@ class ProtoPNetBase(Model, ABC):
     :param n_classes: number of classes in the data
     :type n_classes: int
     :param logger:
-    :type logger:
+    :type logger: ProtoPNet.utils.log.Log
     :param add_on_layers_type: type of the add-on layers.
         Defaults to ``"bottleneck"``.
     :type add_on_layers_type: str
