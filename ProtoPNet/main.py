@@ -131,23 +131,8 @@ def run_experiment(cfg: main_cfg.Config, logger: Log):
     logger.info(f"\t{cfg.data.set.image_properties.mean} mean")
     logger.info(f"\t{data_module.dataset.number_of_classes} classes")
 
-    logger.info("")
-    logger.info("prototype settings")
-    logger.info(f"\t{cfg.model.params.prototypes.per_class} prototypes per class")
-    logger.info(f"\t{cfg.model.params.prototypes.size} prototype size")
-    cfg.model.params.prototypes.define_shape(data_module.dataset.number_of_classes)
-    logger.info(
-        f"\t{' x '.join(map(str, cfg.model.params.prototypes.shape))} prototype shape"
-    )
+    hydra.utils.instantiate(cfg.model.log_parameters_fn, logger=logger, cfg=cfg)
 
-    logger.info("")
-    logger.info("network settings")
-    logger.info(f"\t{cfg.model.network.name} backbone")
-    logger.info(f"\t{cfg.model.network.add_on_layer_properties.type} add on layer type")
-    logger.info(
-        f"\t{cfg.model.network.add_on_layer_properties.activation} add on activation "
-        f"({AddOnLayers.get_reference(cfg.model.network.add_on_layer_properties.activation)})"
-    )
     logger.info(f"\t{tick if cfg.model.network.pretrained else cross} pretrained")
     logger.info(f"\t{tick if cfg.model.backbone_only else cross} backbone only")
 
@@ -164,7 +149,7 @@ def run_experiment(cfg: main_cfg.Config, logger: Log):
         data_module.folds, start=1
     ):
         start_fold = time.time()
-        trainer = cfg.model.params.construct_trainer(
+        trainer = cfg.model.construct_trainer(
             data_module=data_module,
             model_config=cfg.model,
             gpu=cfg.gpu,

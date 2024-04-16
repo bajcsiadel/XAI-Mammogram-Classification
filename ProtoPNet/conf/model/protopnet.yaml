@@ -3,6 +3,7 @@ defaults:
   - network: resnet18
 
 name: protopnet
+log_parameters_fn: ProtoPNet.models.ProtoPNet.log_parameters
 
 params:
   construct_trainer:
