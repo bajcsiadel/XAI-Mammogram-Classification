@@ -57,7 +57,7 @@ def construct_model(
     :param positive_weights_in_classifier:
     :type positive_weights_in_classifier: bool
     :return: model instance
-    :rtype: xai_mam.models.xai_mam._model.ProtoPNetBase
+    :rtype: xai_mam.models.ProtoPNet._model.ProtoPNetBase
     """
     features = all_features[base_architecture].construct(
         pretrained=pretrained,
@@ -139,7 +139,7 @@ def construct_trainer(
     :param train_sampler: Defaults to ``None``.
     :param validation_sampler: Defaults to ``None``.
     :return: trainer instance
-    :rtype: xai_mam.models.xai_mam._trainer.ProtoPNetTrainer
+    :rtype: xai_mam.models.ProtoPNet._trainer.ProtoPNetTrainer
     """
     if model_config is None and model_location is None:
         raise ValueError(

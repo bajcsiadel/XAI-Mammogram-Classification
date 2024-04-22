@@ -18,9 +18,9 @@ we should specify for each group a `_target_` class (inside group `module`)
 E.g. backbone network of ProtoPNet.
 ```yaml
 network:
-  _target_: xai_mam.models.xai_mam.config.ProtoPNetBackboneNetwork
+  _target_: xai_mam.models.ProtoPNet.config.ProtoPNetBackboneNetwork
   add_on_layer_properties:
-    _target_: xai_mam.models.xai_mam.config.AddOnLayerProperties
+    _target_: xai_mam.models.ProtoPNet.config.AddOnLayerProperties
     type: bottleneck  # regular | bottleneck
     activation: A     # A | B
 ```
