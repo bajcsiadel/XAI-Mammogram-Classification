@@ -1,0 +1,6 @@
+defaults:
+  - _model_config
+  - network: resnet50
+
+name: bagnet
+log_parameters_fn: xai_mam.models.BagNet.log_parameters

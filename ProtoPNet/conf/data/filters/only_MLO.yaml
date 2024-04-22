@@ -1,5 +1,0 @@
-- _target_: ProtoPNet.dataset.metadata.ExactDataFilter
-  field:
-    - mammogram_properties
-    - view
-  value: MLO

@@ -1,5 +1,5 @@
 [tool.poetry]
-name = "ProtoPNet"
+name = "Xai-Mam"
 version = "1.0"
 description = ""
 authors = ["Author Name <author.name@email.com>"]

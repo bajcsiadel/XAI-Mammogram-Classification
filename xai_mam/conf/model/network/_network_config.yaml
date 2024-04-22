@@ -1,0 +1,2 @@
+_target_: xai_mam.utils.config.types.Network
+pretrained: true

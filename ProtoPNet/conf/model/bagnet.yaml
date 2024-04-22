@@ -1,6 +1,0 @@
-defaults:
-  - _model_config
-  - network: resnet50
-
-name: bagnet
-log_parameters_fn: ProtoPNet.models.BagNet.log_parameters
