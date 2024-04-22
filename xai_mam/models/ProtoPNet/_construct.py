@@ -1,13 +1,13 @@
 import torch
 
-from xai_mam.models.utils.backbone_features import all_features
-
-from xai_mam.models.ProtoPNet._helpers.receptive_field import \
-    compute_proto_layer_rf_info_v2
+from xai_mam.models.ProtoPNet._helpers.receptive_field import (
+    compute_proto_layer_rf_info_v2,
+)
 from xai_mam.models.ProtoPNet._model.backbone import ProtoPNetBackbone
 from xai_mam.models.ProtoPNet._model.explainable import ProtoPNet
 from xai_mam.models.ProtoPNet._trainer.backbone import BackboneTrainer
 from xai_mam.models.ProtoPNet._trainer.explainable import ExplainableTrainer
+from xai_mam.models.utils.backbone_features import all_features
 
 
 def construct_model(

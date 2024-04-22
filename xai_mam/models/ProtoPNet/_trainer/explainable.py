@@ -6,10 +6,9 @@ import numpy as np
 import torch
 from sklearn.metrics import f1_score
 
-from xai_mam.utils.preprocess import preprocess
-
 from xai_mam.models.ProtoPNet._helpers import list_of_distances, push
 from xai_mam.models.ProtoPNet._trainer import ProtoPNetTrainer
+from xai_mam.utils.preprocess import preprocess
 
 
 class ExplainableTrainer(ProtoPNetTrainer):

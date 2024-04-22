@@ -10,6 +10,7 @@ class BagNetBase(Model, ABC):
     :param logger:
     :type logger: ProtoPNet.utils.log.Log
     """
+
     def __init__(self, n_classes, logger, color_channels=3):
         super().__init__()
         self.in_channels = color_channels

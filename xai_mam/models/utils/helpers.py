@@ -29,4 +29,3 @@ def get_state_dict(model_url, color_channels=3, features_only=True):
         conv1_w = torch.sum(conv1_w, dim=1, keepdim=True)
         pretrained_state_dict["conv1.weight"] = conv1_w
     return pretrained_state_dict
-

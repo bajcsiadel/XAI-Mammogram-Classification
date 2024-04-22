@@ -29,6 +29,7 @@ class ProtoPNetBackbone(ProtoPNetBase, Backbone):
         Defaults to ``"A"``.
     :type add_on_layers_activation: str
     """
+
     def __init__(
         self,
         features,

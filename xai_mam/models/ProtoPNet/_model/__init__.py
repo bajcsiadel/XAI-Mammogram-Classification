@@ -4,7 +4,6 @@ import torch
 from torch import nn
 
 from xai_mam.models._base_classes import Model
-
 from xai_mam.models.ProtoPNet._model._add_on_layers import AddOnLayers
 
 
@@ -21,6 +20,7 @@ class _PositiveLinear(nn.Module):
 
     :raises NotImplementedError: it is not yet implemented to set ``bias`` to ``False``
     """
+
     def __init__(self, in_features, out_features, bias=True):
         super(_PositiveLinear, self).__init__()
         self.in_features = in_features

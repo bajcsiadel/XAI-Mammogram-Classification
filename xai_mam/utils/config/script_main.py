@@ -4,10 +4,16 @@ import hydra
 from hydra.core.config_store import ConfigStore
 from icecream import ic
 
-from xai_mam.utils.environment import get_env
-
-from xai_mam.utils.config._general_types import CrossValidationParameters, Data, Dataset, Gpu, ModelConfig, Outputs
+from xai_mam.utils.config._general_types import (
+    CrossValidationParameters,
+    Data,
+    Dataset,
+    Gpu,
+    ModelConfig,
+    Outputs,
+)
 from xai_mam.utils.config.resolvers import add_all_custom_resolvers
+from xai_mam.utils.environment import get_env
 
 
 @dc.dataclass

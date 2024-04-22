@@ -1,12 +1,13 @@
-from xai_mam.models.BagNet._model import BagNetBase
-from xai_mam.models._base_classes import Explainable
-
 import math
 
 import torch.nn as nn
 
-from xai_mam.models.utils.backbone_features.resnet_features import Bottleneck, \
-    BaseResNet
+from xai_mam.models._base_classes import Explainable
+from xai_mam.models.BagNet._model import BagNetBase
+from xai_mam.models.utils.backbone_features.resnet_features import (
+    BaseResNet,
+    Bottleneck,
+)
 from xai_mam.models.utils.helpers import get_state_dict
 
 __base_url = "https://bitbucket.org/wielandbrendel/bag-of-feature-pretrained-models/raw/249e8fa82c0913623a807d9d35eeab9da7dcc2a8"
@@ -53,6 +54,7 @@ class BagNet(BagNetBase, Explainable):
     :param n_kernel_3x3: number of 3x3 kernels in the residual block. Defaults to ``3``.
     :type n_kernel_3x3: int
     """
+
     def __init__(
         self,
         block,
@@ -70,7 +72,12 @@ class BagNet(BagNetBase, Explainable):
     ):
         super(BagNet, self).__init__(n_classes, logger, color_channels)
         self.conv1 = nn.Conv2d(
-            color_channels, channels, kernel_size=1, stride=1, padding=0, bias=False,
+            color_channels,
+            channels,
+            kernel_size=1,
+            stride=1,
+            padding=0,
+            bias=False,
         )
         self.conv2 = nn.Conv2d(
             channels, channels, kernel_size=3, stride=1, padding=0, bias=False
@@ -81,7 +88,9 @@ class BagNet(BagNetBase, Explainable):
         if kernels is None:
             kernels = [[1] * num_blocks for num_blocks in layers]
             if n_kernel_3x3 >= len(layers):
-                raise ValueError(f"Number of 3x3 kernels ({n_kernel_3x3}) should be less than the number of layers ({len(layers)}).")
+                raise ValueError(
+                    f"Number of 3x3 kernels ({n_kernel_3x3}) should be less than the number of layers ({len(layers)})."
+                )
             for num_blocks in range(n_kernel_3x3):
                 kernels[num_blocks][0] = 3
 
@@ -91,7 +100,9 @@ class BagNet(BagNetBase, Explainable):
         if paddings is None:
             paddings = [0] * len(layers)
 
-        self.residual_blocks = BaseResNet(block, layers, channels, channels_per_layer, kernels, strides, paddings)
+        self.residual_blocks = BaseResNet(
+            block, layers, channels, channels_per_layer, kernels, strides, paddings
+        )
 
         self.fc = nn.Linear(self.residual_blocks.layer4[-1].out_channels, n_classes)
         self.avg_pool = avg_pool
@@ -133,7 +144,9 @@ class BagNet(BagNetBase, Explainable):
         return x
 
 
-def bagnet33(n_classes, logger, color_channels=3, pretrained=False, strides=None, **kwargs):
+def bagnet33(
+    n_classes, logger, color_channels=3, pretrained=False, strides=None, **kwargs
+):
     """
     Constructs a Bagnet-33 model.
 
@@ -163,8 +176,9 @@ def bagnet33(n_classes, logger, color_channels=3, pretrained=False, strides=None
         **kwargs,
     )
     if pretrained:
-        pretrained_state_dict = get_state_dict(__model_urls["bagnet33"],
-                                    color_channels=color_channels, features_only=False)
+        pretrained_state_dict = get_state_dict(
+            __model_urls["bagnet33"], color_channels=color_channels, features_only=False
+        )
         model.load_state_dict(pretrained_state_dict)
     return model
 
@@ -201,14 +215,17 @@ def bagnet17(
         **kwargs,
     )
     if pretrained:
-        pretrained_state_dict = get_state_dict(__model_urls["bagnet17"],
-                                    color_channels=color_channels, features_only=False)
+        pretrained_state_dict = get_state_dict(
+            __model_urls["bagnet17"], color_channels=color_channels, features_only=False
+        )
 
         model.load_state_dict(pretrained_state_dict, strict=False)
     return model
 
 
-def bagnet9(n_classes, logger, color_channels=3, pretrained=False, strides=None, **kwargs):
+def bagnet9(
+    n_classes, logger, color_channels=3, pretrained=False, strides=None, **kwargs
+):
     """
     Constructs a Bagnet-9 model.
 
@@ -238,8 +255,9 @@ def bagnet9(n_classes, logger, color_channels=3, pretrained=False, strides=None,
         **kwargs,
     )
     if pretrained:
-        pretrained_state_dict = get_state_dict(__model_urls["bagnet9"],
-                                    color_channels=color_channels, features_only=False)
+        pretrained_state_dict = get_state_dict(
+            __model_urls["bagnet9"], color_channels=color_channels, features_only=False
+        )
         model.load_state_dict(pretrained_state_dict)
     return model
 
@@ -256,5 +274,11 @@ if __name__ == "__main__":
 
     bagnet = bagnet17(3, color_channels=3, pretrained=True)
 
-    ic(summary(bagnet, input_data=(3, 224, 224), col_names=("input_size", "output_size", "kernel_size"), depth=4))
-
+    ic(
+        summary(
+            bagnet,
+            input_data=(3, 224, 224),
+            col_names=("input_size", "output_size", "kernel_size"),
+            depth=4,
+        )
+    )

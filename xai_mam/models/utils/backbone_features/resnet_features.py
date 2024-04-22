@@ -5,10 +5,8 @@ import numpy as np
 import torch.nn as nn
 from torchsummary import summary
 
-from xai_mam.models.utils.helpers import get_state_dict
-
 from xai_mam.models.utils.backbone_features._classes import BackboneFeatureMeta
-
+from xai_mam.models.utils.helpers import get_state_dict
 
 __model_urls = {
     "resnet18": "https://download.pytorch.org/models/resnet18-5c106cde.pth",
@@ -107,7 +105,15 @@ class Bottleneck(ResidualBlock):
     expansion = 4
     num_layers = 3
 
-    def __init__(self, in_channels, out_channels, kernel_size=3, stride=1, padding=1, down_sample=None):
+    def __init__(
+        self,
+        in_channels,
+        out_channels,
+        kernel_size=3,
+        stride=1,
+        padding=1,
+        down_sample=None,
+    ):
         super(Bottleneck, self).__init__(in_channels, out_channels * self.expansion)
         self.conv1 = conv1x1(in_channels, out_channels)
         self.bn1 = nn.BatchNorm2d(out_channels)
@@ -181,8 +187,10 @@ class BaseResNet(nn.Module):
         if channels_per_layer is None:
             channels_per_layer = [2 ** (6 + i) for i in range(len(layers))]
         elif len(channels_per_layer) != len(layers):
-            raise ValueError(f"channels_per_layer ({len(channels_per_layer)}) does "
-                             f"not have same length as layers ({len(layers)})")
+            raise ValueError(
+                f"channels_per_layer ({len(channels_per_layer)}) does "
+                f"not have same length as layers ({len(layers)})"
+            )
 
         if block is Bottleneck:
             if kernels is None:
@@ -190,32 +198,40 @@ class BaseResNet(nn.Module):
             elif type(kernels) is int:
                 kernels = [[kernels] * num_blocks for num_blocks in layers]
             if len(layers) != len(kernels):
-                raise ValueError(f"kernels ({len(kernels)}) does not have same "
-                                 f"length as layers ({len(layers)})")
+                raise ValueError(
+                    f"kernels ({len(kernels)}) does not have same "
+                    f"length as layers ({len(layers)})"
+                )
             else:
                 for i in range(len(kernels)):
                     if type(kernels[i]) is int:
                         kernels[i] = [kernels[i]] * layers[i]
             if np.any(np.array(list(map(len, kernels))) != np.array(layers)):
-                raise ValueError(f"kernel values not specified for each layer of "
-                                 f"each block ({np.array(list(map(len, kernels)))} "
-                                 f"!= {layers})")
+                raise ValueError(
+                    f"kernel values not specified for each layer of "
+                    f"each block ({np.array(list(map(len, kernels)))} "
+                    f"!= {layers})"
+                )
 
             if strides is None:
                 strides = [1] + [2] * (len(layers) - 1)
             elif type(strides) is int:
                 strides = [strides] * len(layers)
             if len(layers) != len(strides):
-                raise ValueError(f"strides ({len(strides)}) does not have same "
-                                 f"length as layers ({len(layers)})")
+                raise ValueError(
+                    f"strides ({len(strides)}) does not have same "
+                    f"length as layers ({len(layers)})"
+                )
 
             if paddings is None:
                 paddings = [1] * len(layers)
             elif type(paddings) is int:
                 paddings = [paddings] * len(layers)
             if len(layers) != len(paddings):
-                raise ValueError(f"paddings ({len(paddings)}) does not have same "
-                                 f"length as layers ({len(layers)})")
+                raise ValueError(
+                    f"paddings ({len(paddings)}) does not have same "
+                    f"length as layers ({len(layers)})"
+                )
 
         # the following layers, each layer is a sequence of blocks
         self.block = block
@@ -226,8 +242,21 @@ class BaseResNet(nn.Module):
         self.strides = []
         self.paddings = []
 
-        for i, (channels, num_blocks, kernel_size, stride, padding) in enumerate(zip(channels_per_layer, layers, kernels, strides, paddings, strict=True), start=1):
-            self.__setattr__(f"layer{i}", self._make_layer(block=block, channels=channels, num_blocks=num_blocks, kernel_size=kernel_size, stride=stride, padding=padding))
+        for i, (channels, num_blocks, kernel_size, stride, padding) in enumerate(
+            zip(channels_per_layer, layers, kernels, strides, paddings, strict=True),
+            start=1,
+        ):
+            self.__setattr__(
+                f"layer{i}",
+                self._make_layer(
+                    block=block,
+                    channels=channels,
+                    num_blocks=num_blocks,
+                    kernel_size=kernel_size,
+                    stride=stride,
+                    padding=padding,
+                ),
+            )
 
         # Zero-initialize the last BN in each residual branch,
         # so that the residual branch starts with zeros,
@@ -241,7 +270,9 @@ class BaseResNet(nn.Module):
                 elif isinstance(m, BasicBlock):
                     nn.init.constant_(m.bn2.weight, 0)
 
-    def _make_layer(self, block, channels, num_blocks, kernel_size, stride=1, padding=0):
+    def _make_layer(
+        self, block, channels, num_blocks, kernel_size, stride=1, padding=0
+    ):
         down_sample = None
         if stride != 1 or self.in_channels != channels * block.expansion:
             down_sample = nn.Sequential(
@@ -250,7 +281,16 @@ class BaseResNet(nn.Module):
             )
 
         # only the first block has down_sample that is possibly not None
-        layers = [block(self.in_channels, channels, kernel_size=kernel_size[0], stride=stride, down_sample=down_sample, padding=padding)]
+        layers = [
+            block(
+                self.in_channels,
+                channels,
+                kernel_size=kernel_size[0],
+                stride=stride,
+                down_sample=down_sample,
+                padding=padding,
+            )
+        ]
 
         self.in_channels = channels * block.expansion
         for i in range(1, num_blocks):
@@ -316,7 +356,16 @@ class ResNetFeatures(nn.Module):
         self.strides = [2, 2]
         self.paddings = [3, 1]
 
-        self.residual_blocks = BaseResNet(block, layers, channels, channels_per_layer, kernels, strides, paddings, zero_init_residual)
+        self.residual_blocks = BaseResNet(
+            block,
+            layers,
+            channels,
+            channels_per_layer,
+            kernels,
+            strides,
+            paddings,
+            zero_init_residual,
+        )
 
         # initialize the parameters
         for m in self.modules():
@@ -365,7 +414,9 @@ def resnet18_features(color_channels=3, pretrained=False, **kwargs):
     :return: A ResNet-18 model
     :rtype: ResNetFeatures
     """
-    model = ResNetFeatures(BasicBlock, [2, 2, 2, 2], color_channels=color_channels, **kwargs)
+    model = ResNetFeatures(
+        BasicBlock, [2, 2, 2, 2], color_channels=color_channels, **kwargs
+    )
     if pretrained:
         pretrained_state_dict = get_state_dict(__model_urls["resnet18"], color_channels)
         model.load_state_dict(pretrained_state_dict, strict=False)
@@ -384,7 +435,9 @@ def resnet20_features(color_channels=3, pretrained=False, **kwargs):
     :return: A ResNet-20 model
     :rtype: ResNetFeatures
     """
-    model = ResNetFeatures(BasicBlock, [3, 3, 3], color_channels=color_channels, channels=16, **kwargs)
+    model = ResNetFeatures(
+        BasicBlock, [3, 3, 3], color_channels=color_channels, channels=16, **kwargs
+    )
     return model
 
 
@@ -400,7 +453,9 @@ def resnet34_features(color_channels=3, pretrained=False, **kwargs):
     :return: A ResNet-34 model
     :rtype: ResNetFeatures
     """
-    model = ResNetFeatures(BasicBlock, [3, 4, 6, 3], color_channels=color_channels, **kwargs)
+    model = ResNetFeatures(
+        BasicBlock, [3, 4, 6, 3], color_channels=color_channels, **kwargs
+    )
     if pretrained:
         pretrained_state_dict = get_state_dict(__model_urls["resnet34"], color_channels)
         model.load_state_dict(pretrained_state_dict, strict=False)
@@ -419,7 +474,9 @@ def resnet50_features(color_channels=3, pretrained=False, **kwargs):
     :return: A ResNet-50 model
     :rtype: ResNetFeatures
     """
-    model = ResNetFeatures(Bottleneck, [3, 4, 6, 3], color_channels=color_channels, **kwargs)
+    model = ResNetFeatures(
+        Bottleneck, [3, 4, 6, 3], color_channels=color_channels, **kwargs
+    )
     if pretrained:
         pretrained_state_dict = get_state_dict(__model_urls["resnet50"], color_channels)
         model.load_state_dict(pretrained_state_dict, strict=False)
@@ -438,9 +495,13 @@ def resnet101_features(color_channels=3, pretrained=False, **kwargs):
     :return: A ResNet-101 model
     :rtype: ResNetFeatures
     """
-    model = ResNetFeatures(Bottleneck, [3, 4, 23, 3], color_channels=color_channels, **kwargs)
+    model = ResNetFeatures(
+        Bottleneck, [3, 4, 23, 3], color_channels=color_channels, **kwargs
+    )
     if pretrained:
-        pretrained_state_dict = get_state_dict(__model_urls["resnet101"], color_channels)
+        pretrained_state_dict = get_state_dict(
+            __model_urls["resnet101"], color_channels
+        )
         model.load_state_dict(pretrained_state_dict, strict=False)
     return model
 
@@ -457,9 +518,13 @@ def resnet152_features(color_channels=3, pretrained=False, **kwargs):
     :return: A ResNet-152 model
     :rtype: ResNetFeatures
     """
-    model = ResNetFeatures(Bottleneck, [3, 8, 36, 3], color_channels=color_channels, **kwargs)
+    model = ResNetFeatures(
+        Bottleneck, [3, 8, 36, 3], color_channels=color_channels, **kwargs
+    )
     if pretrained:
-        pretrained_state_dict = get_state_dict(__model_urls["resnet152"], color_channels)
+        pretrained_state_dict = get_state_dict(
+            __model_urls["resnet152"], color_channels
+        )
         model.load_state_dict(pretrained_state_dict, strict=False)
     return model
 
@@ -485,6 +550,7 @@ all_features = {
 
 if __name__ == "__main__":
     from icecream import ic
+
     # r18_features = resnet18_features(pretrained=True)
     # print(r18_features)
     #
@@ -492,7 +558,14 @@ if __name__ == "__main__":
     # print(r34_features)
 
     b = resnet50_features()
-    ic(summary(b, input_data=(3, 112, 112), col_names=("input_size", "output_size", "kernel_size"), depth=4))
+    ic(
+        summary(
+            b,
+            input_data=(3, 112, 112),
+            col_names=("input_size", "output_size", "kernel_size"),
+            depth=4,
+        )
+    )
     # r50_features = resnet50_features(pretrained=True)
     # ic(r50_features)
     # for m in r50_features._modules.items():

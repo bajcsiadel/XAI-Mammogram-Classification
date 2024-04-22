@@ -1,9 +1,8 @@
 import torch.nn as nn
 import torch.utils.model_zoo as model_zoo
 
-from xai_mam.utils.environment import get_env
-
 from xai_mam.models.utils.backbone_features._classes import BackboneFeatureMeta
+from xai_mam.utils.environment import get_env
 
 PRETRAINED_MODELS_DIR = get_env("PRETRAINED_MODELS_DIR")
 

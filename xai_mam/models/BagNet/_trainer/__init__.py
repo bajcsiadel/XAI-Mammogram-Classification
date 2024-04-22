@@ -171,7 +171,9 @@ class BagNetTrainer(BaseTrainer):
             momentum=0.9,
             weight_decay=1e-4,
         )
-        lr_scheduler = hydra.utils.instantiate(self._phases["main"].scheduler, optimizer)
+        lr_scheduler = hydra.utils.instantiate(
+            self._phases["main"].scheduler, optimizer
+        )
 
         return optimizer, lr_scheduler
 
@@ -263,9 +265,7 @@ class AverageMeter(object):
             device = torch.device("mps")
         else:
             device = torch.device("cpu")
-        total = torch.tensor(
-            [self.sum, self.count], dtype=torch.float32, device=device
-        )
+        total = torch.tensor([self.sum, self.count], dtype=torch.float32, device=device)
         self.sum, self.count = total.tolist()
         self.avg = self.sum / self.count
 
