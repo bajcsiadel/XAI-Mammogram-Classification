@@ -98,13 +98,14 @@ class BaseTrainer(ABC):
             logger.info(
                 summary(
                     model,
-                    (
+                    input_size=(
                         data_module.dataset.image_properties.color_channels,
                         data_module.dataset.image_properties.height,
                         data_module.dataset.image_properties.width,
                     ),
+                    batch_dim=1,
                     device=torch.device(gpu.device),
-                    # verbose=0,
+                    verbose=0,
                 )
             )
 
