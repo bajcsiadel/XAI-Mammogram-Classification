@@ -3,7 +3,7 @@ from typing import final
 
 import torch
 from torch import nn
-from torchsummary import summary
+from torchinfo import summary
 
 
 class Model(ABC, nn.Module):
@@ -96,17 +96,15 @@ class BaseTrainer(ABC):
 
             logger.info("")
             logger.info(
-                str(
-                    summary(
-                        model,
-                        (
-                            data_module.dataset.image_properties.color_channels,
-                            data_module.dataset.image_properties.height,
-                            data_module.dataset.image_properties.width,
-                        ),
-                        device=torch.device(gpu.device),
-                        verbose=0,
-                    )
+                summary(
+                    model,
+                    (
+                        data_module.dataset.image_properties.color_channels,
+                        data_module.dataset.image_properties.height,
+                        data_module.dataset.image_properties.width,
+                    ),
+                    device=torch.device(gpu.device),
+                    # verbose=0,
                 )
             )
 

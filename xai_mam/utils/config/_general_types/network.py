@@ -82,7 +82,7 @@ class Phase:
 @dc.dataclass
 class ModelConfig:
     name: str
-    log_parameters_fn: str
+    log_parameters_fn: dict
     network: dict
     phases: dict[str, Phase]
     params: dict

@@ -3,7 +3,9 @@ defaults:
   - network: resnet18
 
 name: protopnet
-log_parameters_fn: xai_mam.models.ProtoPNet.log_parameters
+log_parameters_fn:
+  _target_: xai_mam.models.ProtoPNet.log_parameters
+  _partial_: true
 
 params:
   construct_trainer:

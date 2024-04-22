@@ -3,7 +3,7 @@ from functools import partial
 
 import numpy as np
 import torch.nn as nn
-from torchsummary import summary
+from torchinfo import summary
 
 from xai_mam.models.utils.backbone_features._classes import BackboneFeatureMeta
 from xai_mam.models.utils.helpers import get_state_dict
@@ -192,46 +192,45 @@ class BaseResNet(nn.Module):
                 f"not have same length as layers ({len(layers)})"
             )
 
-        if block is Bottleneck:
-            if kernels is None:
-                kernels = [[3] * num_blocks for num_blocks in layers]
-            elif type(kernels) is int:
-                kernels = [[kernels] * num_blocks for num_blocks in layers]
-            if len(layers) != len(kernels):
-                raise ValueError(
-                    f"kernels ({len(kernels)}) does not have same "
-                    f"length as layers ({len(layers)})"
-                )
-            else:
-                for i in range(len(kernels)):
-                    if type(kernels[i]) is int:
-                        kernels[i] = [kernels[i]] * layers[i]
-            if np.any(np.array(list(map(len, kernels))) != np.array(layers)):
-                raise ValueError(
-                    f"kernel values not specified for each layer of "
-                    f"each block ({np.array(list(map(len, kernels)))} "
-                    f"!= {layers})"
-                )
+        if kernels is None:
+            kernels = [[3] * num_blocks for num_blocks in layers]
+        elif type(kernels) is int:
+            kernels = [[kernels] * num_blocks for num_blocks in layers]
+        if len(layers) != len(kernels):
+            raise ValueError(
+                f"kernels ({len(kernels)}) does not have same "
+                f"length as layers ({len(layers)})"
+            )
+        else:
+            for i in range(len(kernels)):
+                if type(kernels[i]) is int:
+                    kernels[i] = [kernels[i]] * layers[i]
+        if np.any(np.array(list(map(len, kernels))) != np.array(layers)):
+            raise ValueError(
+                f"kernel values not specified for each layer of "
+                f"each block ({np.array(list(map(len, kernels)))} "
+                f"!= {layers})"
+            )
 
-            if strides is None:
-                strides = [1] + [2] * (len(layers) - 1)
-            elif type(strides) is int:
-                strides = [strides] * len(layers)
-            if len(layers) != len(strides):
-                raise ValueError(
-                    f"strides ({len(strides)}) does not have same "
-                    f"length as layers ({len(layers)})"
-                )
+        if strides is None:
+            strides = [1] + [2] * (len(layers) - 1)
+        elif type(strides) is int:
+            strides = [strides] * len(layers)
+        if len(layers) != len(strides):
+            raise ValueError(
+                f"strides ({len(strides)}) does not have same "
+                f"length as layers ({len(layers)})"
+            )
 
-            if paddings is None:
-                paddings = [1] * len(layers)
-            elif type(paddings) is int:
-                paddings = [paddings] * len(layers)
-            if len(layers) != len(paddings):
-                raise ValueError(
-                    f"paddings ({len(paddings)}) does not have same "
-                    f"length as layers ({len(layers)})"
-                )
+        if paddings is None:
+            paddings = [1] * len(layers)
+        elif type(paddings) is int:
+            paddings = [paddings] * len(layers)
+        if len(layers) != len(paddings):
+            raise ValueError(
+                f"paddings ({len(paddings)}) does not have same "
+                f"length as layers ({len(layers)})"
+            )
 
         # the following layers, each layer is a sequence of blocks
         self.block = block
@@ -294,7 +293,7 @@ class BaseResNet(nn.Module):
 
         self.in_channels = channels * block.expansion
         for i in range(1, num_blocks):
-            layers.append(block(self.in_channels, channels, kernel_size[i]))
+            layers.append(block(self.in_channels, channels, kernel_size=kernel_size[i]))
 
         # keep track of every block's conv size, stride size, and padding size
         for each_block in layers:
@@ -360,11 +359,11 @@ class ResNetFeatures(nn.Module):
             block,
             layers,
             channels,
-            channels_per_layer,
-            kernels,
-            strides,
-            paddings,
-            zero_init_residual,
+            channels_per_layer=channels_per_layer,
+            kernels=kernels,
+            strides=strides,
+            paddings=paddings,
+            zero_init_residual=zero_init_residual,
         )
 
         # initialize the parameters

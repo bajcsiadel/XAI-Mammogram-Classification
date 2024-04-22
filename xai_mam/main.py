@@ -131,7 +131,7 @@ def run_experiment(cfg: main_cfg.Config, logger: Log):
     logger.info(f"\t{cfg.data.set.image_properties.mean} mean")
     logger.info(f"\t{data_module.dataset.number_of_classes} classes")
 
-    hydra.utils.instantiate(cfg.model.log_parameters_fn, logger=logger, cfg=cfg)
+    hydra.utils.instantiate(cfg.model.log_parameters_fn)(number_of_classes=data_module.dataset.number_of_classes, logger=logger, cfg=cfg)
 
     logger.info(f"\t{tick if cfg.model.network.pretrained else cross} pretrained")
     logger.info(f"\t{tick if cfg.model.backbone_only else cross} backbone only")
@@ -149,7 +149,7 @@ def run_experiment(cfg: main_cfg.Config, logger: Log):
         data_module.folds, start=1
     ):
         start_fold = time.time()
-        trainer = cfg.model.construct_trainer(
+        trainer = cfg.model.params.construct_trainer(
             data_module=data_module,
             model_config=cfg.model,
             gpu=cfg.gpu,

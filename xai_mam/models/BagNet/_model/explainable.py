@@ -270,7 +270,7 @@ all_models = {
 
 if __name__ == "__main__":
     from icecream import ic
-    from torchsummary import summary
+    from torchinfo import summary
 
     bagnet = bagnet17(3, color_channels=3, pretrained=True)
 
