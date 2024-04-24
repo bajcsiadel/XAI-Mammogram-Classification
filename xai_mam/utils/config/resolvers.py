@@ -29,9 +29,13 @@ def _get_run_location():
     return pathlib.Path(get_env("RUNS_PATH"), _get_package_name())
 
 
-def _create(filename):
-    if type(filename) is not pathlib.Path:
-        filename = pathlib.Path(filename)
+def _create(sweep_dir, sweep_subdir="", filename="progress.log"):
+    if type(sweep_dir) is not pathlib.Path:
+        sweep_dir = pathlib.Path(sweep_dir)
+    if type(sweep_subdir) is not pathlib.Path:
+        sweep_subdir = pathlib.Path(sweep_subdir)
+
+    filename = sweep_dir / sweep_subdir.parents[0] / filename
 
     global log_created
 
