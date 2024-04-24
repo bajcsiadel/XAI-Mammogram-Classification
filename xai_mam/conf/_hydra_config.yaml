@@ -9,3 +9,13 @@ hydra:
     handlers:
       file:
         encoding: utf-8
+  hydra_logging:
+    handlers:
+      file:
+        class: logging.FileHandler
+        formatter: simple
+        filename: ${create:${hydra.sweep.dir}/progress.log}
+    root:
+      handlers:
+        - console
+        - file

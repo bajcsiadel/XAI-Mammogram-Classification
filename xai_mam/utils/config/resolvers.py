@@ -5,6 +5,8 @@ from omegaconf import omegaconf
 from xai_mam.utils.environment import get_env
 
 
+log_created = {}
+
 def _get_package_name():
     import traceback
 
@@ -25,6 +27,18 @@ def _get_package_name():
 
 def _get_run_location():
     return pathlib.Path(get_env("RUNS_PATH"), _get_package_name())
+
+
+def _create(filename):
+    if type(filename) is not pathlib.Path:
+        filename = pathlib.Path(filename)
+
+    global log_created
+
+    if filename not in log_created or not log_created[filename]:
+        log_created[filename] = True
+        filename.parent.mkdir(parents=True, exist_ok=True)
+    return filename
 
 
 def resolve_format_backbone_only():
@@ -49,6 +63,10 @@ def resolve_run_location():
 
 def resolve_package_name():
     omegaconf.OmegaConf.register_new_resolver("package_name", _get_package_name)
+
+
+def resolve_create():
+    omegaconf.OmegaConf.register_new_resolver("create", _create)
 
 
 def add_all_custom_resolvers():
