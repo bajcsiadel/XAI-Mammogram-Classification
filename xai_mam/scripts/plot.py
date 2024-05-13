@@ -12,7 +12,7 @@ from icecream import ic
 parser = argparse.ArgumentParser(
     "plot.py",
     description="Plot the train and test accuracies during "
-    "the training process of the xai_mam model",
+    "the training process of the ProtoPNet model",
 )
 parser.add_argument(
     "output_file",

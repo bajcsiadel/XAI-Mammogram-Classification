@@ -54,7 +54,7 @@ class _PositiveLinear(nn.Module):
 
 class ProtoPNetBase(Model, ABC):
     """
-    Base class for the xai_mam and ProtoPNetBackbone models.
+    Base class for the ProtoPNet and ProtoPNetBackbone models.
 
     :param features: features of the backbone architecture,
         responsible for the feature extraction

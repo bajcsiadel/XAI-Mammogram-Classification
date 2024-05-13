@@ -16,12 +16,12 @@ def construct_model(
     **kwargs,
 ):
     """
-    Create a xai_mam model (either backbone or explainable). Parameters should
+    Create a BagNet model (either backbone or explainable). Parameters should
     be specified as keyword arguments.
 
     :param logger:
     :type logger: ProtoPNet.utils.log.Log
-    :param base_architecture: backbone/feature network type. Defaults to ``"resnet18"``.
+    :param base_architecture: backbone/feature network type. Defaults to ``"bagnet17"``.
     :type base_architecture: str
     :param pretrained: defines if the backbone is pretrained on ImageNet.
         Defaults to ``True``.

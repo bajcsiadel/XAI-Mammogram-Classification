@@ -9,7 +9,7 @@ from xai_mam.models.ProtoPNet._trainer import ProtoPNetTrainer
 
 class BackboneTrainer(ProtoPNetTrainer):
     """
-    Trainer class to train a xai_mam backbone model.
+    Trainer class to train a ProtoPNet backbone model.
     """
 
     def compute_loss(self, **kwargs):

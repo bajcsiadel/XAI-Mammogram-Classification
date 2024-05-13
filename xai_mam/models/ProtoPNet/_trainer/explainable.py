@@ -13,7 +13,7 @@ from xai_mam.utils.preprocess import preprocess
 
 class ExplainableTrainer(ProtoPNetTrainer):
     """
-    Trainer class to train an explainable xai_mam model.
+    Trainer class to train an explainable ProtoPNet model.
 
     :param fold: current fold number
     :type fold: int

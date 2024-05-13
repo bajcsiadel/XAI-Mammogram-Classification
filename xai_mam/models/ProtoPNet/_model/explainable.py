@@ -10,7 +10,7 @@ from xai_mam.models.ProtoPNet._model import ProtoPNetBase, _PositiveLinear
 
 class ProtoPNet(ProtoPNetBase, Explainable):
     """
-    xai_mam model [Chen+18]_ for prototypical image recognition.
+    ProtoPNet model [Chen+18]_ for prototypical image recognition.
 
     .. [Chen+18] Chaofan Chen et al. "This looks like that: deep learning
         for interpretable image recognition".
@@ -28,7 +28,7 @@ class ProtoPNet(ProtoPNetBase, Explainable):
     :param n_classes: number of classes in the data
     :type n_classes: int
     :param logger:
-    :type logger: xaimam.utils.log.Log
+    :type logger: xai_mam.utils.log.Log
     :param class_specific: Defaults to ``True``.
     :type class_specific: bool
     :param init_weights: flag to mark if the weights should be initialized.

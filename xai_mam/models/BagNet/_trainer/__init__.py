@@ -12,7 +12,7 @@ from xai_mam.models._base_classes import BaseTrainer
 
 class BagNetTrainer(BaseTrainer):
     """
-    Abstract base class for xai_mam trainer.
+    Abstract base class for BagNet trainer.
 
     :param fold: current fold number
     :type fold: int

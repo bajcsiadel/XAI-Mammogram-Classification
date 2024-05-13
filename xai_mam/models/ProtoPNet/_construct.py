@@ -26,11 +26,11 @@ def construct_model(
     positive_weights_in_classifier=False,
 ):
     """
-    Create a xai_mam model (either backbone or explainable). Parameters should
+    Create a ProtoPNet model (either backbone or explainable). Parameters should
     be specified as keyword arguments.
 
     :param logger:
-    :type logger: xaimam.utils.log.Log
+    :type logger: xai_mam.utils.log.Log
     :param base_architecture: backbone/feature network type. Defaults to ``"resnet18"``.
     :type base_architecture: str
     :param pretrained: defines if the backbone is pretrained on ImageNet.
@@ -120,18 +120,18 @@ def construct_trainer(
     be specified as keyword arguments.
 
     :param data_module:
-    :type data_module: xaimam.dataset.dataloaders.CustomDataModule
+    :type data_module: xai_mam.dataset.dataloaders.CustomDataModule
     :param gpu: gpu usage information
-    :type gpu: xaimam.utils.config.types.Gpu
+    :type gpu: xai_mam.utils.config.types.Gpu
     :param logger:
-    :type logger: xaimam.utils.log.Log
+    :type logger: xai_mam.utils.log.Log
     :param model_config: configuration of the model. Defaults to ``None``.
-    :type model_config: xaimam.utils.config.types.ModelConfig | None
+    :type model_config: xai_mam.utils.config.types.ModelConfig | None
     :param model_location: location of the file in which the trained model is saved.
         Defaults to ``None``.
     :type model_location: str | pathlib.Path | None
     :param phases: phase details of the model. Defaults to ``None``.
-    :type phases: dict[str, xaimam.utils.config.types.Phase]
+    :type phases: dict[str, xai_mam.utils.config.types.Phase]
     :param params: parameters of the model. Defaults to ``None``.
     :type params: dict
     :param fold: Defaults to ``None``.

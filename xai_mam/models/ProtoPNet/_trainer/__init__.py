@@ -9,7 +9,7 @@ from xai_mam.models._base_classes import BaseTrainer
 
 class ProtoPNetTrainer(BaseTrainer):
     """
-    Abstract base class for xai_mam trainer.
+    Abstract base class for ProtoPNet trainer.
 
     :param fold: current fold number
     :type fold: int

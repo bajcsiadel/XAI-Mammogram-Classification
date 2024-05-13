@@ -237,12 +237,12 @@ class A(_ActivationType):
 class B(_ActivationType):
     """
     Class representing the activation type B presented in article [Car+22]_,
-    where xai_mam is applied for mammograms. It consists of a 2-dimensional
+    where ProtoPNet is applied for mammograms. It consists of a 2-dimensional
     batch normalization, ``ReLU`` activation and a 2-dimensional dropout layer.
 
     .. [Car+22] Gianluca Carloni et al. "On the Applicability of Prototypical
         Part Learning in Medical Images: Breast Masses Classification Using
-        xai_mam". `doi:10.1007/978-3-031-37660-3_38
+        ProtoPNet". `doi:10.1007/978-3-031-37660-3_38
         <https://doi.org/10.1007/978-3-031-37660-3_38>`_
     """
 

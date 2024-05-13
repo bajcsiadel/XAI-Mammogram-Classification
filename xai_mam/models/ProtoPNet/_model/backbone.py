@@ -7,7 +7,7 @@ from xai_mam.models.ProtoPNet._model import ProtoPNetBase
 
 class ProtoPNetBackbone(ProtoPNetBase, Backbone):
     """
-    Corresponding backbone feature of an explainable xai_mam model.
+    Corresponding backbone feature of an explainable ProtoPNet model.
 
     :param features: features of the backbone architecture,
         responsible for the feature extraction
