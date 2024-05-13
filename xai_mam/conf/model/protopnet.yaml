@@ -6,6 +6,9 @@ name: protopnet
 log_parameters_fn:
   _target_: xai_mam.models.ProtoPNet.log_parameters
   _partial_: true
+validate_fn:
+  _target_: xai_mam.models.ProtoPNet.validate_model_config
+  _partial_: true
 
 params:
   construct_trainer:

@@ -4,6 +4,7 @@ from torch.utils import model_zoo
 from xai_mam.models._base_classes import Backbone
 from xai_mam.models.BagNet._model import BagNetBase
 from xai_mam.models.utils.backbone_features import resnet_features
+from xai_mam.models.utils.helpers import get_state_dict
 from xai_mam.utils.environment import get_env
 
 
@@ -44,18 +45,13 @@ class BagNetBackbone(BagNetBase, Backbone):
         )
 
         resnet50 = resnet_features.all_features["resnet50"]
+        # loads state dict if pretrained is True
         self.features = resnet50.construct(color_channels, pretrained)
 
         self.avg_pool = nn.AdaptiveAvgPool2d((1, 1))
         self.fc = nn.Linear(
             self.features.residual_blocks.layer4[-1].out_channels, n_classes
         )
-
-        dict_ = model_zoo.load_url(
-            resnet50.url, model_dir=get_env("PRETRAINED_MODELS_DIR")
-        )
-        fc_params = {key: value for key, value in dict_.items() if key.startswith("fc")}
-        self.load_state_dict(fc_params, strict=False)
 
     def forward(self, x):
         x = self.features(x)

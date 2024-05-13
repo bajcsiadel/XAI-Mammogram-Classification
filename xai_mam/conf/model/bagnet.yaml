@@ -3,4 +3,14 @@ defaults:
   - network: resnet50
 
 name: bagnet
-log_parameters_fn: xai_mam.models.BagNet.log_parameters
+log_parameters_fn:
+  _target_: xai_mam.models.BagNet.log_parameters
+  _partial_: true
+validate_fn:
+  _target_: xai_mam.models.BagNet.validate_model_config
+  _partial_: true
+
+params:
+  construct_trainer:
+    _target_: xai_mam.models.BagNet._construct.construct_trainer
+    _partial_: true

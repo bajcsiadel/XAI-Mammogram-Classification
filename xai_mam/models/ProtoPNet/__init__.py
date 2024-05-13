@@ -27,3 +27,13 @@ def log_parameters(logger, cfg, number_of_classes):
             f"{cfg.model.network.add_on_layer_properties.activation} add on activation "
             f"({AddOnLayers.get_reference(cfg.model.network.add_on_layer_properties.activation)})"  # noqa
         )
+
+
+def validate_model_config(cfg):
+    if cfg.backbone_only:
+        if "warm" in cfg.phases and cfg.phases["warm"].epochs != 0:
+            raise ValueError(f"Training backbone does not support warmup")
+        if "finetune" in cfg.phases and cfg.phases["warm"].epochs != 0:
+            raise ValueError(f"Training backbone does not support warmup")
+        if "push" in cfg.phases:
+            raise ValueError(f"Training backbone does not support push phase")

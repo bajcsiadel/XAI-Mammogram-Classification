@@ -87,15 +87,11 @@ class ModelConfig:
     phases: dict[str, Phase]
     params: dict
     backbone_only: bool = False
+    validate_fn: dict = dc.field(default_factory=dict)
 
     def __post_init__(self):
         self.params = hydra.utils.instantiate(self.params)
         self.network = hydra.utils.instantiate(self.network)
 
-        if self.backbone_only:
-            if "warm" in self.phases and self.phases["warm"].epochs != 0:
-                raise ValueError(f"Training backbone does not support warmup")
-            if "finetune" in self.phases and self.phases["warm"].epochs != 0:
-                raise ValueError(f"Training backbone does not support warmup")
-            if "push" in self.phases:
-                raise ValueError(f"Training backbone does not support push phase")
+        if "_target_" in self.validate_fn:
+            hydra.utils.instantiate(self.validate_fn)(cfg=self)

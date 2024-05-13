@@ -140,6 +140,7 @@ def run_experiment(cfg: main_cfg.Config, logger: Log):
     with logger.increase_indent_context():
         logger.info(f"{tick if cfg.model.network.pretrained else cross} pretrained")
         logger.info(f"{tick if cfg.model.backbone_only else cross} backbone only")
+    logger.decrease_indent()
 
     with (logger.log_location / get_env("CONFIG_DIR_NAME") / "config.pickle").open(
         "wb"
@@ -153,7 +154,8 @@ def run_experiment(cfg: main_cfg.Config, logger: Log):
     for fold, (train_sampler, validation_sampler) in enumerate(
         data_module.folds, start=1
     ):
-        logger.increase_indent()
+        if cfg.cross_validation.folds > 1:
+            logger.increase_indent()
         start_fold = time.time()
         trainer = cfg.model.params.construct_trainer(
             data_module=data_module,

@@ -177,7 +177,7 @@ def bagnet33(
     )
     if pretrained:
         pretrained_state_dict = get_state_dict(
-            __model_urls["bagnet33"], color_channels=color_channels, features_only=False
+            __model_urls["bagnet33"], color_channels=color_channels
         )
         model.load_state_dict(pretrained_state_dict)
     return model
@@ -216,7 +216,7 @@ def bagnet17(
     )
     if pretrained:
         pretrained_state_dict = get_state_dict(
-            __model_urls["bagnet17"], color_channels=color_channels, features_only=False
+            __model_urls["bagnet17"], color_channels=color_channels
         )
 
         model.load_state_dict(pretrained_state_dict, strict=False)
@@ -256,7 +256,7 @@ def bagnet9(
     )
     if pretrained:
         pretrained_state_dict = get_state_dict(
-            __model_urls["bagnet9"], color_channels=color_channels, features_only=False
+            __model_urls["bagnet9"], color_channels=color_channels
         )
         model.load_state_dict(pretrained_state_dict)
     return model
