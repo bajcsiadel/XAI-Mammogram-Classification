@@ -103,6 +103,7 @@ class BaseTrainer(ABC):
                         data_module.dataset.image_properties.height,
                         data_module.dataset.image_properties.width,
                     ),
+                    depth=5,
                     batch_dim=1,
                     device=torch.device(gpu.device),
                     verbose=0,
@@ -217,7 +218,7 @@ class BaseTrainer(ABC):
         :return: accuracy achieved in the current step
         :rtype: float
         """
-        self.logger.info("\t\t\ttrain")
+        self.logger.info("train")
         self.parallel_model.train()
         return self._train_and_eval(dataloader, epoch, optimizer, **kwargs)
 
@@ -238,6 +239,6 @@ class BaseTrainer(ABC):
         :return: accuracy achieved in the current step
         :rtype: float
         """
-        self.logger.info("\t\t\teval")
+        self.logger.info("eval")
         self.parallel_model.eval()
         return self._train_and_eval(dataloader, epoch)

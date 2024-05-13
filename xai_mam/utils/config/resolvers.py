@@ -1,5 +1,7 @@
+import os
 import pathlib
 
+from hydra.types import RunMode
 from omegaconf import omegaconf
 
 from xai_mam.utils.environment import get_env
@@ -29,7 +31,10 @@ def _get_run_location():
     return pathlib.Path(get_env("RUNS_PATH"), _get_package_name())
 
 
-def _create(sweep_dir, sweep_subdir="", filename="progress.log"):
+def _create(run_mode, sweep_dir, sweep_subdir="", filename="progress.log"):
+    if run_mode == RunMode.RUN:
+        # do not create progress file
+        return os.devnull
     if type(sweep_dir) is not pathlib.Path:
         sweep_dir = pathlib.Path(sweep_dir)
     if type(sweep_subdir) is not pathlib.Path:

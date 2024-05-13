@@ -545,10 +545,13 @@ class CustomDataModule:
         :param name:
         :type name: str
         """
-        logger.info(f"\t{name}")
-        logger.info(f"\t\tsize: {len(data)}")
-        logger.info("\t\tdistribution")
-        logger.info(f"\t\t\t{data.metadata.groupby(data.targets).size().to_string()}")
+        logger.info(f"{name}")
+        logger.increase_indent()
+        logger.info(f"size: {len(data)}")
+        logger.info("distribution:")
+        logger.increase_indent()
+        logger.info(f"{data.metadata.groupby(data.targets).size().to_string()}")
+        logger.decrease_indent(times=2)
 
     def __get_data_loader(self, dataset, **kwargs):
         """

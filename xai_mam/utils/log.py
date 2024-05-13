@@ -1,3 +1,4 @@
+import contextlib
 import logging
 import os
 import sys
@@ -5,8 +6,9 @@ import traceback
 import typing as typ
 from datetime import datetime
 from pathlib import Path
+from textwrap import indent
 
-import numpy as np
+import omegaconf
 import torch
 from hydra.core.hydra_config import HydraConfig
 from matplotlib import pyplot as plt
@@ -32,7 +34,7 @@ class Log(logging.Logger):
         self.__log_location = log_location or Path(HydraConfig.get().runtime.output_dir)
         self.__logs = dict()
 
-        self.__outputs = outputs
+        self.__outputs = omegaconf.OmegaConf.to_object(outputs)
 
         # Ensure the directories exist
         self.log_location.mkdir(parents=True, exist_ok=True)
@@ -47,8 +49,27 @@ class Log(logging.Logger):
         else:
             self.__tensorboard_writer = None
 
+        self.__indent = 0
+
         logging.getLogger().manager.loggerDict[name] = self
         self.info(self.log_location)
+
+
+    @contextlib.contextmanager
+    def increase_indent_context(self, times=1):
+        self.increase_indent(times)
+        yield
+        self.decrease_indent(times)
+
+    def increase_indent(self, times=1):
+        if times < 0:
+            raise ValueError("times must be non-negative")
+        self.__indent += 4 * times
+
+    def decrease_indent(self, times=1):
+        if times < 0:
+            raise ValueError("times must be non-negative")
+        self.__indent = max(0, self.__indent - 4 * times)
 
     @property
     def log_location(self):
@@ -72,6 +93,12 @@ class Log(logging.Logger):
 
     @property
     def file_prefixes(self):
+        """
+        :return: file prefixes defined in the config file
+        :rtype: xai_mam.utils.config._general_types.log.FilePrefixes
+        """
+        self.debug(str(self.__outputs))
+        self.debug(str(self.__outputs.file_prefixes))
         return self.__outputs.file_prefixes
 
     @property
@@ -108,13 +135,12 @@ class Log(logging.Logger):
         if type(msg) is not str:
             msg = str(msg)
 
-        indent = msg[: len(msg) - len(msg.lstrip())]
-        msg = msg.strip()
+        msg = indent(msg, self.__indent * " ")
 
         for line in msg.splitlines():
             super()._log(
                 level,
-                f"{indent}{line}",
+                f"{line}",
                 args,
                 exc_info=exc_info,
                 extra=extra,
@@ -345,7 +371,7 @@ class Log(logging.Logger):
         ):
             image_name = image_location / image_name
 
-        if np.max(image) > 1:
+        if image.max() > 1:
             image = image / 255.0
         if image.shape[-1] == 1:
             plt.imsave(

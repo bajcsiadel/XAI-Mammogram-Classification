@@ -65,8 +65,9 @@ class BagNetTrainer(BaseTrainer):
         self.__criterion = torch.nn.CrossEntropyLoss().to(gpu.device)
 
         self.logger.info("batch size:")
-        self.logger.info(f"\ttrain: {self._phases['main'].batch_size.train}")
-        self.logger.info(f"\tvalidation: {self._phases['main'].batch_size.validation}")
+        with self.logger.increase_indent_context():
+            self.logger.info(f"train: {self._phases['main'].batch_size.train}")
+            self.logger.info(f"validation: {self._phases['main'].batch_size.validation}")
 
     def model_name(self, name):
         """

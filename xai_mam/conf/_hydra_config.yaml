@@ -14,7 +14,7 @@ hydra:
       file:
         class: logging.FileHandler
         formatter: simple
-        filename: ${create:${hydra.sweep.dir}, ${hydra.sweep.subdir}, progress.log}
+        filename: ${create:${hydra.mode}, ${hydra.sweep.dir}, ${hydra.sweep.subdir}, progress.log}
     root:
       handlers:
         - console

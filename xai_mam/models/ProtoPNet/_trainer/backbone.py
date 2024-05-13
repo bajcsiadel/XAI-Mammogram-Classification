@@ -122,12 +122,12 @@ class BackboneTrainer(ProtoPNetTrainer):
         macro_f1 = f1_score(true_labels, predicted_labels, average="macro")
         l1_norm = self.model.last_layer.weight.norm(p=1).item()
 
-        self.logger.info(f"\t\t\t\t{'time: ':<13}{total_time}")
-        self.logger.info(f"\t\t\t\t{'cross ent: ':<13}{cross_entropy}")
-        self.logger.info(f"\t\t\t\t{'accu: ':<13}{accuracy:.2%}")
-        self.logger.info(f"\t\t\t\t{'micro f1: ':<13}{micro_f1:.2%}")
-        self.logger.info(f"\t\t\t\t{'macro f1: ':<13}{macro_f1:.2%}")
-        self.logger.info(f"\t\t\t\t{'l1: ':<13}{l1_norm}")
+        self.logger.info(f"{'time: ':<13}{total_time}")
+        self.logger.info(f"{'cross ent: ':<13}{cross_entropy}")
+        self.logger.info(f"{'accu: ':<13}{accuracy:.2%}")
+        self.logger.info(f"{'micro f1: ':<13}{micro_f1:.2%}")
+        self.logger.info(f"{'macro f1: ':<13}{macro_f1:.2%}")
+        self.logger.info(f"{'l1: ':<13}{l1_norm}")
 
         if hasattr(self.logger, "csv_log_values"):
             self.logger.csv_log_values(
@@ -162,6 +162,7 @@ class BackboneTrainer(ProtoPNetTrainer):
 
     def joint(self):
         self._joint()
+        self.logger.increase_indent()
 
         train_loader = self._data_module.train_dataloader(
             sampler=self._train_sampler,
@@ -175,15 +176,16 @@ class BackboneTrainer(ProtoPNetTrainer):
         if self._fold == 1:
             self.log_image_examples(train_loader)
 
-        self.logger.info("\t\tbatch size:")
-        self.logger.info(f"\t\t\ttrain: {train_loader.batch_size}")
-        self.logger.info(f"\t\t\tvalidation: {validation_loader.batch_size}")
+        self.logger.info("batch size:")
+        with self.logger.increase_indent_context():
+            self.logger.info(f"train: {train_loader.batch_size}")
+            self.logger.info(f"validation: {validation_loader.batch_size}")
 
         joint_optimizer, joint_lr_scheduler = self._get_joint_optimizer()
 
         for epoch in np.arange(self._phases["joint"].epochs) + 1:
             self._epoch += 1
-            self.logger.info(f"\t\tepoch: \t{epoch} ({self._epoch})")
+            self.logger.info(f"epoch: \t{epoch} ({self._epoch})")
             if self._epoch > 1:
                 joint_lr_scheduler.step()
 

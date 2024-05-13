@@ -23,7 +23,7 @@ def push_prototypes(
     device="cpu",
 ):
     prototype_network_parallel.eval()
-    logger.info("\t\t\tpush")
+    logger.info("push")
 
     start = time.time()
     prototype_shape = prototype_network_parallel.module.prototype_shape
@@ -91,22 +91,24 @@ def push_prototypes(
 
     np.save(
         proto_epoch_dir
-        / f"{logger.file_prefixes.bouding_box}-receptive_field-{epoch_number}.npy",
+        / f"{logger.file_prefixes.bounding_box}-receptive_field-{epoch_number}.npy",
         proto_rf_boxes,
     )
     np.save(
-        proto_epoch_dir / f"{logger.file_prefixes.bouding_box}-{epoch_number}.npy",
+        proto_epoch_dir / f"{logger.file_prefixes.bounding_box}-{epoch_number}.npy",
         proto_bound_boxes,
     )
 
-    logger.info("\t\t\t\tExecuting push ...")
+    logger.increase_indent()
+    logger.info("Executing push ...")
     prototype_update = np.reshape(global_min_fmap_patches, tuple(prototype_shape))
     prototype_network_parallel.module.prototype_vectors.data.copy_(
         torch.tensor(prototype_update, dtype=torch.float32).to(device)
     )
     # prototype_network_parallel.to(device)
     end = time.time()
-    logger.info(f"\t\t\t\t{'push time: ':<13}{end - start}")
+    logger.info(f"{'push time: ':<13}{end - start}")
+    logger.decrease_indent()
 
 
 # update each prototype for current search batch
@@ -295,8 +297,8 @@ def update_prototypes_on_batch(
             )
             # save the whole image containing the prototype as png
             logger.save_image(
-                original_img_j,
-                f"{logger.file_prefixes.prototype}-original-{j}.png",
+                image_name=f"{logger.file_prefixes.prototype}-original-{j}.png",
+                image=original_img_j,
                 image_location=dir_for_saving_prototypes,
             )
             # overlay (upsampled) self activation
@@ -310,8 +312,8 @@ def update_prototypes_on_batch(
             heatmap = heatmap[..., ::-1]
             overlayed_original_img_j = 0.5 * original_img_j + 0.3 * heatmap
             logger.save_image(
-                overlayed_original_img_j,
-                f"{logger.file_prefixes.prototype}-original_with_self_act-{j}.png",
+                image=overlayed_original_img_j,
+                image_name=f"{logger.file_prefixes.prototype}-original_with_self_act-{j}.png",
                 image_location=dir_for_saving_prototypes,
             )
 
@@ -323,8 +325,8 @@ def update_prototypes_on_batch(
                 or rf_img_j.shape[1] != original_img_w
             ):
                 logger.save_image(
-                    rf_img_j,
-                    f"{logger.file_prefixes.prototype}-receptive_field-{j}.png",
+                    image=rf_img_j,
+                    image_name=f"{logger.file_prefixes.prototype}-receptive_field-{j}.png",
                     image_location=dir_for_saving_prototypes,
                 )
                 overlayed_rf_img_j = overlayed_original_img_j[
@@ -332,16 +334,16 @@ def update_prototypes_on_batch(
                     rf_prototype_j[3] : rf_prototype_j[4],
                 ]
                 logger.save_image(
-                    overlayed_rf_img_j,
-                    f"{logger.file_prefixes.prototype}-receptive_field_with_self_act-{j}.png",
+                    image=overlayed_rf_img_j,
+                    image_name=f"{logger.file_prefixes.prototype}-receptive_field_with_self_act-{j}.png",
                     image_location=dir_for_saving_prototypes,
                 )
 
             # save the prototype image
             # (highly activated region of the whole image)
             logger.save_image(
-                proto_img_j,
-                f"{logger.file_prefixes.prototype}-{j}.png",
+                image=proto_img_j,
+                image_name=f"{logger.file_prefixes.prototype}-{j}.png",
                 image_location=dir_for_saving_prototypes,
             )
 

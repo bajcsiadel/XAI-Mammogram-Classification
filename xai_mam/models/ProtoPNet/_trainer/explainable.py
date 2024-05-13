@@ -355,16 +355,17 @@ class ExplainableTrainer(ProtoPNetTrainer):
         with torch.no_grad():
             p_avg_pair_dist = torch.mean(list_of_distances(p, p)).item()
 
-        self.logger.info(f"\t\t\t\t{'time: ':<13}{total_time}")
-        self.logger.info(f"\t\t\t\t{'cross ent: ':<13}{cross_entropy}")
-        self.logger.info(f"\t\t\t\t{'cluster: ':<13}{cluster_cost}")
-        if self.model.class_specific:
-            self.logger.info(f"\t\t\t\t{'separation: ':<13}{separation_cost}")
-        self.logger.info(f"\t\t\t\t{'accu: ':<13}{accuracy:.2%}")
-        self.logger.info(f"\t\t\t\t{'micro f1: ':<13}{micro_f1:.2%}")
-        self.logger.info(f"\t\t\t\t{'macro f1: ':<13}{macro_f1:.2%}")
-        self.logger.info(f"\t\t\t\t{'l1: ':<13}{l1_norm}")
-        self.logger.info(f"\t\t\t\t{'p dist pair: ':<13}{p_avg_pair_dist}")
+        with self.logger.increase_indent_context():
+            self.logger.info(f"{'time: ':<13}{total_time}")
+            self.logger.info(f"{'cross ent: ':<13}{cross_entropy}")
+            self.logger.info(f"{'cluster: ':<13}{cluster_cost}")
+            if self.model.class_specific:
+                self.logger.info(f"{'separation: ':<13}{separation_cost}")
+            self.logger.info(f"{'accu: ':<13}{accuracy:.2%}")
+            self.logger.info(f"{'micro f1: ':<13}{micro_f1:.2%}")
+            self.logger.info(f"{'macro f1: ':<13}{macro_f1:.2%}")
+            self.logger.info(f"{'l1: ':<13}{l1_norm}")
+            self.logger.info(f"{'p dist pair: ':<13}{p_avg_pair_dist}")
 
         self.logger.csv_log_values(
             "train_model",
@@ -479,6 +480,7 @@ class ExplainableTrainer(ProtoPNetTrainer):
         Perform warm-up phase of the training.
         """
         self._warm_only()
+        self.logger.increase_indent()
 
         train_loader = self._data_module.train_dataloader(
             sampler=self._train_sampler,
@@ -489,14 +491,16 @@ class ExplainableTrainer(ProtoPNetTrainer):
             batch_size=self._phases["warm"].batch_size.validation,
         )
 
-        self.logger.info("\tbatch size:")
-        self.logger.info(f"\t\ttrain: {train_loader.batch_size}")
-        self.logger.info(f"\t\tvalidation: {validation_loader.batch_size}")
+        self.logger.info("batch size:")
+        with self.logger.increase_indent_context():
+            self.logger.info(f"train: {train_loader.batch_size}")
+            self.logger.info(f"validation: {validation_loader.batch_size}")
 
         warm_optimizer = self._get_warm_optimizer()
 
         for epoch in np.arange(self._phases["warm"].epochs) + 1:
-            self.logger.info(f"\t\twarm epoch: \t{epoch}")
+            self.logger.info(f"warm epoch: \t{epoch}")
+            self.logger.increase_indent()
 
             self._step += len(train_loader)
             self.logger.csv_log_index("train_model", (self._fold, epoch, "warm train"))
@@ -526,13 +530,17 @@ class ExplainableTrainer(ProtoPNetTrainer):
                 accu=accu,
             )
 
-        self.logger.info("\t\tfinished warmup")
+            self.logger.decrease_indent()
+
+        self.logger.info("finished warmup")
+        self.logger.decrease_indent()
 
     def joint(self):
         """
         Perform joint phase of the training.
         """
         self._joint()
+        self.logger.increase_indent()
 
         train_loader = self._data_module.train_dataloader(
             sampler=self._train_sampler,
@@ -549,21 +557,23 @@ class ExplainableTrainer(ProtoPNetTrainer):
 
         if len(self._params.push.push_epochs) == 0:
             self._params.push.define_push_epochs(self._phases["joint"].epochs)
-            self.logger.info(f"\t\tpush epochs: {self._params.push.push_epochs}")
+            self.logger.info(f"push epochs: {self._params.push.push_epochs}")
 
         if self._fold == 1:
             self.log_image_examples(train_loader)
 
-        self.logger.info("\t\tbatch size:")
-        self.logger.info(f"\t\t\ttrain: {train_loader.batch_size}")
-        self.logger.info(f"\t\t\tvalidation: {validation_loader.batch_size}")
-        self.logger.info(f"\t\t\tpush: {push_loader.batch_size}")
+        self.logger.info("batch size:")
+        with self.logger.increase_indent_context():
+            self.logger.info(f"train: {train_loader.batch_size}")
+            self.logger.info(f"validation: {validation_loader.batch_size}")
+            self.logger.info(f"push: {push_loader.batch_size}")
 
         joint_optimizer, joint_lr_scheduler = self._get_joint_optimizer()
 
         for epoch in np.arange(self._phases["joint"].epochs) + 1:
             self._epoch += 1
-            self.logger.info(f"\t\tepoch: \t{epoch} ({self._epoch})")
+            self.logger.info(f"epoch: \t{epoch} ({self._epoch})")
+            self.logger.increase_indent()
             if epoch > 1:
                 joint_lr_scheduler.step()
 
@@ -629,10 +639,11 @@ class ExplainableTrainer(ProtoPNetTrainer):
                     accu=accu,
                 )
 
-                self.last_layer(train_loader, validation_loader)
-
-                self.logger.info("\t\t\tfinished pushing prototypes")
-        self.logger.info(f"\t\tfinished training fold {self._fold}")
+                with self.logger.increase_indent_context():
+                    self.last_layer(train_loader, validation_loader)
+                    self.logger.info("finished pushing prototypes")
+            self.logger.decrease_indent()
+        self.logger.info(f"finished training fold {self._fold}")
 
     def last_layer(self, train_loader, validation_loader):
         """
@@ -647,35 +658,36 @@ class ExplainableTrainer(ProtoPNetTrainer):
 
         if self._params.prototypes.activation_fn != "linear":
             self._last_only()
-            for i in np.arange(self._phases["finetune"].epochs) + 1:
-                self.logger.info(f"\t\t\t\titeration: \t{i}")
+            with self.logger.increase_indent_context():
+                for i in np.arange(self._phases["finetune"].epochs) + 1:
+                    self.logger.info(f"iteration:\t{i}")
 
-                self.logger.csv_log_index(
-                    "train_model",
-                    (self._fold, self._epoch, f"last layer {i} train"),
-                )
-                _ = self.train(
-                    dataloader=train_loader,
-                    optimizer=last_layer_optimizer,
-                )
+                    self.logger.csv_log_index(
+                        "train_model",
+                        (self._fold, self._epoch, f"last layer {i} train"),
+                    )
+                    _ = self.train(
+                        dataloader=train_loader,
+                        optimizer=last_layer_optimizer,
+                    )
 
-                self.logger.csv_log_index(
-                    "train_model",
-                    (self._fold, self._epoch, f"last layer {i} validation"),
-                )
-                accu = self.eval(
-                    dataloader=validation_loader,
-                )
-                self.logger.save_model_w_condition(
-                    model_name=self.model_name(f"{self._epoch}-{i}-push"),
-                    state={
-                        "state_dict": self.model.state_dict(),
-                        "optimizer": last_layer_optimizer.state_dict(),
-                        "accu": accu,
-                    },
-                    accu=accu,
-                )
-            self.logger.info("\t\t\t\tfinished fine-tuning last layer")
+                    self.logger.csv_log_index(
+                        "train_model",
+                        (self._fold, self._epoch, f"last layer {i} validation"),
+                    )
+                    accu = self.eval(
+                        dataloader=validation_loader,
+                    )
+                    self.logger.save_model_w_condition(
+                        model_name=self.model_name(f"{self._epoch}-{i}-push"),
+                        state={
+                            "state_dict": self.model.state_dict(),
+                            "optimizer": last_layer_optimizer.state_dict(),
+                            "accu": accu,
+                        },
+                        accu=accu,
+                    )
+                self.logger.info("finished fine-tuning last layer")
             # set back to train in joint mode
             self._joint()
 

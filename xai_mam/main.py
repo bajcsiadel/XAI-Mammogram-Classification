@@ -60,22 +60,24 @@ def log_gpu_usage(gpu, logger):
     :return:
     """
     logger.info("GPU settings")
+    logger.increase_indent()
     if not gpu.disabled:
         match platform.system():
             case "Windows" | "Linux":
                 logger.info(
-                    f"\t{tick if torch.cuda.is_available() else cross} available CUDA"
+                    f"{tick if torch.cuda.is_available() else cross} available CUDA"
                 )
                 logger.info(
-                    f"\tVisible devices set to: {os.getenv('CUDA_VISIBLE_DEVICES')}"
+                    f"Visible devices set to: {os.getenv('CUDA_VISIBLE_DEVICES')}"
                 )
             case "Darwin":
                 logger.info(
-                    f"\t{tick if torch.backends.mps.is_available() else cross} available MPS"
+                    f"{tick if torch.backends.mps.is_available() else cross} available MPS"
                 )
 
     else:
-        logger.info(f"\t{tick} disabled")
+        logger.info(f"{tick} disabled")
+    logger.decrease_indent()
 
 
 def set_seeds(seed):
@@ -100,12 +102,14 @@ def run_experiment(cfg: main_cfg.Config, logger: Log):
     if cfg.cross_validation.folds > 1:
         logger.info("")
         logger.info(f"{tick} cross validation")
-        logger.info(f"\t{cfg.cross_validation.folds} folds")
+        logger.increase_indent()
+        logger.info(f"{cfg.cross_validation.folds} folds")
         logger.info(
-            f"\t{tick if cfg.cross_validation.stratified else cross} stratified"
+            f"{tick if cfg.cross_validation.stratified else cross} stratified"
         )
-        logger.info(f"\t{tick if cfg.cross_validation.balanced else cross} balanced")
-        logger.info(f"\t{tick if cfg.cross_validation.grouped else cross} grouped")
+        logger.info(f"{tick if cfg.cross_validation.balanced else cross} balanced")
+        logger.info(f"{tick if cfg.cross_validation.grouped else cross} grouped")
+        logger.decrease_indent()
     else:
         logger.info(f"{cross} cross validation")
 
@@ -121,20 +125,21 @@ def run_experiment(cfg: main_cfg.Config, logger: Log):
 
     logger.info("")
     logger.info("data settings")
-    logger.info(f"\t{cfg.data.set.name}")
-    logger.info(f"\t{cfg.data.set.state}")
-    logger.info(f"\t{cfg.data.set.target.size}")
-    logger.info(f"\t{cfg.data.set.target.name}")
-    logger.info(f"\t{' x '.join(map(str, image_shape))} image shape")
-    logger.info(f"\t{cfg.data.set.image_properties.color_channels} color channels")
-    logger.info(f"\t{cfg.data.set.image_properties.std} std")
-    logger.info(f"\t{cfg.data.set.image_properties.mean} mean")
-    logger.info(f"\t{data_module.dataset.number_of_classes} classes")
+    logger.increase_indent()
+    logger.info(f"{cfg.data.set.name}")
+    logger.info(f"{cfg.data.set.state}")
+    logger.info(f"{cfg.data.set.target.size}")
+    logger.info(f"{cfg.data.set.target.name}")
+    logger.info(f"{' x '.join(map(str, image_shape))} image shape")
+    logger.info(f"{cfg.data.set.image_properties.color_channels} color channels")
+    logger.info(f"{cfg.data.set.image_properties.std} std")
+    logger.info(f"{cfg.data.set.image_properties.mean} mean")
+    logger.info(f"{data_module.dataset.number_of_classes} classes")
 
     hydra.utils.instantiate(cfg.model.log_parameters_fn)(number_of_classes=data_module.dataset.number_of_classes, logger=logger, cfg=cfg)
-
-    logger.info(f"\t{tick if cfg.model.network.pretrained else cross} pretrained")
-    logger.info(f"\t{tick if cfg.model.backbone_only else cross} backbone only")
+    with logger.increase_indent_context():
+        logger.info(f"{tick if cfg.model.network.pretrained else cross} pretrained")
+        logger.info(f"{tick if cfg.model.backbone_only else cross} backbone only")
 
     with (logger.log_location / get_env("CONFIG_DIR_NAME") / "config.pickle").open(
         "wb"
@@ -148,6 +153,7 @@ def run_experiment(cfg: main_cfg.Config, logger: Log):
     for fold, (train_sampler, validation_sampler) in enumerate(
         data_module.folds, start=1
     ):
+        logger.increase_indent()
         start_fold = time.time()
         trainer = cfg.model.params.construct_trainer(
             data_module=data_module,
@@ -164,10 +170,11 @@ def run_experiment(cfg: main_cfg.Config, logger: Log):
         del trainer
 
         logger.info(
-            f"\t\tfold time: "
+            f"fold time: "
             f"{datetime.timedelta(seconds=int(time.time() - start_fold))}"
         )
-        logger.info(f"\t\tfinished training fold {fold}")
+        logger.info(f"finished training fold {fold}")
+        logger.decrease_indent()
 
     logger.info(
         f"training time: "

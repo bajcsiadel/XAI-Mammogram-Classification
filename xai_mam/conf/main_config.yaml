@@ -12,6 +12,9 @@ hydra:
     dir: ${run_location:}/${model.name}/${data.set.name}-${format_backbone_only:${model.backbone_only}}${model.network.name}-${data.set.state}-${data.set.target.name}/${now:%Y-%m-%d}/${now:%H-%M-%S}
   sweep:
     subdir: ${model.name}/${data.set.name}-${format_backbone_only:${model.backbone_only}}${model.network.name}-${data.set.state}-${data.set.target.name}/${now:%Y-%m-%d}/${now:%H-%M-%S}
+  job_logging:
+    root:
+      level: INFO
 
 data:
   datamodule:
