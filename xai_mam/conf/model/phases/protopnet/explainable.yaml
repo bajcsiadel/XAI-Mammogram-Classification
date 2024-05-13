@@ -19,7 +19,6 @@ phases:
       prototype_vectors: 3e-3
     scheduler:
       _target_: torch.optim.lr_scheduler.StepLR
-      _partial_: true
       step_size: 5
       gamma: 0.1
   finetune:

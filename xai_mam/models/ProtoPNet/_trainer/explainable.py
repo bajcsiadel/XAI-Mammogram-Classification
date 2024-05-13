@@ -489,7 +489,7 @@ class ExplainableTrainer(ProtoPNetTrainer):
             batch_size=self._phases["warm"].batch_size.validation,
         )
 
-        self.logger.info(f"\tbatch size: {train_loader.batch_size}")
+        self.logger.info("\tbatch size:")
         self.logger.info(f"\t\ttrain: {train_loader.batch_size}")
         self.logger.info(f"\t\tvalidation: {validation_loader.batch_size}")
 

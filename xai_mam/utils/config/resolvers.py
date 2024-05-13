@@ -74,7 +74,8 @@ def resolve_create():
 
 
 def add_all_custom_resolvers():
+    resolve_create()
     resolve_format_backbone_only()
     resolve_model_type()
-    resolve_run_location()
     resolve_package_name()
+    resolve_run_location()
