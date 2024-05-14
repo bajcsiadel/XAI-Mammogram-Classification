@@ -1,0 +1,47 @@
+defaults:
+  - _config_validation  # type verification defined in config_types.py
+  - _hydra_config
+  - _self_
+  - data/set: MIAS
+  - data/filters: default
+  - cross_validation: stratified
+  - model: protopnet
+
+hydra:
+  run:
+    dir: ${run_location:}/${model.name}/${data.set.name}-${format_backbone_only:${model.backbone_only}}${model.network.name}-${data.set.state}-${data.set.target.name}/${now:%Y-%m-%d}/${now:%H-%M-%S}
+  sweep:
+    subdir: ${model.name}/${data.set.name}-${format_backbone_only:${model.backbone_only}}${model.network.name}-${data.set.state}-${data.set.target.name}/${now:%Y-%m-%d}/${now:%H-%M-%S}
+  job_logging:
+    root:
+      level: INFO
+
+data:
+  datamodule:
+    _target_: xai_mam.dataset.dataloaders.CustomDataModule
+    data: ${data.set}
+    classification: ${data.set.target.name}
+    data_filters: ${data.filters}
+    cross_validation_folds: ${cross_validation.folds}
+    stratified: ${cross_validation.stratified}
+    balanced: ${cross_validation.balanced}
+    grouped: ${cross_validation.grouped}
+    num_workers: ${job.number_of_workers}
+    seed: ${seed}
+    debug: false
+
+seed: 42
+
+job:
+  number_of_workers: 4
+
+outputs:
+  dirs:
+    checkpoints: checkpoints
+    image: img
+    metadata: metadata
+    tensorboard: tensorboard
+  file_prefixes:
+    prototype: prototype-img
+    self_activation: prototype-self-act
+    bounding_box: prototype-bb

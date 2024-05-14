@@ -1,0 +1,21 @@
+hydra:
+  sweep:
+    dir: ${run_location:}
+  output_subdir: conf
+  job_logging:
+    formatters:
+      simple:
+        format: '[%(asctime)s %(levelname)s] %(message)s'
+    handlers:
+      file:
+        encoding: utf-8
+  hydra_logging:
+    handlers:
+      file:
+        class: logging.FileHandler
+        formatter: simple
+        filename: ${create:${hydra.mode}, ${hydra.sweep.dir}, ${hydra.sweep.subdir}, progress.log}
+    root:
+      handlers:
+        - console
+        - file

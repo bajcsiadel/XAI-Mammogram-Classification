@@ -1,0 +1,20 @@
+phases:
+  main:
+    batch_size:
+      train: 16
+      validation: 16
+    epochs: 90
+    learning_rates:
+      params: 0.1
+    scheduler:
+      _target_: torch.optim.lr_scheduler.StepLR
+      step_size: 30
+      gamma: 0.8
+
+params:
+  _target_: xai_mam.models.BagNet.config.BagNetParameters
+  loss:
+    _target_: xai_mam.models.BagNet.config.BagNetLoss
+    binary_cross_entropy: false
+    coefficients:
+      cross_entropy: 1.0

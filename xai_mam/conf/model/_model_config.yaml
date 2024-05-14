@@ -1,0 +1,4 @@
+defaults:
+  - _model_validation  # type verification defined in config_types.py
+  - backbone_only@_here_: null
+  - phases@_here_: ${model}/${model_type:${model/backbone_only@model}}

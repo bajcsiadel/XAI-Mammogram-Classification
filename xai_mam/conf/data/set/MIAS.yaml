@@ -1,0 +1,20 @@
+defaults:
+  - _data_config@_here_
+
+name: MIAS
+
+root: ${oc.env:DATA_ROOT}/MIAS/
+
+image_properties:
+  color_channels: 1
+  max_value: 255
+
+metadata:
+  file: ${data.set.root}/extended_data.csv
+  parameters:
+    header:
+      - 0
+      - 1
+    index_col:
+      - 0
+      - 1

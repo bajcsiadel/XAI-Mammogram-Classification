@@ -1,0 +1,28 @@
+defaults:
+  - _model_config
+  - network: resnet18
+
+name: protopnet
+log_parameters_fn:
+  _target_: xai_mam.models.ProtoPNet.log_parameters
+  _partial_: true
+validate_fn:
+  _target_: xai_mam.models.ProtoPNet.validate_model_config
+  _partial_: true
+
+params:
+  construct_trainer:
+    _target_: xai_mam.models.ProtoPNet.construct_trainer
+    _partial_: true
+  prototypes:
+    _target_: xai_mam.models.ProtoPNet.config.PrototypeProperties
+    per_class: 10
+    size: 256
+    activation_fn: log  # log | linear | relu | sigmoid | tanh
+
+network:
+  _target_: xai_mam.models.ProtoPNet.config.ProtoPNetBackboneNetwork
+  add_on_layer_properties:
+    _target_: xai_mam.models.ProtoPNet.config.AddOnLayerProperties
+    type: bottleneck  # regular | bottleneck
+    activation: A     # A | B

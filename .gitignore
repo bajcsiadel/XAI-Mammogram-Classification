@@ -7,3 +7,5 @@ pretrained_models/
 .env
 
 poetry.lock
+
+**/*.DS_Store

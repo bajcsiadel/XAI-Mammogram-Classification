@@ -1,0 +1,30 @@
+defaults:
+  - _script_config_validation  # defined in xai_mam/models/xai_mam/scripts/run_pruning.py
+  - _hydra_config
+  - _self_
+
+result_dir: /Users/norberttamas/Desktop/Adel/Projects/xai_mam-Mammogram/runs/main/test
+model_name: 10-push.pth
+optimize_last_layer: true
+prune_threshold: 3
+k_nearest: 6
+batch_size:
+  train: 64
+  validation: 128
+
+outputs:
+  dirs:
+    checkpoints: checkpoints/pruned-prototypes-k_${k_nearest}-pt_${prune_threshold}
+    image: img
+    metadata: metadata
+    tensorboard: tensorboard
+  file_prefixes:
+    prototype: prototype-img
+    self_activation: prototype-self-act
+    bounding_box: prototype-bb
+
+hydra:
+  run:
+    dir: ${run_location:}
+  sweep:
+    subdir: ${now:%Y-%m-%d}/${now:%H-%M-%S}
