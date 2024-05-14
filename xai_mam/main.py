@@ -16,7 +16,7 @@ from xai_mam.models.ProtoPNet import AddOnLayers
 from xai_mam.utils import helpers
 from xai_mam.utils.config import script_main as main_cfg
 from xai_mam.utils.environment import get_env
-from xai_mam.utils.log import Log
+from xai_mam.utils.log import TrainLogger
 
 tick = "\u2714"
 cross = "\u2718"
@@ -28,7 +28,7 @@ cross = "\u2718"
     config_name="main_config",
 )
 def main(cfg: main_cfg.Config):
-    with Log(__name__, cfg.outputs) as logger:
+    with TrainLogger(__name__, cfg.outputs) as logger:
         try:
             warnings.showwarning = lambda message, *args: logger.exception(
                 message, warn_only=True
@@ -92,7 +92,7 @@ def set_seeds(seed):
     torch.cuda.manual_seed(seed)
 
 
-def run_experiment(cfg: main_cfg.Config, logger: Log):
+def run_experiment(cfg: main_cfg.Config, logger: Logger):
     # save last commit number (source of the used code)
     commit_file = logger.metadata_location / "commit_hash"
     commit_file.write_bytes(helpers.get_current_commit_hash())
