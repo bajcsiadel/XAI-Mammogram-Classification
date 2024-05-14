@@ -190,3 +190,9 @@ class Data:
     set: Dataset
     filters: list[Filter]
     datamodule: DataModule
+
+
+def init_data_config_store():
+    from xai_mam.utils.config import config_store_
+    config_store_.store(name="_data_validation", group="data", node=Data)
+    config_store_.store(name="_data_set_validation", group="data/set", node=Dataset)
