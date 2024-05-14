@@ -3,7 +3,6 @@ import typing as typ
 
 import hydra
 
-from xai_mam.models.utils.backbone_features import all_features
 from xai_mam.utils.config._general_types._multifunctional import BatchSize
 
 __all__ = [
@@ -18,17 +17,6 @@ __all__ = [
 class Network:
     name: str
     pretrained: bool
-
-    def __setattr__(self, key, value):
-        match key:
-            case "name":
-                if value not in all_features:
-                    raise ValueError(
-                        f"Network {value} not supported. Choose "
-                        f"one of {', '.join(all_features)}."
-                    )
-
-        super().__setattr__(key, value)
 
 
 @dc.dataclass

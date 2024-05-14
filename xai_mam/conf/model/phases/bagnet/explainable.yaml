@@ -8,7 +8,6 @@ phases:
       params: 0.1
     scheduler:
       _target_: torch.optim.lr_scheduler.StepLR
-      _partial_: true
       step_size: 30
       gamma: 0.8
 

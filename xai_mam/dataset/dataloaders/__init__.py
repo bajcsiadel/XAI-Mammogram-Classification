@@ -14,6 +14,7 @@ from torch.utils.data import DataLoader
 from torchvision import datasets
 
 import xai_mam.utils.config.types as conf_typ
+from xai_mam.utils.config.script_main import init_config_store, Config
 from xai_mam.utils.split_data import stratified_grouped_train_test_split
 
 
@@ -688,14 +689,14 @@ if __name__ == "__main__":
 
     from xai_mam.utils.environment import get_env
 
-    conf_typ.init_config_store()
+    init_config_store()
 
     @hydra.main(
         version_base=None,
         config_path=get_env("CONFIG_PATH"),
         config_name="main_config",
     )
-    def test(cfg: conf_typ.Config):
+    def test(cfg: Config):
         module = hydra.utils.instantiate(cfg.data.datamodule)
         for f, (tr, vl) in enumerate(module.folds, start=1):
             ic(f)

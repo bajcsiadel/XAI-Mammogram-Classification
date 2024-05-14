@@ -179,7 +179,7 @@ class BagNetTrainer(BaseTrainer):
                     "accuracy_top5", {f"accuracy_top5/{phase}": top5.avg}
                 )
                 write_loss = {
-                    "cross_entropy": losses.avg,
+                    "cross_entropy": losses.value,
                     "loss": loss_values["total"].item(),
                 }
 
@@ -203,7 +203,7 @@ class BagNetTrainer(BaseTrainer):
             weight_decay=1e-4,
         )
         lr_scheduler = hydra.utils.instantiate(
-            self._phases["main"].scheduler, optimizer
+            self._phases["main"].scheduler, optimizer=optimizer
         )
 
         return optimizer, lr_scheduler

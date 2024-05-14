@@ -19,5 +19,5 @@ def validate_model_config(cfg):
             cfg.network.name = "resnet50"
     else:
         if cfg.network.name not in all_models.keys():
-            raise ValueError(f"Model {cfg.network.name} not supported for BagNet."
-                             f"Choose one of {', '.join(all_models.keys())}.")
+            raise ValueError(f"Model {cfg.network.name} not supported for explainable "
+                             f"BagNet. Choose one of {', '.join(all_models.keys())}.")

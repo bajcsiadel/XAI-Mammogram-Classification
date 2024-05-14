@@ -1,5 +1,6 @@
 import dataclasses as dc
 
+from xai_mam.models.utils.backbone_features import all_features
 from xai_mam.utils.config.types import Loss, Network
 
 
@@ -73,3 +74,14 @@ class AddOnLayerProperties:
 @dc.dataclass
 class ProtoPNetBackboneNetwork(Network):
     add_on_layer_properties: AddOnLayerProperties
+
+    def __setattr__(self, key, value):
+        match key:
+            case "name":
+                if value not in all_features:
+                    raise ValueError(
+                        f"Network {value} not supported. Choose "
+                        f"one of {', '.join(all_features)}."
+                    )
+
+        super().__setattr__(key, value)

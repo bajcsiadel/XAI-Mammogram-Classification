@@ -100,7 +100,7 @@ def construct_trainer(
         n_classes = data_module.dataset.number_of_classes
         model = construct_model(
             logger=logger,
-            base_architecture=model_config.name,
+            base_architecture=model_config.network.name,
             pretrained=model_config.network.pretrained,
             color_channels=data_module.dataset.image_properties.color_channels,
             n_classes=n_classes,
