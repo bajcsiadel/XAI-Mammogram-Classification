@@ -37,7 +37,7 @@ class ScriptLogger(logging.Logger):
         self._indent = 0
 
         logging.getLogger().manager.loggerDict[name] = self
-        self.info(self.log_location)
+        self.info(f"Log dir: {self.log_location}")
 
     @contextlib.contextmanager
     def increase_indent_context(self, times=1):

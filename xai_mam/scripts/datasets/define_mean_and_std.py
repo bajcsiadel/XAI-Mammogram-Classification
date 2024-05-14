@@ -24,7 +24,6 @@ import typing as typ
 
 import hydra
 import numpy as np
-import pipe
 from dotenv import load_dotenv
 from omegaconf import OmegaConf
 from omegaconf import errors as conf_errors
@@ -34,7 +33,7 @@ load_dotenv()
 sys.path.append(os.getenv("PROJECT_ROOT"))
 
 from xai_mam.dataset.dataloaders import my_collate_function
-from xai_mam.utils import helpers
+from xai_mam.utils import custom_pipe
 from xai_mam.utils.config import config_store_
 from xai_mam.utils.config._general_types.data import Dataset
 from xai_mam.utils.config.resolvers import add_all_custom_resolvers
@@ -105,8 +104,8 @@ def compute_mean_and_std_of_dataset(cfg: Config):
         for images, _ in loader:
             sizes = (
                 list(images)
-                | pipe.map(lambda x: x.shape[1:])
-                | helpers.CustomPipe.to_numpy
+                | custom_pipe.map(lambda x: x.shape[1:])
+                | custom_pipe.to_numpy
             )
             average_image_size += np.sum(sizes, axis=0)
 

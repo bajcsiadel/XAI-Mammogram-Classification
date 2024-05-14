@@ -1,0 +1,57 @@
+defaults:
+  - _config_validation  # type verification defined in xai_mam/scripts/datasets/define_mean_and_std.py
+  - _hydra_config
+  - _self_
+  - data/set: MIAS
+
+hydra:
+  run:
+    dir: ${run_location:}/${data.set.name}/${data.set.state}
+  sweep:
+    subdir: ${data.set.name}/${data.set.state}
+
+dataset:
+  _target_: xai_mam.dataset.dataloaders.CustomVisionDataset
+  dataset_meta: ${data.set}
+  classification: ${data.set.target.name}
+  subset: train
+  normalize: false
+
+augmentations:
+  train:
+    - _target_: xai_mam.utils.helpers.RepeatedAugmentation
+      transforms:
+        - _target_: albumentations.Rotate
+          limit: 10
+          border_mode: 0
+          crop_border: true
+          p: 1.0
+      n: 10
+    - _target_: xai_mam.utils.helpers.RepeatedAugmentation
+      transforms:
+        - _target_: xai_mam.utils.helpers.Shear
+          limit: 10
+          crop_border: true
+          p: 1.0
+      n: 10
+    - _target_: xai_mam.utils.helpers.RepeatedAugmentation
+      transforms:
+        - _target_: albumentations.Perspective
+          scale:
+            - 0.2
+            - 0.2
+          p: 1.0
+      n: 10
+    - _target_: xai_mam.utils.helpers.RepeatedAugmentation
+      transforms:
+        - _target_: albumentations.HorizontalFlip
+          p: 1.0
+      n: 1
+#    - _target_: xai_mam.utils.helpers.RepeatedAugmentation
+#      transforms:
+#        - _target_: albumentations.VerticalFlip
+#          p: 1.0
+#      n: 1
+  push: []
+
+output_dir: "augmented"

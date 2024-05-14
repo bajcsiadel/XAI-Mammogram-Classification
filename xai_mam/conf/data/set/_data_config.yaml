@@ -9,4 +9,3 @@ image_properties:
   augmentations:
     train: []
     push: []
-    test: []

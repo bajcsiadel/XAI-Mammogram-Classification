@@ -279,7 +279,7 @@ class CustomVisionDataset(datasets.VisionDataset):
 
         image = (
             np.load(image_path, allow_pickle=True)["image"]
-            if self.__dataset_meta.image_properties.extension in [".npy", ".npz"]
+            if image_path.suffix in [".npy", ".npz"]
             else cv2.imread(str(image_path), cv2.IMREAD_GRAYSCALE)
         )
 

@@ -4,6 +4,7 @@ from pathlib import Path
 
 import numpy as np
 
+from xai_mam.utils import custom_pipe
 from xai_mam.utils.config._general_types._multifunctional import BatchSize
 
 __all__ = [
@@ -26,7 +27,6 @@ Augmentation = dict[str, typ.Any]
 class Augmentations:
     train: list[Augmentation]
     push: list[Augmentation]
-    test: list[Augmentation]
 
     def __setattr__(self, key, value):
         if not isinstance(value, list):
@@ -41,6 +41,17 @@ class Augmentations:
                 raise ValueError(f"Augmentations must have a _target_. {key} = {value}")
 
         super().__setattr__(key, value)
+
+    def _validate_augmentations(self, key):
+        if len(self.__dict__[key]
+               | custom_pipe.filter(lambda augmentation: augmentation.get("_target_") == "xai_mam.utils.helpers.RepeatedAugmentation")   # noqa
+               | custom_pipe.to_list) != len(self.__dict__[key]):
+            raise ValueError("Mixing RepeatedAugmentation and BasicTransforms "
+                             "is not allowed.")
+
+    def __post_init__(self):
+        self._validate_augmentations("train")
+        self._validate_augmentations("push")
 
 
 @dc.dataclass
