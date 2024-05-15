@@ -404,7 +404,6 @@ class CustomDataModule:
         )
         self.__test_data = CustomVisionDataset(
             **dataset_params,
-            transform=self.__data.image_properties.augmentations.test,
             subset="test",
         )
 
