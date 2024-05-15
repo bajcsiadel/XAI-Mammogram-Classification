@@ -92,7 +92,7 @@ def set_seeds(seed):
     torch.cuda.manual_seed(seed)
 
 
-def run_experiment(cfg: main_cfg.Config, logger: Logger):
+def run_experiment(cfg: main_cfg.Config, logger: TrainLogger):
     # save last commit number (source of the used code)
     commit_file = logger.metadata_location / "commit_hash"
     commit_file.write_bytes(helpers.get_current_commit_hash())
