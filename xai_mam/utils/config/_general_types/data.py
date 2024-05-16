@@ -1,7 +1,9 @@
+import albumentations as A
 import dataclasses as dc
 import typing as typ
 from pathlib import Path
 
+import hydra.utils
 import numpy as np
 
 from xai_mam.utils import custom_pipe
@@ -9,7 +11,7 @@ from xai_mam.utils.config._general_types._multifunctional import BatchSize
 
 __all__ = [
     "Augmentation",
-    "Augmentations",
+    "AugmentationGroups",
     "ImageProperties",
     "CSVParameters",
     "MetadataInformation",
@@ -20,38 +22,61 @@ __all__ = [
     "DataModule",
 ]
 
+from xai_mam.utils.helpers import RepeatedAugmentation
+
 Augmentation = dict[str, typ.Any]
 
 
 @dc.dataclass
 class Augmentations:
-    train: list[Augmentation]
-    push: list[Augmentation]
+    transforms: list[Augmentation]
+    __transform_instances: list = dc.field(default_factory=list)
 
     def __setattr__(self, key, value):
         if not isinstance(value, list):
             raise ValueError(f"Augmentations must be a list. {key} = {value}")
 
-        for augmentation in value:
-            if not isinstance(augmentation, dict):
-                raise ValueError(
-                    f"Augmentations must be a list of dictionaries. {key} = {value}"
-                )
-            if "_target_" not in augmentation.keys():
-                raise ValueError(f"Augmentations must have a _target_. {key} = {value}")
+        match key:
+            case "transforms":
+                for augmentation in value:
+                    if not isinstance(augmentation, dict):
+                        raise ValueError(
+                            f"Augmentations must be a list of dictionaries. {key} = {value}"
+                        )
+                    if "_target_" not in augmentation.keys():
+                        raise ValueError(f"Augmentations must have a _target_. {key} = {value}")
 
         super().__setattr__(key, value)
 
-    def _validate_augmentations(self, key):
-        if len(self.__dict__[key]
+    def _validate_augmentations(self):
+        if len(self.transforms
                | custom_pipe.filter(lambda augmentation: augmentation.get("_target_") == "xai_mam.utils.helpers.RepeatedAugmentation")   # noqa
-               | custom_pipe.to_list) != len(self.__dict__[key]):
+               | custom_pipe.to_list) != len(self.transforms):
             raise ValueError("Mixing RepeatedAugmentation and BasicTransforms "
                              "is not allowed.")
 
+    def get_transforms(self):
+        if len(self.__transform_instances) > 0:
+            match self.__transform_instances[0]:
+                case RepeatedAugmentation() | A.Compose():
+                    for transform in self.__transform_instances:
+                        yield transform
+                case _:
+                    yield A.Compose(transforms=[A.Sequential(self.__transform_instances)])
+        else:
+            yield A.NoOp()
+
     def __post_init__(self):
-        self._validate_augmentations("train")
-        self._validate_augmentations("push")
+        self._validate_augmentations()
+        self.__transform_instances = (self.transforms
+                                      | custom_pipe.map(hydra.utils.instantiate)
+                                      | custom_pipe.to_list)
+
+
+@dc.dataclass
+class AugmentationGroups:
+    train: Augmentations
+    push: Augmentations
 
 
 @dc.dataclass
@@ -63,7 +88,7 @@ class ImageProperties:
     max_value: float
     mean: list[float]
     std: list[float]
-    augmentations: Augmentations
+    augmentations: AugmentationGroups
 
     def __setattr__(self, key, value):
         match key:

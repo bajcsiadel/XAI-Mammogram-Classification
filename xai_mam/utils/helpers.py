@@ -125,6 +125,12 @@ class RepeatedAugmentation(A.Compose):
             results.append(super().__call__(*args, **kwargs))
         return results
 
+    def __repr__(self):
+        return (f"RepeatedAugmentation("
+                f"transforms={self.transforms}, "
+                f"p={self.p}, "
+                f"n={self._n_repeat})")
+
 
 class Shear(A.Affine):
     """
