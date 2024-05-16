@@ -81,7 +81,7 @@ def process_config(cfg):
     ic(cfg)
 
     ic(cfg.data.set.image_properties.augmentations)
-    ic(instantiate(cfg.data.set.image_properties.augmentations.train))
+    ic(instantiate(cfg.data.set.image_properties.augmentations.train.transforms))
     ic(type(cfg))
     ic(instantiate(cfg.data.datamodule))
     return cfg
