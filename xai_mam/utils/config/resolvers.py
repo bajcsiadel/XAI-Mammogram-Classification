@@ -9,6 +9,7 @@ from xai_mam.utils.environment import get_env
 
 log_created = {}
 
+
 def _get_package_name():
     import traceback
 
@@ -50,12 +51,21 @@ def _create(run_mode, sweep_dir, sweep_subdir="", filename="progress.log"):
     return filename
 
 
-def resolve_format_backbone_only():
-    def format_backbone_only(backbone_only):
+def resolve_is_backbone_only():
+    def is_backbone_only(backbone_only):
         return "only-" if backbone_only else ""
 
     omegaconf.OmegaConf.register_new_resolver(
-        "format_backbone_only", format_backbone_only
+        "is_backbone_only", is_backbone_only
+    )
+
+
+def resolve_is_debug_mode():
+    def is_debug_mode(debug):
+        return "debug-" if debug else ""
+
+    omegaconf.OmegaConf.register_new_resolver(
+        "is_debug_mode", is_debug_mode
     )
 
 
@@ -80,7 +90,8 @@ def resolve_create():
 
 def add_all_custom_resolvers():
     resolve_create()
-    resolve_format_backbone_only()
+    resolve_is_backbone_only()
+    resolve_is_debug_mode()
     resolve_model_type()
     resolve_package_name()
     resolve_run_location()
