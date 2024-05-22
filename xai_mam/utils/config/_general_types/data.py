@@ -1,3 +1,4 @@
+import albumentations
 import albumentations as A
 import dataclasses as dc
 import typing as typ
@@ -11,6 +12,7 @@ from xai_mam.utils.config._general_types._multifunctional import BatchSize
 
 __all__ = [
     "Augmentation",
+    "Augmentations",
     "AugmentationGroups",
     "ImageProperties",
     "CSVParameters",
@@ -29,54 +31,75 @@ Augmentation = dict[str, typ.Any]
 
 @dc.dataclass
 class Augmentations:
-    transforms: list[Augmentation]
-    __transform_instances: list = dc.field(default_factory=list)
+    transforms: list[Augmentation] = dc.field(
+        default_factory=lambda: [{"_target_": "albumentations.NoOp"}]
+    )
+    __identity_transform_present: bool = False
 
     def __setattr__(self, key, value):
-        if not isinstance(value, list):
-            raise ValueError(f"Augmentations must be a list. {key} = {value}")
-
         match key:
             case "transforms":
+                if not isinstance(value, list):
+                    raise ValueError(f"Augmentations must be a list. {key} = {value}")
                 for augmentation in value:
-                    if not isinstance(augmentation, dict):
+                    if (not isinstance(augmentation, dict) and
+                            not issubclass(type(augmentation),
+                                           (A.BaseCompose, A.BasicTransform))):
                         raise ValueError(
                             f"Augmentations must be a list of dictionaries. {key} = {value}"
                         )
-                    if "_target_" not in augmentation.keys():
-                        raise ValueError(f"Augmentations must have a _target_. {key} = {value}")
+                    if type(value) is dict and "_target_" not in augmentation.keys():
+                        raise ValueError(
+                            f"Augmentations must have a _target_. {key} = {value}")
+                    self.__identity_transform_present = self.set_identity_transform_present(value)
 
         super().__setattr__(key, value)
 
     def _validate_augmentations(self):
-        if len(self.transforms
-               | custom_pipe.filter(lambda augmentation: augmentation.get("_target_") == "xai_mam.utils.helpers.RepeatedAugmentation")   # noqa
-               | custom_pipe.to_list) != len(self.transforms):
-            raise ValueError("Mixing RepeatedAugmentation and BasicTransforms "
-                             "is not allowed.")
-
-    def get_transforms(self):
-        if len(self.__transform_instances) > 0:
-            match self.__transform_instances[0]:
-                case RepeatedAugmentation() | A.Compose():
-                    for transform in self.__transform_instances:
-                        yield transform
-                case _:
-                    yield A.Compose(transforms=[A.Sequential(self.__transform_instances)])
+        compose_augmentations = (self.transforms
+                                 | custom_pipe.filter(
+                    lambda augmentation: augmentation.get(
+                        "_target_") in ["albumentations.Compose",
+                                        "xai_mam.utils.helpers.RepeatedAugmentation"])
+                                 | custom_pipe.to_list)
+        if len(compose_augmentations) > 0:
+            if len(compose_augmentations) != len(self.transforms):
+                raise ValueError("Mixing RepeatedAugmentation/Compose "
+                                 "and BasicTransforms is not allowed.")
+            elif not self.__identity_transform_present:
+                # if there are multiple transforms then add a transform
+                # to keep the original image
+                self.transforms.append({
+                    "_target_": "albumentations.Compose",
+                    "transforms": [{
+                        "_target_": "albumentations.NoOp"
+                    }]
+                })
         else:
-            yield A.NoOp()
+            # TODO: add a flag here to skip identity transform if needed
+            # convert BasicTransforms to Compose
+            self.transforms = [{
+                "_target_": "albumentations.Compose",
+                "transforms": self.transforms,
+            }]
+
+    def set_identity_transform_present(self, transforms):
+        for augmentation in transforms:
+            if augmentation.get("_target_") == "albumentations.NoOp":
+                return True
+            if (child_transforms := augmentation.get("transforms")) is not None:
+                return self.set_identity_transform_present(child_transforms)
+        return False
 
     def __post_init__(self):
+        self.__identity_transform_present = self.set_identity_transform_present(self.transforms)
         self._validate_augmentations()
-        self.__transform_instances = (self.transforms
-                                      | custom_pipe.map(hydra.utils.instantiate)
-                                      | custom_pipe.to_list)
 
 
 @dc.dataclass
 class AugmentationGroups:
-    train: Augmentations
-    push: Augmentations
+    train: Augmentations = dc.field(default_factory=Augmentations)
+    push: Augmentations = dc.field(default_factory=Augmentations)
 
 
 @dc.dataclass
@@ -88,7 +111,7 @@ class ImageProperties:
     max_value: float
     mean: list[float]
     std: list[float]
-    augmentations: AugmentationGroups
+    augmentations: AugmentationGroups = dc.field(default_factory=AugmentationGroups)
 
     def __setattr__(self, key, value):
         match key:
@@ -161,7 +184,7 @@ class Dataset:
     image_dir: Path
     image_properties: ImageProperties
     metadata: MetadataInformation
-    number_of_classes: int = 0
+    number_of_classes: int = 0  # set automatically from code
     input_size: tuple[int, int] = (0, 0)
 
     # possible values
@@ -188,12 +211,12 @@ class Dataset:
                         f"Dataset subset {value} not supported. "
                         f"Choose one of f{', '.join(self.__subset_values)}."
                     )
-            case "number_of_classes" | "input_size":
+            case "number_of_classes":
+                limit = -1
                 if key in self.__dict__:
-                    raise ValueError(
-                        f"{key} is automatically defined. "
-                        f"Should not be set in the configuration file!"
-                    )
+                    limit = 0
+                if value <= limit:
+                    raise ValueError(f"{key} must be positive. {key} = {value}")
 
         super().__setattr__(key, value)
 
@@ -219,6 +242,8 @@ class DataModule:
     seed: int = 1234
     debug: bool = False
     batch_size: BatchSize = dc.field(default_factory=lambda: BatchSize(32, 16))
+    _convert_: str = "object"  # Structured Configs are converted to instances
+    _recursive_: bool = False
 
 
 @dc.dataclass

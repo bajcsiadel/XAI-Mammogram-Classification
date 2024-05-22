@@ -9,8 +9,11 @@ import subprocess
 import typing as typ
 from pathlib import Path
 
+import hydra.utils
 import numpy as np
 from pipe import Pipe
+
+import xai_mam.utils.config._general_types.data as config
 
 
 def get_current_commit_hash():
@@ -119,11 +122,12 @@ class RepeatedAugmentation(A.Compose):
         super().__init__(transforms, p=p)
         self._n_repeat = n
 
+    @property
+    def n_repeat(self):
+        return self._n_repeat
+
     def __call__(self, *args, **kwargs):
-        results = []
-        for _ in range(self._n_repeat):
-            results.append(super().__call__(*args, **kwargs))
-        return results
+        return super().__call__(*args, **kwargs)
 
     def __repr__(self):
         return (f"RepeatedAugmentation("
@@ -209,3 +213,45 @@ class Shear(A.Affine):
         result = super().__call__(*args, **kwargs)
         self.shear = deepcopy(self.original)
         return result
+
+
+@dc.dataclass
+class Augmentations:
+    transforms: list[A.BasicTransform | A.Compose | RepeatedAugmentation] = dc.field(
+        default_factory=lambda: [A.NoOp]
+    )
+
+    def __init__(self, transforms=None):
+        """
+        Transformations to apply to the images. Converted from the config.
+
+        :param transforms: transforms set in the configuration
+        :type transforms: xai_mam.utils.config._general_types.data.Augmentations
+        """
+        if transforms is None:
+            transforms = config.Augmentations()
+        self.transforms = hydra.utils.instantiate(transforms).transforms
+
+    @property
+    def multiplier(self):
+        multiplier = 1 if len(self.transforms) == 0 else 0
+        for transform in self.transforms:
+            match transform:
+                case RepeatedAugmentation():
+                    multiplier += transform.n_repeat
+                case A.Compose():
+                    multiplier += 1
+                case _:
+                    return 1
+        return multiplier
+
+    def get_transforms(self):
+        if len(self.transforms) > 0:
+            match self.transforms[0]:
+                case RepeatedAugmentation() | A.Compose():
+                    for transform in self.transforms:
+                        yield transform
+                case _:
+                    yield A.Compose(transforms=[A.Sequential(self.transforms)])
+        else:
+            yield A.NoOp()

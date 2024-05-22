@@ -19,6 +19,7 @@ hydra:
 data:
   datamodule:
     _target_: xai_mam.dataset.dataloaders.CustomDataModule
+    _convert_: object  # Structured Configs are converted to instances
     data: ${data.set}
     classification: ${data.set.target.name}
     data_filters: ${data.filters}

@@ -15,6 +15,7 @@ from torchvision import datasets
 
 import xai_mam.utils.config.types as conf_typ
 from xai_mam.utils.config.script_main import init_config_store, Config
+from xai_mam.utils.helpers import RepeatedAugmentation, Augmentations
 from xai_mam.utils.split_data import stratified_grouped_train_test_split
 
 
@@ -42,8 +43,7 @@ class CustomVisionDataset(datasets.VisionDataset):
     :param data_filters: Filters to apply to the data
     :type data_filters: list[ProtoPNet.dataset.metadata.DataFilter] | None
     :param transform: Transform to apply to the images
-    :type transform: albumentations.BasicTransform |
-        list[albumentations.BasicTransform]
+    :type transform: xai_mam.utils.config._general_types.data.Augmentations
     :param target_transform: Transform to apply to the targets.
         Should return a tensor representing the target.
     :type target_transform: typ.Callable[[], torch.Tensor]
@@ -52,57 +52,38 @@ class CustomVisionDataset(datasets.VisionDataset):
     """
 
     def __init__(
-        self,
-        dataset_meta,
-        classification,
-        subset="train",
-        data_filters=None,
-        normalize=True,
-        transform=None,
-        target_transform=_target_transform,
-        debug=False,
+            self,
+            dataset_meta,
+            classification,
+            subset="train",
+            data_filters=None,
+            normalize=True,
+            transform=None,
+            target_transform=_target_transform,
+            debug=False,
     ):
         if transform is None:
-            transform = A.NoOp()
-        if isinstance(transform, A.BasicTransform):
-            transform = [transform]
-        elif isinstance(transform, omegaconf.ListConfig):
-            if len(transform) > 0:
-                if isinstance(transform[0], omegaconf.DictConfig):
-                    transform = [instantiate(t) for t in transform]
-            else:
-                transform = []
+            transform = Augmentations()
 
         if normalize:
-            transform.append(
-                # normalize transform will be applied after ToFloat,
-                # which already converts the images between 0 and 1
-                A.Normalize(
-                    mean=dataset_meta.image_properties.mean,
-                    std=dataset_meta.image_properties.std,
-                    max_pixel_value=1.0,
-                )
+            # normalize transform will be applied after ToFloat,
+            # which already converts the images between 0 and 1
+            normalize_transform = A.Normalize(
+                mean=dataset_meta.image_properties.mean,
+                std=dataset_meta.image_properties.std,
+                max_pixel_value=1.0,
             )
-
-        transform = A.Compose(
-            [
-                A.ToFloat(max_value=dataset_meta.image_properties.max_value),
-                A.Resize(
-                    width=dataset_meta.image_properties.width,
-                    height=dataset_meta.image_properties.height,
-                ),
-                *transform,  # unpack list of transforms
-                ToTensorV2(),
-            ]
-        )
+        else:
+            normalize_transform = A.NoOp()
 
         super().__init__(
             str(dataset_meta.image_dir),
-            transform=transform,
+            transform=lambda img: img,
             target_transform=target_transform,
         )
 
         self.__debug = debug
+        self.__normalize_transform = normalize_transform
 
         assert subset in [
             "train",
@@ -119,8 +100,8 @@ class CustomVisionDataset(datasets.VisionDataset):
                 dataset_meta.metadata.parameters
             )
         if (
-            isinstance(metafile_params, conf_typ.CSVParameters)
-            or type(metafile_params).__name__ == "CSVParameters"
+                isinstance(metafile_params, conf_typ.CSVParameters)
+                or type(metafile_params).__name__ == "CSVParameters"
         ):
             metafile_params = metafile_params.to_dict()
 
@@ -161,7 +142,7 @@ class CustomVisionDataset(datasets.VisionDataset):
             self.__meta_information = self.__meta_information[
                 self.__meta_information[(self.__classification, "subset")]
                 == self.__subset
-            ]
+                ]
         self.__classes = (
             self.__meta_information[(self.__classification, "label")].unique().tolist()
         )
@@ -171,19 +152,39 @@ class CustomVisionDataset(datasets.VisionDataset):
         self.__transform = transform
         self.__target_transform = target_transform
 
-        for transform in self.__transform[::-1]:
-            if isinstance(transform, A.RandomResizedCrop) or isinstance(
-                transform, A.Resize
-            ):
-                # save the width and height of the image after the
-                # last augmentation modifying the size
-                self.__dataset_meta.input_size = (transform.height, transform.width)
-                break
-        else:
-            self.__dataset_meta.input_size = (
-                dataset_meta.image_properties.height,
-                dataset_meta.image_properties.width,
-            )
+        self.__dataset_meta.input_size = (
+            dataset_meta.image_properties.height,
+            dataset_meta.image_properties.width,
+        )
+
+        self.__current_image_index = None
+        self.__current_image = None
+        self.__current_target = None
+        self.__current_transform_index = None
+        self.__transform_repetition = 0
+
+    def __compose_transform(self, transform):
+        """
+        Creating transforms. Surround the transforms with the necessary
+        transforms (ToFloat, Normalize, Resize, ToTensor).
+
+        :param transform:
+        :type transform: albumentations.Compose | xai_mam.utils.helpers.RepeatedAugmentation
+        :return: the final transform
+        :rtype: albumentations.Compose
+        """
+        return A.Compose(
+            [
+                A.ToFloat(max_value=self.__dataset_meta.image_properties.max_value),
+                transform,  # unpack list of transforms
+                self.__normalize_transform,
+                A.Resize(
+                    width=self.__dataset_meta.image_properties.width,
+                    height=self.__dataset_meta.image_properties.height,
+                ),
+                ToTensorV2(),
+            ]
+        )
 
     @property
     def targets(self):
@@ -223,6 +224,33 @@ class CustomVisionDataset(datasets.VisionDataset):
         self.__debug = state == "on"
         return self.__debug
 
+    def get_original(self, index):
+        """
+        Get the original image at a specific index from the dataset
+
+        :param index: Index of the sample
+        :type index: int
+        :return: Return the image and its label at a given index
+        :rtype: (numpy.ndarray, int)
+        """
+        sample = self.__meta_information.iloc[index]
+
+        # Load the image
+        image_path = (
+                self.__dataset_meta.image_dir
+                / f"{sample.name[1]}{self.__dataset_meta.image_properties.extension}"
+        )
+
+        image = (
+            np.load(image_path, allow_pickle=True)["image"]
+            if image_path.suffix in [".npy", ".npz"]
+            else cv2.imread(str(image_path), cv2.IMREAD_GRAYSCALE)
+        )
+
+        target = self.__class_to_number[sample[self.__classification, "label"]]
+
+        return image, target
+
     def __repr__(self):
         """
         Get the representation of the dataset
@@ -254,10 +282,7 @@ class CustomVisionDataset(datasets.VisionDataset):
         :return: number of images
         :rtype: int
         """
-        # if debug mode is turned on we iterate through the data twice:
-        # first originals are returned than the transformed ones
-        # 1 + True = 2
-        return len(self.__meta_information) * (1 + self.__debug)
+        return len(self.__meta_information) * self.__transform.multiplier
 
     def __getitem__(self, index):
         """
@@ -269,28 +294,27 @@ class CustomVisionDataset(datasets.VisionDataset):
         :rtype: typ.Tuple[torch.Tensor, torch.Tensor]
         """
         # if debug mode is on the indices should be divided by 2
-        sample = self.__meta_information.iloc[index // (1 + self.__debug)]
+        sample_index = index // (self.__transform.multiplier + self.__debug)
 
-        # Load the image
-        image_path = (
-            self.__dataset_meta.image_dir
-            / f"{sample.name[1]}{self.__dataset_meta.image_properties.extension}"
-        )
-
-        image = (
-            np.load(image_path, allow_pickle=True)["image"]
-            if image_path.suffix in [".npy", ".npz"]
-            else cv2.imread(str(image_path), cv2.IMREAD_GRAYSCALE)
-        )
-
-        target = self.__class_to_number[sample[self.__classification, "label"]]
-
-        if self.__debug and index % 2 == 0:
-            return image, target
+        if sample_index != self.__current_image_index:
+            # Load the image
+            self.__current_image, self.__current_target = self.get_original(sample_index)
+            self.__current_image_index = sample_index
+            assert self.__current_transform_index is None or self.__current_transform_index == self.__transform.multiplier
+            self.__current_transform_index = 0
+            self.__transform_repetition = 0
 
         # apply transforms
-        image = self.__transform(image=image)["image"]
-        target = self.__target_transform(target)
+        current_transform = self.__transform.transforms[self.__current_transform_index]
+        final_transform = self.__compose_transform(current_transform)
+        image = final_transform(image=self.__current_image)["image"]
+        target = self.__target_transform(self.__current_target)
+
+        self.__transform_repetition += 1
+        if not (isinstance(current_transform, RepeatedAugmentation) and
+                self.__transform_repetition < current_transform.n_repeat):
+            self.__current_transform_index += 1
+            self.__transform_repetition = 0
 
         return image, target
 
@@ -366,18 +390,18 @@ class CustomDataModule:
     """
 
     def __init__(
-        self,
-        data,
-        classification,
-        data_filters=None,
-        cross_validation_folds=None,
-        stratified=False,
-        balanced=False,
-        grouped=False,
-        num_workers=0,
-        seed=None,
-        debug=False,
-        batch_size=None,
+            self,
+            data,
+            classification,
+            data_filters=None,
+            cross_validation_folds=None,
+            stratified=False,
+            balanced=False,
+            grouped=False,
+            num_workers=0,
+            seed=None,
+            debug=False,
+            batch_size=None,
     ):
         if batch_size is None:
             batch_size = conf_typ.BatchSize(32, 16)
@@ -392,13 +416,13 @@ class CustomDataModule:
         # define datasets
         self.__train_data = CustomVisionDataset(
             **dataset_params,
-            transform=self.__data.image_properties.augmentations.train.transforms,
+            transform=Augmentations(transforms=self.__data.image_properties.augmentations.train),
             subset="train",
         )
         self.__validation_data = None
         self.__push_data = CustomVisionDataset(
             **dataset_params,
-            transform=self.__data.image_properties.augmentations.push.transforms,
+            transform=self.__data.image_properties.augmentations.push,
             normalize=False,
             subset="train",
         )
@@ -432,7 +456,7 @@ class CustomDataModule:
         )
 
     def __init_cross_validation(
-        self, cross_validation_folds, stratified, balanced, groups, seed
+            self, cross_validation_folds, stratified, balanced, groups, seed
     ):
         """
         Initialize cross validation folds
@@ -652,11 +676,11 @@ class CustomDataModule:
             batch_size = len(self.__train_data)
 
         kwargs = (
-            kwargs
-            | param
-            | {
-                "batch_size": batch_size,
-            }
+                kwargs
+                | param
+                | {
+                    "batch_size": batch_size,
+                }
         )
 
         return self.__get_data_loader(
@@ -690,12 +714,14 @@ if __name__ == "__main__":
 
     init_config_store()
 
+
     @hydra.main(
         version_base=None,
         config_path=get_env("CONFIG_PATH"),
         config_name="main_config",
     )
     def test(cfg: Config):
+        cfg = omegaconf.OmegaConf.to_object(cfg)
         module = hydra.utils.instantiate(cfg.data.datamodule)
         for f, (tr, vl) in enumerate(module.folds, start=1):
             ic(f)
@@ -708,15 +734,14 @@ if __name__ == "__main__":
             if vl is not None:
                 ic(len(vl))
 
-        data = module.test_data
+        data = module.train_data
         data.debug()
-        data_iterator = iter(data)
 
         _, axs = plt.subplots(1, 2)
 
-        image, label = next(data_iterator)
+        image, label = data[0]
         axs[0].imshow(image.squeeze(), cmap="gray")
-        axs[0].set_title("Original Image")
+        axs[0].set_title("Augmented Image")
         axs[0].axis("off")
         ic("Original")
         ic(image.min())
@@ -724,15 +749,37 @@ if __name__ == "__main__":
         ic(image.std())
         ic(image.mean())
 
-        image, label = next(data_iterator)
+        image, label = data.get_original(0)
         axs[1].imshow(image.squeeze(), cmap="gray")
-        axs[1].set_title("Augmented Image")
+        axs[1].set_title("Original Image")
         axs[1].axis("off")
         ic("Augmented")
         ic(image.min())
         ic(image.max())
         ic(image.std())
         ic(image.mean())
+        plt.show()
+
+        # in _data_config set:
+        # image_properties:
+        #     extension: .npz
+        #     augmentations:
+        #         train:
+        #             transforms:
+        #                 - _target_: xai_mam.utils.helpers.RepeatedAugmentation
+        #                 transforms:
+        #                     - _target_: albumentations.Rotate
+        #                     limit: 45
+        #                     border_mode: 0
+        #                     crop_border: true
+        #                     p: 1.0
+        #                 n: 8
+        _, axs = plt.subplots(3, 3)
+        for i in range(9):
+            image, _ = data[i]
+            axs[i // 3, i % 3].imshow(image.squeeze(), cmap="gray")
+            axs[i // 3, i % 3].set_title(f"{i + 1}")
+            axs[i // 3, i % 3].axis("off")
         plt.show()
 
     test()
