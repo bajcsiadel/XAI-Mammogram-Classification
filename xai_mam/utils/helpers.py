@@ -11,7 +11,6 @@ from pathlib import Path
 
 import hydra.utils
 import numpy as np
-from pipe import Pipe
 
 import xai_mam.utils.config._general_types.data as config
 
