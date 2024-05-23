@@ -23,6 +23,10 @@ def _target_transform(target):
     return torch.tensor(target, dtype=torch.long)
 
 
+def _identity_transform(image):
+    return image
+
+
 def my_collate_function(batch):
     data = [item[0] for item in batch]
     target = [item[1] for item in batch]
@@ -78,7 +82,7 @@ class CustomVisionDataset(datasets.VisionDataset):
 
         super().__init__(
             str(dataset_meta.image_dir),
-            transform=lambda img: img,
+            transform=_identity_transform,
             target_transform=target_transform,
         )
 
@@ -422,7 +426,7 @@ class CustomDataModule:
         self.__validation_data = None
         self.__push_data = CustomVisionDataset(
             **dataset_params,
-            transform=self.__data.image_properties.augmentations.push,
+            transform=Augmentations(self.__data.image_properties.augmentations.push),
             normalize=False,
             subset="train",
         )
