@@ -1,6 +1,6 @@
 # @package data.set.image_properties.augmentations
 train:
-  transform:
+  transforms:
     - _target_: xai_mam.utils.helpers.RepeatedAugmentation
       transforms:
         - _target_: albumentations.Rotate
