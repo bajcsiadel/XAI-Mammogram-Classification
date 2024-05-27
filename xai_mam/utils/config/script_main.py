@@ -6,8 +6,7 @@ from icecream import ic
 
 from xai_mam.utils.config._general_types import (
     CrossValidationParameters,
-    Data,
-    Dataset,
+    DataConfig,
     Gpu,
     ModelConfig,
     Outputs,
@@ -34,7 +33,7 @@ class JobProperties:
 
 @dc.dataclass
 class Config:
-    data: Data
+    data: DataConfig
     cross_validation: CrossValidationParameters
     seed: int
     job: JobProperties

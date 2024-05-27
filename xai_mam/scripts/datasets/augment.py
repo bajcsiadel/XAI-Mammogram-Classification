@@ -30,21 +30,21 @@ load_dotenv()
 sys.path.append(os.getenv("PROJECT_ROOT"))
 
 from xai_mam.utils.config import config_store_
-from xai_mam.utils.config._general_types.data import Dataset, AugmentationGroups
+from xai_mam.utils.config._general_types.data import DatasetConfig, AugmentationGroupsConfig
 from xai_mam.utils.config.resolvers import add_all_custom_resolvers
 from xai_mam.utils.log import ScriptLogger
 
 
 @dc.dataclass
-class Data:
-    set: Dataset
+class DataConfig:
+    set: DatasetConfig
 
 
 @dc.dataclass
 class Config:
-    data: Data
+    data: DataConfig
     dataset: dict[str, typ.Any]
-    augmentations: AugmentationGroups
+    augmentations: AugmentationGroupsConfig
     output_dir: Path
 
     def __post_init__(self):
@@ -131,6 +131,6 @@ def augment_images(cfg: Config):
 
 add_all_custom_resolvers()
 config_store_.store(name="_config_validation", node=Config)
-config_store_.store(name="_data_validation", group="data", node=Data)
-config_store_.store(name="_data_set_validation", group="data/set", node=Dataset)
+config_store_.store(name="_data_validation", group="data", node=DataConfig)
+config_store_.store(name="_data_set_validation", group="data/set", node=DatasetConfig)
 augment_images()

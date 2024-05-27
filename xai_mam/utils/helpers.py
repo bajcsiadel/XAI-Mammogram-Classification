@@ -225,10 +225,10 @@ class Augmentations:
         Transformations to apply to the images. Converted from the config.
 
         :param transforms: transforms set in the configuration
-        :type transforms: xai_mam.utils.config._general_types.data.Augmentations
+        :type transforms: xai_mam.utils.config._general_types.data.AugmentationsConfig
         """
         if transforms is None:
-            transforms = config.Augmentations()
+            transforms = config.AugmentationsConfig()
         self.transforms = hydra.utils.instantiate(transforms).transforms
 
     @property
@@ -254,3 +254,19 @@ class Augmentations:
                     yield A.Compose(transforms=[A.Sequential(self.transforms)])
         else:
             yield A.NoOp()
+
+    def get_repetitions(self):
+        """
+        Get the number of times each transformation is repeated.
+
+        :return: number of times each transformation is repeated
+        :rtype: list[int]
+        """
+        repetitions = []
+        for transform in self.transforms:
+            match transform:
+                case RepeatedAugmentation():
+                    repetitions.append(transform.n_repeat)
+                case _:
+                    repetitions.append(1)
+        return repetitions

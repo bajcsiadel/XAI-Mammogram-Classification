@@ -10,23 +10,23 @@ from xai_mam.utils.config._general_types._multifunctional import BatchSize
 
 __all__ = [
     "Augmentation",
-    "Augmentations",
-    "AugmentationGroups",
-    "ImageProperties",
-    "CSVParameters",
-    "MetadataInformation",
-    "Target",
-    "Dataset",
-    "Filter",
-    "Data",
-    "DataModule",
+    "AugmentationsConfig",
+    "AugmentationGroupsConfig",
+    "ImagePropertiesConfig",
+    "CSVParametersConfig",
+    "MetadataInformationConfig",
+    "TargetConfig",
+    "DatasetConfig",
+    "FilterConfig",
+    "DataConfig",
+    "DataModuleConfig",
 ]
 
 Augmentation = dict[str, typ.Any]
 
 
 @dc.dataclass
-class Augmentations:
+class AugmentationsConfig:
     transforms: list[Augmentation] = dc.field(
         default_factory=lambda: [{"_target_": "albumentations.NoOp"}]
     )
@@ -93,13 +93,13 @@ class Augmentations:
 
 
 @dc.dataclass
-class AugmentationGroups:
-    train: Augmentations = dc.field(default_factory=Augmentations)
-    push: Augmentations = dc.field(default_factory=Augmentations)
+class AugmentationGroupsConfig:
+    train: AugmentationsConfig = dc.field(default_factory=AugmentationsConfig)
+    push: AugmentationsConfig = dc.field(default_factory=AugmentationsConfig)
 
 
 @dc.dataclass
-class ImageProperties:
+class ImagePropertiesConfig:
     extension: str
     width: int
     height: int
@@ -107,7 +107,7 @@ class ImageProperties:
     max_value: float
     mean: list[float]
     std: list[float]
-    augmentations: AugmentationGroups = dc.field(default_factory=AugmentationGroups)
+    augmentations: AugmentationGroupsConfig = dc.field(default_factory=AugmentationGroupsConfig)
 
     def __setattr__(self, key, value):
         match key:
@@ -143,7 +143,7 @@ class ImageProperties:
 
 
 @dc.dataclass
-class CSVParameters:
+class CSVParametersConfig:
     index_col: list[int]
     header: list[int]
 
@@ -152,9 +152,9 @@ class CSVParameters:
 
 
 @dc.dataclass
-class MetadataInformation:
+class MetadataInformationConfig:
     file: Path
-    parameters: CSVParameters
+    parameters: CSVParametersConfig
 
     def __setattr__(self, key, value):
         match key:
@@ -166,20 +166,20 @@ class MetadataInformation:
 
 
 @dc.dataclass
-class Target:
+class TargetConfig:
     name: str
     size: str
 
 
 @dc.dataclass
-class Dataset:
+class DatasetConfig:
     name: str
     root: Path
     state: str
-    target: Target
+    target: TargetConfig
     image_dir: Path
-    image_properties: ImageProperties
-    metadata: MetadataInformation
+    image_properties: ImagePropertiesConfig
+    metadata: MetadataInformationConfig
     number_of_classes: int = 0  # set automatically from code
     input_size: tuple[int, int] = (0, 0)
 
@@ -218,18 +218,18 @@ class Dataset:
 
 
 @dc.dataclass
-class Filter:
+class FilterConfig:
     _target_: str
     field: list[str]
     value: typ.Any
 
 
 @dc.dataclass
-class DataModule:
+class DataModuleConfig:
     _target_: str
-    data: Dataset
+    data: DatasetConfig
     classification: str
-    data_filters: list[Filter] = dc.field(default_factory=list)
+    data_filters: list[FilterConfig] = dc.field(default_factory=list)
     cross_validation_folds: int = 0
     stratified: bool = False
     balanced: bool = False
@@ -243,13 +243,13 @@ class DataModule:
 
 
 @dc.dataclass
-class Data:
-    set: Dataset
-    filters: list[Filter]
-    datamodule: DataModule
+class DataConfig:
+    set: DatasetConfig
+    filters: list[FilterConfig]
+    datamodule: DataModuleConfig
 
 
 def init_data_config_store():
     from xai_mam.utils.config import config_store_
-    config_store_.store(name="_data_validation", group="data", node=Data)
-    config_store_.store(name="_data_set_validation", group="data/set", node=Dataset)
+    config_store_.store(name="_data_validation", group="data", node=DataConfig)
+    config_store_.store(name="_data_set_validation", group="data/set", node=DatasetConfig)

@@ -47,7 +47,7 @@ class CustomVisionDataset(datasets.VisionDataset):
     :param data_filters: Filters to apply to the data
     :type data_filters: list[ProtoPNet.dataset.metadata.DataFilter] | None
     :param transform: Transform to apply to the images
-    :type transform: xai_mam.utils.config._general_types.data.Augmentations
+    :type transform: xai_mam.utils.config._general_types.data.AugmentationsConfig
     :param target_transform: Transform to apply to the targets.
         Should return a tensor representing the target.
     :type target_transform: typ.Callable[[], torch.Tensor]
@@ -104,7 +104,7 @@ class CustomVisionDataset(datasets.VisionDataset):
                 dataset_meta.metadata.parameters
             )
         if (
-                isinstance(metafile_params, conf_typ.CSVParameters)
+                isinstance(metafile_params, conf_typ.CSVParametersConfig)
                 or type(metafile_params).__name__ == "CSVParameters"
         ):
             metafile_params = metafile_params.to_dict()
