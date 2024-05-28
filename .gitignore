@@ -9,3 +9,4 @@ pretrained_models/
 poetry.lock
 
 **/*.DS_Store
+**/*.pth*
