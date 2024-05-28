@@ -8,7 +8,6 @@ import pandas as pd
 import pipe
 import torch
 from albumentations.pytorch import ToTensorV2
-from hydra.utils import instantiate
 from icecream import ic
 from torch.utils.data import DataLoader
 from torchvision import datasets
@@ -161,11 +160,10 @@ class CustomVisionDataset(datasets.VisionDataset):
             dataset_meta.image_properties.width,
         )
 
-        self.__current_image_index = None
-        self.__current_image = None
-        self.__current_target = None
-        self.__current_transform_index = None
-        self.__transform_repetition = 0
+        self.__remaining_transforms = [
+            copy.deepcopy(self.__transform.get_repetitions())
+            for _ in range(len(self.__meta_information))
+        ]
 
     def __compose_transform(self, transform):
         """
@@ -297,28 +295,23 @@ class CustomVisionDataset(datasets.VisionDataset):
         :return: Return the image and its label at a given index
         :rtype: typ.Tuple[torch.Tensor, torch.Tensor]
         """
-        # if debug mode is on the indices should be divided by 2
-        sample_index = index // (self.__transform.multiplier + self.__debug)
+        sample_index = index // self.__transform.multiplier
 
-        if sample_index != self.__current_image_index:
-            # Load the image
-            self.__current_image, self.__current_target = self.get_original(sample_index)
-            self.__current_image_index = sample_index
-            assert self.__current_transform_index is None or self.__current_transform_index == self.__transform.multiplier
-            self.__current_transform_index = 0
-            self.__transform_repetition = 0
+        # Load the image
+        image, target = self.get_original(sample_index)
 
         # apply transforms
-        current_transform = self.__transform.transforms[self.__current_transform_index]
-        final_transform = self.__compose_transform(current_transform)
-        image = final_transform(image=self.__current_image)["image"]
-        target = self.__target_transform(self.__current_target)
+        remaining_transform_indices = np.where(
+            self.__remaining_transforms[sample_index] > 0
+        )[0]
+        # convert the index to int, otherwise it will be np.int64
+        selected_transform_index = int(np.random.choice(remaining_transform_indices))
+        self.__remaining_transforms[sample_index][selected_transform_index] -= 1
 
-        self.__transform_repetition += 1
-        if not (isinstance(current_transform, RepeatedAugmentation) and
-                self.__transform_repetition < current_transform.n_repeat):
-            self.__current_transform_index += 1
-            self.__transform_repetition = 0
+        current_transform = self.__transform.transforms[selected_transform_index]
+        final_transform = self.__compose_transform(current_transform)
+        image = final_transform(image=image)["image"]
+        target = self.__target_transform(target)
 
         return image, target
 

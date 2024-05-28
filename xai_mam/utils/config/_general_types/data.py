@@ -71,6 +71,7 @@ class AugmentationsConfig:
                         "_target_": "albumentations.NoOp"
                     }]
                 })
+                self.__identity_transform_present = True
         else:
             # TODO: add a flag here to skip identity transform if needed
             # convert BasicTransforms to Compose
@@ -84,7 +85,8 @@ class AugmentationsConfig:
             if augmentation.get("_target_") == "albumentations.NoOp":
                 return True
             if (child_transforms := augmentation.get("transforms")) is not None:
-                return self.set_identity_transform_present(child_transforms)
+                if self.set_identity_transform_present(child_transforms):
+                    return True
         return False
 
     def __post_init__(self):

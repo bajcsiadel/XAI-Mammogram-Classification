@@ -260,7 +260,7 @@ class Augmentations:
         Get the number of times each transformation is repeated.
 
         :return: number of times each transformation is repeated
-        :rtype: list[int]
+        :rtype: numpy.ndarray
         """
         repetitions = []
         for transform in self.transforms:
@@ -269,4 +269,4 @@ class Augmentations:
                     repetitions.append(transform.n_repeat)
                 case _:
                     repetitions.append(1)
-        return repetitions
+        return np.array(repetitions)
