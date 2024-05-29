@@ -203,6 +203,10 @@ class CustomVisionDataset(datasets.VisionDataset):
         return self.__meta_information.index.get_level_values("patient_id").to_numpy()
 
     @property
+    def multiplier(self):
+        return self.__transform.multiplier
+
+    @property
     def metadata(self):
         """
         Get metadata of the dataset
@@ -346,6 +350,12 @@ class CustomSubset(torch.utils.data.Subset):
         if hasattr(self.dataset, "groups"):
             return self.dataset.groups[self.indices]
         return []
+
+    @property
+    def multiplier(self):
+        if hasattr(self.dataset, "multiplier"):
+            return self.dataset.multiplier
+        return 1
 
     def __repr__(self):
         return (
@@ -571,7 +581,13 @@ class CustomDataModule:
         logger.info(f"size: {len(data)}")
         logger.info("distribution:")
         logger.increase_indent()
-        logger.info(f"{data.metadata.groupby(data.targets).size().to_string()}")
+        distribution = pd.DataFrame(columns=["count", "perc"])
+        classes = np.unique(data.targets)
+        for cls in classes:
+            count = np.sum(data.targets == cls) * data.multiplier
+            distribution.loc[cls] = [count, count / len(data)]
+        distribution["count"] = distribution["count"].astype("int")
+        logger.info(f"{distribution.to_string(formatters={'perc': '{:.2%}'.format})}")
         logger.decrease_indent(times=2)
 
     def __get_data_loader(self, dataset, **kwargs):
