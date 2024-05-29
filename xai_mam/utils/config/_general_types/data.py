@@ -30,6 +30,7 @@ class AugmentationsConfig:
     transforms: list[Augmentation] = dc.field(
         default_factory=lambda: [{"_target_": "albumentations.NoOp"}]
     )
+    exclude_identity_transform: bool = False
     __identity_transform_present: bool = False
 
     def __setattr__(self, key, value):
@@ -62,7 +63,7 @@ class AugmentationsConfig:
             if len(compose_augmentations) != len(self.transforms):
                 raise ValueError("Mixing RepeatedAugmentation/Compose "
                                  "and BasicTransforms is not allowed.")
-            elif not self.__identity_transform_present:
+            elif not self.__identity_transform_present and not self.exclude_identity_transform:
                 # if there are multiple transforms then add a transform
                 # to keep the original image
                 self.transforms.append({
@@ -73,8 +74,7 @@ class AugmentationsConfig:
                 })
                 self.__identity_transform_present = True
         else:
-            # TODO: add a flag here to skip identity transform if needed
-            # convert BasicTransforms to Compose
+            self.exclude_identity_transform = True
             self.transforms = [{
                 "_target_": "albumentations.Compose",
                 "transforms": self.transforms,
