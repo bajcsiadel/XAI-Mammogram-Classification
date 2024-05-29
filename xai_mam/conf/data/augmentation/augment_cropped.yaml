@@ -21,3 +21,4 @@ train:
           p: 0.5
         - _target_: albumentations.VerticalFlip
           p: 0.5
+  exclude_identity_transform: true
