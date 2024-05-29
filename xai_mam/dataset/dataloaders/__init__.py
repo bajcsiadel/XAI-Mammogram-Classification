@@ -578,7 +578,7 @@ class CustomDataModule:
         """
         logger.info(f"{name}")
         logger.increase_indent()
-        logger.info(f"size: {len(data)}")
+        logger.info(f"size: {len(data)} ({len(data.targets)} x {data.multiplier})")
         logger.info("distribution:")
         logger.increase_indent()
         distribution = pd.DataFrame(columns=["count", "perc"])
