@@ -32,16 +32,14 @@ def _get_run_location():
     return pathlib.Path(get_env("RUNS_PATH"), _get_package_name())
 
 
-def _create(run_mode, sweep_dir, sweep_subdir="", filename="progress.log"):
+def _create(run_mode, sweep_dir, filename="progress.log"):
     if run_mode == RunMode.RUN:
         # do not create progress file
         return os.devnull
     if type(sweep_dir) is not pathlib.Path:
         sweep_dir = pathlib.Path(sweep_dir)
-    if type(sweep_subdir) is not pathlib.Path:
-        sweep_subdir = pathlib.Path(sweep_subdir)
 
-    filename = sweep_dir / sweep_subdir.parents[0] / filename
+    filename = sweep_dir / filename
 
     global log_created
 
@@ -88,10 +86,18 @@ def resolve_create():
     omegaconf.OmegaConf.register_new_resolver("create", _create)
 
 
+def resolve_override_dirname():
+    def sanitize_override_dirname(override_dirname):
+        return override_dirname.replace("/", "-")
+
+    omegaconf.OmegaConf.register_new_resolver("sanitize_override_dirname", sanitize_override_dirname)
+
+
 def add_all_custom_resolvers():
     resolve_create()
     resolve_is_backbone_only()
     resolve_is_debug_mode()
     resolve_model_type()
+    resolve_override_dirname()
     resolve_package_name()
     resolve_run_location()
