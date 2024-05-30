@@ -46,7 +46,7 @@ class CustomVisionDataset(datasets.VisionDataset):
     :param data_filters: Filters to apply to the data
     :type data_filters: list[ProtoPNet.dataset.metadata.DataFilter] | None
     :param transform: Transform to apply to the images
-    :type transform: xai_mam.utils.config._general_types.data.AugmentationsConfig
+    :type transform: xai_mam.utils.helpers.Augmentations
     :param target_transform: Transform to apply to the targets.
         Should return a tensor representing the target.
     :type target_transform: typ.Callable[[], torch.Tensor]
@@ -463,7 +463,7 @@ class CustomDataModule:
         )
 
     def __init_cross_validation(
-            self, cross_validation_folds, stratified, balanced, groups, seed
+        self, cross_validation_folds, stratified, balanced, groups, seed
     ):
         """
         Initialize cross validation folds
