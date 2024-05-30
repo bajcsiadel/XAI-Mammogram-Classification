@@ -229,7 +229,7 @@ class Augmentations:
         """
         if transforms is None:
             transforms = config.AugmentationsConfig()
-        self.transforms = hydra.utils.instantiate(transforms).transforms
+        self.transforms = hydra.utils.instantiate(transforms.transforms)
 
     @property
     def multiplier(self):

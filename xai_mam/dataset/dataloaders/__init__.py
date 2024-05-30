@@ -429,7 +429,10 @@ class CustomDataModule:
             ),
             subset="train",
         )
-        self.__validation_data = None
+        self.__validation_data = CustomVisionDataset(
+            **dataset_params,
+            subset="train",
+        )
         self.__push_data = CustomVisionDataset(
             **dataset_params,
             transform=Augmentations(self.__data.image_properties.augmentations.push),
@@ -444,22 +447,39 @@ class CustomDataModule:
         self.__number_of_workers = num_workers
         self.__debug = debug
 
-        if self.__debug:
+        if self.__debug or cross_validation_folds in [None, 0, 1]:
+            debug_specific_params = {}
+            if self.__debug:
+                debug_specific_params = {
+                    "test_size": batch_size.validation,
+                    "train_size": batch_size.train,
+                }
             train_idx, validation_idx = stratified_grouped_train_test_split(
                 self.__train_data.metadata,
                 self.__train_data.targets,
                 self.__train_data.groups,
-                test_size=batch_size.validation,
-                train_size=batch_size.train,
+                **debug_specific_params,
                 random_state=seed,
             )
 
-            # first the validation data should be defined
-            # otherwise the train data will be overwritten
-            self.__validation_data = CustomSubset(self.__train_data, validation_idx)
-
-            self.__train_data = CustomSubset(self.__train_data, train_idx)
+            self.__validation_data = CustomSubset(
+                self.__validation_data, validation_idx
+            )
+            # using the original image indices
             self.__push_data = CustomSubset(self.__push_data, train_idx)
+            # using the image indices considering the augmentation
+            self.__train_data = CustomSubset(
+                self.__train_data,
+                np.array(
+                    [
+                        range(
+                            index * self.__train_data.multiplier,
+                            (index + 1) * self.__train_data.multiplier,
+                        )
+                        for index in train_idx
+                    ]
+                ).flatten(),
+            )
 
         self.__init_cross_validation(
             cross_validation_folds, stratified, balanced, grouped, seed
