@@ -59,7 +59,9 @@ def epoch_from_model_name(model_name):
     config_name="script_protopnet_run_pruning",
 )
 def main(cfg: ScriptConfig):
-    with TrainLogger("pruning", cfg.outputs, log_location=Path(cfg.result_dir)) as logger:
+    with TrainLogger(
+        "pruning", cfg.outputs, log_location=Path(cfg.result_dir)
+    ) as logger:
         try:
             cfg = OmegaConf.to_object(cfg)
 

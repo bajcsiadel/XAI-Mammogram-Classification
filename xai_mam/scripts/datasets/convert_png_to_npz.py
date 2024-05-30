@@ -18,8 +18,8 @@ import sys
 import cv2
 import hydra
 import numpy as np
-from omegaconf import errors as conf_errors
 from dotenv import load_dotenv
+from omegaconf import errors as conf_errors
 from tqdm import tqdm
 
 load_dotenv()

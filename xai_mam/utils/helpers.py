@@ -1,14 +1,13 @@
-from copy import deepcopy
-from typing import Sequence, Any
-
-import albumentations as A
 import dataclasses as dc
 import inspect
 import json
 import subprocess
 import typing as typ
+from copy import deepcopy
 from pathlib import Path
+from typing import Any, Sequence
 
+import albumentations as A
 import hydra.utils
 import numpy as np
 
@@ -77,7 +76,7 @@ class PartiallyFrozenDataClass:
         if key in self._mutable_attrs or key not in self.__dict__:
             super().__setattr__(key, value)
         else:
-            raise dc.FrozenInstanceError(f"cannot assign to field '{key}'")
+            raise dc.FrozenInstanceError(f"cannot assign to field {key!r}")
 
 
 class DotDict(dict):
@@ -117,6 +116,7 @@ class RepeatedAugmentation(A.Compose):
     :param n: number of times to apply the transformation. Defaults to ``1``.
     :type n: int
     """
+
     def __init__(self, transforms, p=1.0, n=1):
         super().__init__(transforms, p=p)
         self._n_repeat = n
@@ -129,10 +129,12 @@ class RepeatedAugmentation(A.Compose):
         return super().__call__(*args, **kwargs)
 
     def __repr__(self):
-        return (f"RepeatedAugmentation("
-                f"transforms={self.transforms}, "
-                f"p={self.p}, "
-                f"n={self._n_repeat})")
+        return (
+            f"RepeatedAugmentation("
+            f"transforms={self.transforms}, "
+            f"p={self.p}, "
+            f"n={self._n_repeat})"
+        )
 
 
 class Shear(A.Affine):
@@ -150,6 +152,7 @@ class Shear(A.Affine):
     :param p: probability of applying the transformation. Defaults to ``0.5``.
     :type p: float
     """
+
     def __init__(self, limit=45, always_apply=False, crop_border=False, p=0.5):
         super().__init__(shear=(-limit, limit), always_apply=always_apply, p=p)
         self.original = deepcopy(self.shear)
@@ -174,18 +177,13 @@ class Shear(A.Affine):
         :return: the transformed image
         :rtype: numpy.ndarray
         """
-        img_out = super().apply(
-            img, matrix, output_shape, **params
-        )
+        img_out = super().apply(img, matrix, output_shape, **params)
 
         if self.crop_border:
             height, width = img.shape[:2]
-            corners = np.array([
-                [0, 0],
-                [0, height - 1],
-                [width - 1, height - 1],
-                [width - 1, 0]
-            ])
+            corners = np.array(
+                [[0, 0], [0, height - 1], [width - 1, height - 1], [width - 1, 0]]
+            )
             corners = matrix(corners)
 
             row_positions = (corners[:, 1] >= 0) * (corners[:, 1] < height)
@@ -201,7 +199,9 @@ class Shear(A.Affine):
 
             if len(row_values) != 2 or len(col_values) != 2:
                 return img_out
-            img_out = img_out[row_values[0]:row_values[1], col_values[0]:col_values[1]]
+            img_out = img_out[
+                row_values[0] : row_values[1], col_values[0] : col_values[1]
+            ]
         return img_out
 
     def __call__(self, *args, **kwargs):

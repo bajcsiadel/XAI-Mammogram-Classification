@@ -1,8 +1,8 @@
-import albumentations as A
 import dataclasses as dc
 import typing as typ
 from pathlib import Path
 
+import albumentations as A
 import numpy as np
 
 from xai_mam.utils import custom_pipe
@@ -39,46 +39,62 @@ class AugmentationsConfig:
                 if not isinstance(value, list):
                     raise ValueError(f"Augmentations must be a list. {key} = {value}")
                 for augmentation in value:
-                    if (not isinstance(augmentation, dict) and
-                            not issubclass(type(augmentation),
-                                           (A.BaseCompose, A.BasicTransform))):
+                    if not isinstance(augmentation, dict) and not issubclass(
+                        type(augmentation), (A.BaseCompose, A.BasicTransform)
+                    ):
                         raise ValueError(
-                            f"Augmentations must be a list of dictionaries. {key} = {value}"
+                            f"Augmentations must be a list of dictionaries. "
+                            f"{key} = {value}"
                         )
                     if type(value) is dict and "_target_" not in augmentation.keys():
                         raise ValueError(
-                            f"Augmentations must have a _target_. {key} = {value}")
-                    self.__identity_transform_present = self.set_identity_transform_present(value)
+                            f"Augmentations must have a _target_. {key} = {value}"
+                        )
+                    self.__identity_transform_present = (
+                        self.set_identity_transform_present(value)
+                    )
 
         super().__setattr__(key, value)
 
     def _validate_augmentations(self):
-        compose_augmentations = (self.transforms
-                                 | custom_pipe.filter(
-                    lambda augmentation: augmentation.get(
-                        "_target_") in ["albumentations.Compose",
-                                        "xai_mam.utils.helpers.RepeatedAugmentation"])
-                                 | custom_pipe.to_list)
+        compose_augmentations = (
+            self.transforms
+            | custom_pipe.filter(
+                lambda augmentation: augmentation.get("_target_")
+                in [
+                    "albumentations.Compose",
+                    "xai_mam.utils.helpers.RepeatedAugmentation",
+                ]
+            )
+            | custom_pipe.to_list
+        )
         if len(compose_augmentations) > 0:
             if len(compose_augmentations) != len(self.transforms):
-                raise ValueError("Mixing RepeatedAugmentation/Compose "
-                                 "and BasicTransforms is not allowed.")
-            elif not self.__identity_transform_present and not self.exclude_identity_transform:
+                raise ValueError(
+                    "Mixing RepeatedAugmentation/Compose "
+                    "and BasicTransforms is not allowed."
+                )
+            elif (
+                not self.__identity_transform_present
+                and not self.exclude_identity_transform
+            ):
                 # if there are multiple transforms then add a transform
                 # to keep the original image
-                self.transforms.append({
-                    "_target_": "albumentations.Compose",
-                    "transforms": [{
-                        "_target_": "albumentations.NoOp"
-                    }]
-                })
+                self.transforms.append(
+                    {
+                        "_target_": "albumentations.Compose",
+                        "transforms": [{"_target_": "albumentations.NoOp"}],
+                    }
+                )
                 self.__identity_transform_present = True
         else:
             self.exclude_identity_transform = True
-            self.transforms = [{
-                "_target_": "albumentations.Compose",
-                "transforms": self.transforms,
-            }]
+            self.transforms = [
+                {
+                    "_target_": "albumentations.Compose",
+                    "transforms": self.transforms,
+                }
+            ]
 
     def set_identity_transform_present(self, transforms):
         for augmentation in transforms:
@@ -90,7 +106,9 @@ class AugmentationsConfig:
         return False
 
     def __post_init__(self):
-        self.__identity_transform_present = self.set_identity_transform_present(self.transforms)
+        self.__identity_transform_present = self.set_identity_transform_present(
+            self.transforms
+        )
         self._validate_augmentations()
 
 
@@ -109,7 +127,9 @@ class ImagePropertiesConfig:
     max_value: float
     mean: list[float]
     std: list[float]
-    augmentations: AugmentationGroupsConfig = dc.field(default_factory=AugmentationGroupsConfig)
+    augmentations: AugmentationGroupsConfig = dc.field(
+        default_factory=AugmentationGroupsConfig
+    )
 
     def __setattr__(self, key, value):
         match key:
@@ -253,5 +273,8 @@ class DataConfig:
 
 def init_data_config_store():
     from xai_mam.utils.config import config_store_
+
     config_store_.store(name="_data_validation", group="data", node=DataConfig)
-    config_store_.store(name="_data_set_validation", group="data/set", node=DatasetConfig)
+    config_store_.store(
+        name="_data_set_validation", group="data/set", node=DatasetConfig
+    )

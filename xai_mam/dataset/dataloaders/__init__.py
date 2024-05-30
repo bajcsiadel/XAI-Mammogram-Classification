@@ -13,8 +13,8 @@ from torch.utils.data import DataLoader
 from torchvision import datasets
 
 import xai_mam.utils.config.types as conf_typ
-from xai_mam.utils.config.script_main import init_config_store, Config
-from xai_mam.utils.helpers import RepeatedAugmentation, Augmentations
+from xai_mam.utils.config.script_main import Config, init_config_store
+from xai_mam.utils.helpers import Augmentations
 from xai_mam.utils.split_data import stratified_grouped_train_test_split
 
 
@@ -55,15 +55,15 @@ class CustomVisionDataset(datasets.VisionDataset):
     """
 
     def __init__(
-            self,
-            dataset_meta,
-            classification,
-            subset="train",
-            data_filters=None,
-            normalize=True,
-            transform=None,
-            target_transform=_target_transform,
-            debug=False,
+        self,
+        dataset_meta,
+        classification,
+        subset="train",
+        data_filters=None,
+        normalize=True,
+        transform=None,
+        target_transform=_target_transform,
+        debug=False,
     ):
         if transform is None:
             transform = Augmentations()
@@ -103,8 +103,8 @@ class CustomVisionDataset(datasets.VisionDataset):
                 dataset_meta.metadata.parameters
             )
         if (
-                isinstance(metafile_params, conf_typ.CSVParametersConfig)
-                or type(metafile_params).__name__ == "CSVParameters"
+            isinstance(metafile_params, conf_typ.CSVParametersConfig)
+            or type(metafile_params).__name__ == "CSVParameters"
         ):
             metafile_params = metafile_params.to_dict()
 
@@ -145,7 +145,7 @@ class CustomVisionDataset(datasets.VisionDataset):
             self.__meta_information = self.__meta_information[
                 self.__meta_information[(self.__classification, "subset")]
                 == self.__subset
-                ]
+            ]
         self.__classes = (
             self.__meta_information[(self.__classification, "label")].unique().tolist()
         )
@@ -171,7 +171,8 @@ class CustomVisionDataset(datasets.VisionDataset):
         transforms (ToFloat, Normalize, Resize, ToTensor).
 
         :param transform:
-        :type transform: albumentations.Compose | xai_mam.utils.helpers.RepeatedAugmentation
+        :type transform: albumentations.Compose |
+        xai_mam.utils.helpers.RepeatedAugmentation
         :return: the final transform
         :rtype: albumentations.Compose
         """
@@ -243,8 +244,8 @@ class CustomVisionDataset(datasets.VisionDataset):
 
         # Load the image
         image_path = (
-                self.__dataset_meta.image_dir
-                / f"{sample.name[1]}{self.__dataset_meta.image_properties.extension}"
+            self.__dataset_meta.image_dir
+            / f"{sample.name[1]}{self.__dataset_meta.image_properties.extension}"
         )
 
         image = (
@@ -397,18 +398,18 @@ class CustomDataModule:
     """
 
     def __init__(
-            self,
-            data,
-            classification,
-            data_filters=None,
-            cross_validation_folds=None,
-            stratified=False,
-            balanced=False,
-            grouped=False,
-            num_workers=0,
-            seed=None,
-            debug=False,
-            batch_size=None,
+        self,
+        data,
+        classification,
+        data_filters=None,
+        cross_validation_folds=None,
+        stratified=False,
+        balanced=False,
+        grouped=False,
+        num_workers=0,
+        seed=None,
+        debug=False,
+        batch_size=None,
     ):
         if batch_size is None:
             batch_size = conf_typ.BatchSize(32, 16)
@@ -423,7 +424,9 @@ class CustomDataModule:
         # define datasets
         self.__train_data = CustomVisionDataset(
             **dataset_params,
-            transform=Augmentations(transforms=self.__data.image_properties.augmentations.train),
+            transform=Augmentations(
+                transforms=self.__data.image_properties.augmentations.train
+            ),
             subset="train",
         )
         self.__validation_data = None
@@ -549,7 +552,12 @@ class CustomDataModule:
         Generate the folds and the corresponding samplers
 
         :return: fold number, (train sampler, validation sampler)
-        :rtype: typing.Generator[int, tuple[torch.utils.data.SubsetRandomSampler, torch.utils.data.SubsetRandomSampler]]
+        :rtype: typing.Generator[
+            int,
+            tuple[
+                torch.utils.data.SubsetRandomSampler,
+                torch.utils.data.SubsetRandomSampler
+            ]]
         """
         yield from self.__fold_generator
 
@@ -689,11 +697,11 @@ class CustomDataModule:
             batch_size = len(self.__train_data)
 
         kwargs = (
-                kwargs
-                | param
-                | {
-                    "batch_size": batch_size,
-                }
+            kwargs
+            | param
+            | {
+                "batch_size": batch_size,
+            }
         )
 
         return self.__get_data_loader(
@@ -726,7 +734,6 @@ if __name__ == "__main__":
     from xai_mam.utils.environment import get_env
 
     init_config_store()
-
 
     @hydra.main(
         version_base=None,

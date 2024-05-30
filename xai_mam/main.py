@@ -12,7 +12,6 @@ import omegaconf
 import torch
 from hydra.utils import instantiate
 
-from xai_mam.models.ProtoPNet import AddOnLayers
 from xai_mam.utils import helpers
 from xai_mam.utils.config import script_main as main_cfg
 from xai_mam.utils.environment import get_env
@@ -72,7 +71,8 @@ def log_gpu_usage(gpu, logger):
                 )
             case "Darwin":
                 logger.info(
-                    f"{tick if torch.backends.mps.is_available() else cross} available MPS"
+                    f"{tick if torch.backends.mps.is_available() else cross} "
+                    f"available MPS"
                 )
 
     else:
@@ -104,9 +104,7 @@ def run_experiment(cfg: main_cfg.Config, logger: TrainLogger):
         logger.info(f"{tick} cross validation")
         logger.increase_indent()
         logger.info(f"{cfg.cross_validation.folds} folds")
-        logger.info(
-            f"{tick if cfg.cross_validation.stratified else cross} stratified"
-        )
+        logger.info(f"{tick if cfg.cross_validation.stratified else cross} stratified")
         logger.info(f"{tick if cfg.cross_validation.balanced else cross} balanced")
         logger.info(f"{tick if cfg.cross_validation.grouped else cross} grouped")
         logger.decrease_indent()
@@ -136,7 +134,9 @@ def run_experiment(cfg: main_cfg.Config, logger: TrainLogger):
     logger.info(f"{cfg.data.set.image_properties.mean} mean")
     logger.info(f"{data_module.dataset.number_of_classes} classes")
 
-    hydra.utils.instantiate(cfg.model.log_parameters_fn)(number_of_classes=data_module.dataset.number_of_classes, logger=logger, cfg=cfg)
+    hydra.utils.instantiate(cfg.model.log_parameters_fn)(
+        number_of_classes=data_module.dataset.number_of_classes, logger=logger, cfg=cfg
+    )
     with logger.increase_indent_context():
         logger.info(f"{tick if cfg.model.network.pretrained else cross} pretrained")
         logger.info(f"{tick if cfg.model.backbone_only else cross} backbone only")

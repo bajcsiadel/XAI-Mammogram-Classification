@@ -6,3 +6,5 @@ modified_files=`git diff --name-only | grep -E '\.py$' | sed 's,^,'"$project_roo
 python -m isort $modified_files
 python -m black $modified_files
 pflake8 $modified_files
+
+read -p "Press enter to continue"

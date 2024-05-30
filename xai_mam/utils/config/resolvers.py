@@ -6,7 +6,6 @@ from omegaconf import omegaconf
 
 from xai_mam.utils.environment import get_env
 
-
 log_created = {}
 
 
@@ -53,18 +52,14 @@ def resolve_is_backbone_only():
     def is_backbone_only(backbone_only):
         return "only-" if backbone_only else ""
 
-    omegaconf.OmegaConf.register_new_resolver(
-        "is_backbone_only", is_backbone_only
-    )
+    omegaconf.OmegaConf.register_new_resolver("is_backbone_only", is_backbone_only)
 
 
 def resolve_is_debug_mode():
     def is_debug_mode(debug):
         return "debug-" if debug else ""
 
-    omegaconf.OmegaConf.register_new_resolver(
-        "is_debug_mode", is_debug_mode
-    )
+    omegaconf.OmegaConf.register_new_resolver("is_debug_mode", is_debug_mode)
 
 
 def resolve_model_type():
@@ -90,7 +85,9 @@ def resolve_override_dirname():
     def sanitize_override_dirname(override_dirname):
         return override_dirname.replace("/", "-")
 
-    omegaconf.OmegaConf.register_new_resolver("sanitize_override_dirname", sanitize_override_dirname)
+    omegaconf.OmegaConf.register_new_resolver(
+        "sanitize_override_dirname", sanitize_override_dirname
+    )
 
 
 def add_all_custom_resolvers():

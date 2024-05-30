@@ -47,10 +47,18 @@ pyproject-flake8 = "^6.1.0"
 line-length = 88
 
 [tool.flake8]
-ignore = ["E203", "E302", "E501", "E999", "W503"]
+ignore = [
+	"E203",  # whitespace before ‘,’, ‘;’, or ‘:’
+	"F541",  # f-string is missing placeholders
+	"W503",  # line break before binary operator
+]
 max-line-length = 88
 max-complexity = 12
 select = ["B", "C", "E", "F", "W", "B9"]
+per-file-ignores = """
+	**/__init__.py:F401
+	**/scripts/**:E402
+"""
 
 [build-system]
 requires = ["poetry-core"]
