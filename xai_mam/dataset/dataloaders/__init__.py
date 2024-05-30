@@ -332,24 +332,35 @@ class CustomSubset(torch.utils.data.Subset):
     """
 
     def __init__(self, dataset, indices):
+        self.__patient_indices = copy.deepcopy(indices)
+        if dataset.multiplier > 1:
+            indices = np.array(
+                [
+                    range(
+                        index * dataset.multiplier,
+                        (index + 1) * dataset.multiplier,
+                    )
+                    for index in indices
+                ]
+            ).flatten()
         super().__init__(dataset, indices)
 
     @property
     def metadata(self):
         if hasattr(self.dataset, "metadata"):
-            return self.dataset.metadata.iloc[self.indices]
+            return self.dataset.metadata.iloc[self.__patient_indices]
         return pd.DataFrame()
 
     @property
     def targets(self):
         if hasattr(self.dataset, "targets"):
-            return self.dataset.targets[self.indices]
+            return self.dataset.targets[self.__patient_indices]
         return []
 
     @property
     def groups(self):
         if hasattr(self.dataset, "groups"):
-            return self.dataset.groups[self.indices]
+            return self.dataset.groups[self.__patient_indices]
         return []
 
     @property
@@ -468,18 +479,7 @@ class CustomDataModule:
             # using the original image indices
             self.__push_data = CustomSubset(self.__push_data, train_idx)
             # using the image indices considering the augmentation
-            self.__train_data = CustomSubset(
-                self.__train_data,
-                np.array(
-                    [
-                        range(
-                            index * self.__train_data.multiplier,
-                            (index + 1) * self.__train_data.multiplier,
-                        )
-                        for index in train_idx
-                    ]
-                ).flatten(),
-            )
+            self.__train_data = CustomSubset(self.__train_data, train_idx)
 
         self.__init_cross_validation(
             cross_validation_folds, stratified, balanced, grouped, seed
