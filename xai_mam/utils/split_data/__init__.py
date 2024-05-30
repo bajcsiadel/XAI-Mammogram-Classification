@@ -1,6 +1,8 @@
 """
 
 """
+import warnings
+
 import numpy as np
 import pandas as pd
 import pipe
@@ -127,14 +129,13 @@ def stratified_grouped_train_test_split(
 
     # if there are fewer elements in the generated set than needed
     # then add the single classes to the sets
-    i = 0
     if len(train_indices) < train_size:
-        train_indices, i = __add_single_classes(
-            train_indices, train_size, single_classes, i, groups
+        train_indices, single_classes = __add_single_classes(
+            train_indices, train_size, single_classes, groups
         )
     if len(test_indices) < test_size:
         test_indices, _ = __add_single_classes(
-            test_indices, test_size, single_classes, i, groups
+            test_indices, test_size, single_classes, groups
         )
 
     return train_indices, test_indices
@@ -215,38 +216,44 @@ def __discard_indices(
     return selected_indices, single_classes
 
 
-def __add_single_classes(set_, preferred_set_size, single_classes, index, groups):
+def __add_single_classes(set_, preferred_set_size, single_classes, groups):
     """
     Add the single classes to the sets.
     :param set_: subset of indices
-    :type set_: np.ndarray
+    :type set_: numpy.ndarray
     :param preferred_set_size:
     :type preferred_set_size: int
     :param single_classes:
-    :type single_classes: pd.DataFrame
+    :type single_classes: pandas.DataFrame
     :param index:
     :type index: int
     :param groups:
-    :type groups: np.ndarray
+    :type groups: numpy.ndarray
     :return:
+    :rtype: tuple[numpy.ndarray, pandas.DataFrame]
     """
     difference = preferred_set_size - len(set_)
     while difference > 0:
-        if index == len(single_classes):
-            raise UserWarning(
+        closest = (single_classes.sum(axis=1) - difference).abs()
+        closest = closest.sort_values()
+        if len(single_classes) == 0:
+            warnings.warn(
                 f"There are not enough data/groups! "
                 f"Set contains less samples "
-                f"({len(set_)} < {preferred_set_size})"
+                f"({len(set_)} < {preferred_set_size})",
+                stacklevel=2,
             )
-        cases = np.where(single_classes.iloc[index].name == groups)[0]
+            break
+        index = closest.index[0]
+        cases = np.where(single_classes.loc[index].name == groups)[0]
         if len(cases) > difference:
             cases = np.random.choice(cases, difference, replace=False)
 
         difference -= len(cases)
+        single_classes.drop(index, inplace=True)
         set_ = np.concatenate((set_, cases))
-        index += 1
 
-    return set_, index
+    return set_, single_classes
 
 
 def __get_case_distribution(y, groups):
