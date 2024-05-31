@@ -22,6 +22,10 @@ hydra:
           - data/set/state
           - data/set/target
           - model
+          - model.params.push.interval
+          - model.params.push.start
+          - model.phases.joint.epochs
+          - model.phases.warm.epochs
           - model/network
           - model/backbone_only@model
   job_logging:
