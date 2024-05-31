@@ -67,7 +67,7 @@ def log_gpu_usage(gpu, logger):
                     f"{tick if torch.cuda.is_available() else cross} available CUDA"
                 )
                 logger.info(
-                    f"Visible devices set to: {os.getenv('CUDA_VISIBLE_DEVICES')}"
+                    f"Visible devices set to: {gpu.device_ids}"
                 )
             case "Darwin":
                 logger.info(

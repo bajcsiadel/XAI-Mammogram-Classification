@@ -72,7 +72,10 @@ class BaseTrainer(ABC):
     ):
         if not gpu.disabled:
             model = model.to(gpu.device)
-            self._parallel_model = torch.nn.DataParallel(model)
+            self._parallel_model = torch.nn.DataParallel(
+                model,
+                device_ids=[int(i) for i in gpu.device_ids.split(",")]
+            )
         else:
             self._parallel_model = model
         self._gpu = gpu
