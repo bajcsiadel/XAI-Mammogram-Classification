@@ -16,6 +16,7 @@ hydra:
     config:
       override_dirname:
         exclude_keys:
+          - gpu.device_ids
           - data.datamodule.debug
           - data/set
           - data/set/state
