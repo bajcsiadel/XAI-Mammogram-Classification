@@ -186,8 +186,8 @@ class BagNetTrainer(BaseTrainer):
                     "loss": loss_values["total"].item(),
                 }
 
-                self.logger.tensorboard.add_scalar(f"loss/{phase}", write_loss, epoch)
-                self.logger.tensorboard.add_scalars(
+                self.logger.tensorboard.add_scalars(f"loss/{phase}", write_loss, epoch)
+                self.logger.tensorboard.add_scalar(
                     "loss", {f"loss/{phase}": write_loss["loss"]}, epoch
                 )
         return top1.avg
