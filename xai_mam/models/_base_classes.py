@@ -221,9 +221,10 @@ class BaseTrainer(ABC):
         :return: accuracy achieved in the current step
         :rtype: float
         """
-        self.logger.info("train")
-        self.parallel_model.train()
-        return self._train_and_eval(dataloader, epoch, optimizer, **kwargs)
+        with self.logger.increase_indent_context():
+            self.logger.info("train")
+            self.parallel_model.train()
+            return self._train_and_eval(dataloader, epoch, optimizer, **kwargs)
 
     def eval(
         self,
@@ -242,6 +243,7 @@ class BaseTrainer(ABC):
         :return: accuracy achieved in the current step
         :rtype: float
         """
-        self.logger.info("eval")
-        self.parallel_model.eval()
-        return self._train_and_eval(dataloader, epoch)
+        with self.logger.increase_indent_context():
+            self.logger.info("eval")
+            self.parallel_model.eval()
+            return self._train_and_eval(dataloader, epoch)
