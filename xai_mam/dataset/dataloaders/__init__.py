@@ -242,10 +242,13 @@ class CustomVisionDataset(datasets.VisionDataset):
         """
         sample = self.__meta_information.iloc[index]
 
+        # Define name suffix in case of lesion classification
+        suffix = f"-{sample[('mammogram_properties', 'image_number')]}" \
+            if self.__classification == "benign_vs_malignant" else ""
         # Load the image
         image_path = (
             self.__dataset_meta.image_dir
-            / f"{sample.name[1]}{self.__dataset_meta.image_properties.extension}"
+            / f"{sample.name[1]}{suffix}{self.__dataset_meta.image_properties.extension}"
         )
 
         image = (
