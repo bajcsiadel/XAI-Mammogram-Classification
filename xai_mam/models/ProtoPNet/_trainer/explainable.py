@@ -400,6 +400,9 @@ class ExplainableTrainer(ProtoPNetTrainer):
                 "loss", {f"loss/{phase}": write_loss["loss"]}, epoch
             )
 
+            if "lr" in kwargs:
+                self.logger.tensorboard.add_scalars("lr", kwargs["lr"], epoch)
+
         return accuracy
 
     def _get_warm_optimizer(self):
@@ -583,6 +586,7 @@ class ExplainableTrainer(ProtoPNetTrainer):
                 dataloader=train_loader,
                 optimizer=joint_optimizer,
                 epoch=self._step,
+                lr={k: v for k, v in zip(self._phases["joint"].learning_rates.keys(), joint_lr_scheduler.get_lr())},
             )
 
             self._step += len(validation_loader)
