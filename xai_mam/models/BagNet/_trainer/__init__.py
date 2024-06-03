@@ -187,7 +187,7 @@ class BagNetTrainer(BaseTrainer):
                 }
 
                 self.logger.tensorboard.add_scalars(f"loss/{phase}", write_loss, epoch)
-                self.logger.tensorboard.add_scalar(
+                self.logger.tensorboard.add_scalars(
                     "loss", {f"loss/{phase}": write_loss["loss"]}, epoch
                 )
         return top1.avg
