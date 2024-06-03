@@ -1,6 +1,7 @@
 from abc import abstractmethod
 
 import albumentations as A
+import numpy as np
 from albumentations.pytorch import ToTensorV2
 import hydra
 import torch
@@ -197,12 +198,15 @@ class ProtoPNetTrainer(BaseTrainer):
             f"{self._data_module.dataset.name} original examples",
             torchvision.utils.make_grid(originals),
         )
-        first_batch_images = torch.stack([dataset[i][0] for i in range(n_images)], dim=0)
+        first_batch_input = torch.stack(
+            [dataset[i][0] for i in range(n_images * dataset.multiplier)], dim=0
+        )
+        first_batch_un_normalized = first_batch_input * np.array(dataset.dataset_meta.image_properties.std)[:, None, None] + np.array(dataset.dataset_meta.image_properties.mean)[:, None, None]
         self.logger.tensorboard.add_image(
-            f"{self._data_module.dataset.name} {set_name} examples",
-            torchvision.utils.make_grid(first_batch_images),
+            f"{self._data_module.dataset.name} {set_name} examples (un-normalized)",
+            torchvision.utils.make_grid(first_batch_un_normalized, nrow=dataset.multiplier),
         )
         self.logger.tensorboard.add_graph(
-            self.model, first_batch_images.to(self._gpu.device)
+            self.model, first_batch_input.to(self._gpu.device)
         )
         dataset.reset_used_transforms()
