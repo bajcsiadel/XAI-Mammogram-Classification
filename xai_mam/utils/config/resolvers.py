@@ -83,10 +83,12 @@ def resolve_create():
 
 def resolve_override_dirname():
     def sanitize_override_dirname(override_dirname):
-        override_dirname = override_dirname.replace("model.phases", "")
-        override_dirname = override_dirname.replace("model.params", "")
+        override_dirname = override_dirname.replace("model.phases.", "")
+        override_dirname = override_dirname.replace("model.params.", "")
         override_dirname = override_dirname.replace("learning_rate", "LR")
         override_dirname = override_dirname.replace("epochs", "E")
+        override_dirname = override_dirname.replace("batch_size", "BC")
+        override_dirname = override_dirname.replace("+", "")
         return override_dirname.replace("/", "-")
 
     omegaconf.OmegaConf.register_new_resolver(
