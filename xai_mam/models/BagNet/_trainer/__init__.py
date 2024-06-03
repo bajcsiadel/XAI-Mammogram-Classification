@@ -186,7 +186,7 @@ class BagNetTrainer(BaseTrainer):
                     "loss": loss_values["total"].item(),
                 }
 
-                self.logger.tensorboard.add_scalars(f"loss/{phase}", write_loss, epoch)
+                self.logger.tensorboard.add_scalar(f"loss/{phase}", write_loss, epoch)
                 self.logger.tensorboard.add_scalars(
                     "loss", {f"loss/{phase}": write_loss["loss"]}, epoch
                 )
