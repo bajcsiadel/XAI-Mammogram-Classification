@@ -198,6 +198,14 @@ class BackboneTrainer(ProtoPNetTrainer):
                 dataloader=train_loader,
                 optimizer=joint_optimizer,
                 epoch=self._epoch,
+                lr={
+                    k: v
+                    for k, v in zip(
+                        self._phases["joint"].learning_rates.keys(),
+                        joint_lr_scheduler.get_lr(),
+                        strict=True
+                    )
+                },
             )
 
             self.logger.csv_log_index(

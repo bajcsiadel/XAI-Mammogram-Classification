@@ -514,6 +514,10 @@ class ExplainableTrainer(ProtoPNetTrainer):
                 dataloader=train_loader,
                 optimizer=warm_optimizer,
                 epoch=self._step,
+                lr={
+                    k: v
+                    for k, v in self._phases["joint"].learning_rates.items()
+                },
             )
 
             self._step += len(validation_loader)
@@ -586,7 +590,14 @@ class ExplainableTrainer(ProtoPNetTrainer):
                 dataloader=train_loader,
                 optimizer=joint_optimizer,
                 epoch=self._step,
-                lr={k: v for k, v in zip(self._phases["joint"].learning_rates.keys(), joint_lr_scheduler.get_lr())},
+                lr={
+                    k: v
+                    for k, v in zip(
+                        self._phases["joint"].learning_rates.keys(),
+                        joint_lr_scheduler.get_lr(),
+                        strict=True
+                    )
+                },
             )
 
             self._step += len(validation_loader)
