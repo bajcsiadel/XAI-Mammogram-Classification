@@ -174,7 +174,7 @@ class BackboneTrainer(ProtoPNetTrainer):
         )
 
         if self._fold == 1:
-            self.log_image_examples(train_loader)
+            self.log_image_examples(train_loader.dataset, "train")
 
         self.logger.info("batch size:")
         with self.logger.increase_indent_context():

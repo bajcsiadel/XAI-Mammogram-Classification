@@ -160,6 +160,13 @@ class CustomVisionDataset(datasets.VisionDataset):
             dataset_meta.image_properties.width,
         )
 
+        self.__remaining_transforms = np.zeros((len(self.__meta_information), len(self.__transform.transforms)))
+        self.reset_used_transforms()
+
+    def reset_used_transforms(self):
+        """
+        Reset the transforms as if none have been performed.
+        """
         self.__remaining_transforms = [
             copy.deepcopy(self.__transform.get_repetitions())
             for _ in range(len(self.__meta_information))
@@ -216,6 +223,10 @@ class CustomVisionDataset(datasets.VisionDataset):
         :rtype: pd.DataFrame
         """
         return self.__meta_information.copy()
+
+    @property
+    def dataset_meta(self):
+        return copy.deepcopy(self.__dataset_meta)
 
     def debug(self, state="on"):
         """

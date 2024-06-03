@@ -491,6 +491,9 @@ class ExplainableTrainer(ProtoPNetTrainer):
             batch_size=self._phases["warm"].batch_size.validation,
         )
 
+        if self._fold == 1:
+            self.log_image_examples(train_loader.dataset, "train")
+
         self.logger.info("batch size:")
         with self.logger.increase_indent_context():
             self.logger.info(f"train: {train_loader.batch_size}")
@@ -558,9 +561,6 @@ class ExplainableTrainer(ProtoPNetTrainer):
         if len(self._params.push.push_epochs) == 0:
             self._params.push.define_push_epochs(self._phases["joint"].epochs)
             self.logger.info(f"push epochs: {self._params.push.push_epochs}")
-
-        if self._fold == 1:
-            self.log_image_examples(train_loader)
 
         self.logger.info("batch size:")
         with self.logger.increase_indent_context():

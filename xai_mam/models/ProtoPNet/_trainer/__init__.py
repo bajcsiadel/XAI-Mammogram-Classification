@@ -1,9 +1,12 @@
 from abc import abstractmethod
 
+import albumentations as A
+from albumentations.pytorch import ToTensorV2
 import hydra
 import torch
 import torchvision
 
+from xai_mam.dataset.dataloaders import CustomSubset
 from xai_mam.models._base_classes import BaseTrainer
 
 
@@ -166,18 +169,40 @@ class ProtoPNetTrainer(BaseTrainer):
         """
         self.joint()
 
-    def log_image_examples(self, dataloader):
+    def log_image_examples(self, dataset, set_name="", n_images=8):
         """
         Log some images to the Tensorboard.
 
-        :param dataloader:
-        :type dataloader: torch.utils.data.dataloader.DataLoader
+        :param dataset:
+        :type dataset: xai_mam.dataset.dataloaders.CustomVisionDataset |
+        xai_mam.dataset.dataloaders.CustomSubset
+        :param set_name: name of the subset
+        :type set_name: str
+        :param n_images: number of images to log. Defaults to ``8``.
+        :type n_images: int
         """
-        first_batch_images = next(iter(dataloader))[0]
+        if type(dataset) is CustomSubset:
+            dataset = dataset.dataset
+        originals = [dataset.get_original(i)[0] for i in range(n_images)]
+        transform = A.Compose([
+            A.Resize(
+                height=dataset.dataset_meta.image_properties.height,
+                width=dataset.dataset_meta.image_properties.width,
+            ),
+            ToTensorV2(),
+        ])
+        originals = [
+            transform(image=image)["image"] for image in originals]
         self.logger.tensorboard.add_image(
-            f"{self._data_module.dataset.name} examples",
+            f"{self._data_module.dataset.name} original examples",
+            torchvision.utils.make_grid(originals),
+        )
+        first_batch_images = torch.stack([dataset[i][0] for i in range(n_images)], dim=0)
+        self.logger.tensorboard.add_image(
+            f"{self._data_module.dataset.name} {set_name} examples",
             torchvision.utils.make_grid(first_batch_images),
         )
         self.logger.tensorboard.add_graph(
             self.model, first_batch_images.to(self._gpu.device)
         )
+        dataset.reset_used_transforms()
