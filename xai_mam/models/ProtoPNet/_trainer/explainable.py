@@ -594,7 +594,7 @@ class ExplainableTrainer(ProtoPNetTrainer):
                     k: v
                     for k, v in zip(
                         self._phases["joint"].learning_rates.keys(),
-                        joint_lr_scheduler.get_lr(),
+                        joint_lr_scheduler.get_last_lr(),
                         strict=True
                     )
                 },
