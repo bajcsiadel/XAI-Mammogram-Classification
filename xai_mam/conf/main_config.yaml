@@ -9,9 +9,21 @@ defaults:
 
 hydra:
   run:
-    dir: ${run_location:}/${model.name}/${now:%Y-%m-%d}/${is_debug_mode:${data.datamodule.debug}}${data.set.name}-${is_backbone_only:${model.backbone_only}}${model.network.name}-${data.set.state}-${data.set.target.name}/${data.set.image_properties.height}-${data.set.image_properties.width}-${sanitize_override_dirname:${hydra:job.override_dirname}}
+    dir: "${run_location:}/${model.name}/${now:%Y-%m-%d}/\
+       ${is_debug_mode:${data.datamodule.debug}}${data.set.name}-\
+       ${is_backbone_only:${model.backbone_only}}${model.network.name}-\
+       ${data.set.state}-${data.set.target.name}/\
+       ${data.set.image_properties.height}-${data.set.image_properties.width}-\
+       ${sanitize_override_dirname:${hydra:job.override_dirname}}/\
+       ${now:%H-%M-%S}"
   sweep:
-    subdir: ${model.name}/${now:%Y-%m-%d}/${is_debug_mode:${data.datamodule.debug}}${data.set.name}-${is_backbone_only:${model.backbone_only}}${model.network.name}-${data.set.state}-${data.set.target.name}/${data.set.image_properties.height}-${data.set.image_properties.width}-${sanitize_override_dirname:${hydra:job.override_dirname}}
+    subdir: "${model.name}/${now:%Y-%m-%d}/\
+      ${is_debug_mode:${data.datamodule.debug}}${data.set.name}-\
+      ${is_backbone_only:${model.backbone_only}}${model.network.name}-\
+      ${data.set.state}-${data.set.target.name}/\
+      ${data.set.image_properties.height}-${data.set.image_properties.width}-\
+      ${sanitize_override_dirname:${hydra:job.override_dirname}}/\
+      ${now:%H-%M-%S}"
   job:
     config:
       override_dirname:
