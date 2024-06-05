@@ -122,12 +122,13 @@ class BackboneTrainer(ProtoPNetTrainer):
         macro_f1 = f1_score(true_labels, predicted_labels, average="macro")
         l1_norm = self.model.last_layer.weight.norm(p=1).item()
 
-        self.logger.info(f"{'time: ':<13}{total_time}")
-        self.logger.info(f"{'cross ent: ':<13}{cross_entropy}")
-        self.logger.info(f"{'accu: ':<13}{accuracy:.2%}")
-        self.logger.info(f"{'micro f1: ':<13}{micro_f1:.2%}")
-        self.logger.info(f"{'macro f1: ':<13}{macro_f1:.2%}")
-        self.logger.info(f"{'l1: ':<13}{l1_norm}")
+        with self.logger.increase_indent_context():
+            self.logger.info(f"{'time: ':<13}{total_time}")
+            self.logger.info(f"{'cross ent: ':<13}{cross_entropy}")
+            self.logger.info(f"{'accu: ':<13}{accuracy:.2%}")
+            self.logger.info(f"{'micro f1: ':<13}{micro_f1:.2%}")
+            self.logger.info(f"{'macro f1: ':<13}{macro_f1:.2%}")
+            self.logger.info(f"{'l1: ':<13}{l1_norm}")
 
         if hasattr(self.logger, "csv_log_values"):
             self.logger.csv_log_values(
@@ -158,6 +159,9 @@ class BackboneTrainer(ProtoPNetTrainer):
                     "loss", {f"loss/{phase}": write_loss["loss"]}, epoch
                 )
 
+                if "lr" in kwargs:
+                    self.logger.tensorboard.add_scalars("lr", kwargs["lr"], epoch)
+
         return accuracy
 
     def joint(self):
@@ -174,7 +178,7 @@ class BackboneTrainer(ProtoPNetTrainer):
         )
 
         if self._fold == 1:
-            self.log_image_examples(train_loader)
+            self.log_image_examples(train_loader.dataset, "train")
 
         self.logger.info("batch size:")
         with self.logger.increase_indent_context():
@@ -194,6 +198,14 @@ class BackboneTrainer(ProtoPNetTrainer):
                 dataloader=train_loader,
                 optimizer=joint_optimizer,
                 epoch=self._epoch,
+                lr={
+                    k: v
+                    for k, v in zip(
+                        self._phases["joint"].learning_rates.keys(),
+                        joint_lr_scheduler.get_last_lr(),
+                        strict=True
+                    )
+                },
             )
 
             self.logger.csv_log_index(

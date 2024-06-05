@@ -30,21 +30,24 @@ load_dotenv()
 sys.path.append(os.getenv("PROJECT_ROOT"))
 
 from xai_mam.utils.config import config_store_
-from xai_mam.utils.config._general_types.data import Dataset, AugmentationGroups
+from xai_mam.utils.config._general_types.data import (
+    AugmentationGroupsConfig,
+    DatasetConfig,
+)
 from xai_mam.utils.config.resolvers import add_all_custom_resolvers
 from xai_mam.utils.log import ScriptLogger
 
 
 @dc.dataclass
-class Data:
-    set: Dataset
+class DataConfig:
+    set: DatasetConfig
 
 
 @dc.dataclass
 class Config:
-    data: Data
+    data: DataConfig
     dataset: dict[str, typ.Any]
-    augmentations: AugmentationGroups
+    augmentations: AugmentationGroupsConfig
     output_dir: Path
 
     def __post_init__(self):
@@ -66,18 +69,18 @@ def augment_images(cfg: Config):
         cfg = OmegaConf.to_object(cfg)
 
         augmented_data = pd.DataFrame(
-            columns=["image_name", "augmented_image_path", "original_image_path", "augmentation"]
+            columns=[
+                "image_name",
+                "augmented_image_path",
+                "original_image_path",
+                "augmentation",
+            ]
         )
-
-        import albumentations as A
 
         dataset = hydra.utils.instantiate(cfg.dataset)
 
-        for index, row in tqdm(
-                dataset.metadata.iterrows(),
-                desc="Images",
-                total=len(dataset),
-                unit="image"
+        for index, _ in tqdm(
+            dataset.metadata.iterrows(), desc="Images", total=len(dataset), unit="image"
         ):
             image_path = (
                 cfg.data.set.image_dir
@@ -89,14 +92,18 @@ def augment_images(cfg: Config):
                 else cv2.imread(str(image_path), cv2.IMREAD_GRAYSCALE)
             )
 
-            augmented_image_path = (cfg.output_dir
-                                    / image_path.with_stem(f"{image_path.stem}_{0:02}").name)
-            shutil.copy(
-                image_path,
+            augmented_image_path = (
                 cfg.output_dir / image_path.with_stem(f"{image_path.stem}_{0:02}").name
             )
+            shutil.copy(
+                image_path,
+                cfg.output_dir / image_path.with_stem(f"{image_path.stem}_{0:02}").name,
+            )
             augmented_data.loc[len(augmented_data)] = [
-                index[1], augmented_image_path, image_path, "original"
+                index[1],
+                augmented_image_path,
+                image_path,
+                "original",
             ]
             count = 1
             for transform in cfg.augmentations.train.get_transforms():
@@ -106,18 +113,24 @@ def augment_images(cfg: Config):
 
                 for augmented_image in augmented_images:
                     new_image = augmented_image["image"]
-                    augmented_image_path = (cfg.output_dir
-                                            / image_path.with_stem(f"{image_path.stem}"
-                                                                   f"_{count:02}").name)
+                    augmented_image_path = (
+                        cfg.output_dir
+                        / image_path.with_stem(f"{image_path.stem}" f"_{count:02}").name
+                    )
 
                     augmented_data.loc[len(augmented_data)] = [
-                        index[1], augmented_image_path, image_path, transform
+                        index[1],
+                        augmented_image_path,
+                        image_path,
+                        transform,
                     ]
 
                     # if augmented_image_path.suffix == ".npz":
                     np.savez(augmented_image_path, image=new_image)
                     # else:
-                    cv2.imwrite(str(augmented_image_path.with_suffix(".png")), new_image)
+                    cv2.imwrite(
+                        str(augmented_image_path.with_suffix(".png")), new_image
+                    )
                     count += 1
         augmented_data.to_csv(cfg.output_dir / "augmented_data.csv", index=False)
     except conf_errors.MissingMandatoryValue as e:
@@ -131,6 +144,6 @@ def augment_images(cfg: Config):
 
 add_all_custom_resolvers()
 config_store_.store(name="_config_validation", node=Config)
-config_store_.store(name="_data_validation", group="data", node=Data)
-config_store_.store(name="_data_set_validation", group="data/set", node=Dataset)
+config_store_.store(name="_data_validation", group="data", node=DataConfig)
+config_store_.store(name="_data_set_validation", group="data/set", node=DatasetConfig)
 augment_images()

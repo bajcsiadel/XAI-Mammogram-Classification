@@ -14,10 +14,14 @@ def log_parameters(logger, cfg, **kwargs):
 def validate_model_config(cfg):
     if cfg.backbone_only:
         if cfg.network.name != "resnet50":
-            warnings.warn("BagNet backbone only supports 'resnet50'. "
-                          "Changing to 'resnet50'.")
+            warnings.warn(
+                "BagNet backbone only supports 'resnet50'. Changing to 'resnet50'.",
+                stacklevel=2,
+            )
             cfg.network.name = "resnet50"
     else:
         if cfg.network.name not in all_models.keys():
-            raise ValueError(f"Model {cfg.network.name} not supported for explainable "
-                             f"BagNet. Choose one of {', '.join(all_models.keys())}.")
+            raise ValueError(
+                f"Model {cfg.network.name} not supported for explainable "
+                f"BagNet. Choose one of {', '.join(all_models.keys())}."
+            )

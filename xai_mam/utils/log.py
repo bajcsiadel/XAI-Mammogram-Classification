@@ -385,7 +385,8 @@ class TrainLogger(ScriptLogger):
         :type model_location: pathlib.Path | None
         """
         if accu > target_accu:
-            self.info(f"\t\t\tabove {target_accu:.2%}")
+            with self.increase_indent_context():
+                self.info(f"above {target_accu:.2%}")
             self.save_model(f"{model_name}-{accu:.4f}", state, model_location)
 
     def save_image(self, image_name, image, image_location=None):

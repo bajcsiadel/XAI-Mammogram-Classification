@@ -7,7 +7,6 @@ phases:
     learning_rates:
       features: 1e-4
       add_on_layers: 3e-3
-      prototype_vectors: 3e-3
     scheduler:
       _target_: torch.optim.lr_scheduler.StepLR
       step_size: 5

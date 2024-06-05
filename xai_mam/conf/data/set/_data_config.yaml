@@ -6,8 +6,3 @@ defaults:
 
 image_properties:
   extension: .npz
-  augmentations:
-    train:
-      transforms: []
-    push:
-      transforms: []

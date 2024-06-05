@@ -67,7 +67,9 @@ class BagNetTrainer(BaseTrainer):
         self.logger.info("batch size:")
         with self.logger.increase_indent_context():
             self.logger.info(f"train: {self._phases['main'].batch_size.train}")
-            self.logger.info(f"validation: {self._phases['main'].batch_size.validation}")
+            self.logger.info(
+                f"validation: {self._phases['main'].batch_size.validation}"
+            )
 
     def model_name(self, name):
         """
@@ -105,10 +107,7 @@ class BagNetTrainer(BaseTrainer):
 
     def compute_loss(self, **kwargs):
         cross_entropy = self.__criterion(kwargs["predicted"], kwargs["target"])
-        return {
-            "cross_entropy": cross_entropy,
-            "total": cross_entropy
-        }
+        return {"cross_entropy": cross_entropy, "total": cross_entropy}
 
     def _train_and_eval(self, dataloader, epoch=None, optimizer=None, **kwargs):
         """
@@ -134,7 +133,7 @@ class BagNetTrainer(BaseTrainer):
         grad_req = torch.enable_grad() if optimizer is not None else torch.no_grad()
 
         with grad_req:
-            for i, (images, target) in enumerate(dataloader):
+            for _, (images, target) in enumerate(dataloader):
                 # measure data loading time
                 data_time.update(time.time() - start)
 
@@ -170,11 +169,15 @@ class BagNetTrainer(BaseTrainer):
 
             if epoch is not None:
                 phase = "train" if optimizer is not None else "eval"
-                self.logger.tensorboard.add_scalar(f"accuracy_top1/{phase}", top1.avg, epoch)
+                self.logger.tensorboard.add_scalar(
+                    f"accuracy_top1/{phase}", top1.avg, epoch
+                )
                 self.logger.tensorboard.add_scalars(
                     "accuracy_top1", {f"accuracy_top1/{phase}": top1.avg}
                 )
-                self.logger.tensorboard.add_scalar(f"accuracy_top5/{phase}", top5.avg, epoch)
+                self.logger.tensorboard.add_scalar(
+                    f"accuracy_top5/{phase}", top5.avg, epoch
+                )
                 self.logger.tensorboard.add_scalars(
                     "accuracy_top5", {f"accuracy_top5/{phase}": top5.avg}
                 )
