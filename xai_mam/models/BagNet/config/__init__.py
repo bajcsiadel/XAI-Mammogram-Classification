@@ -18,9 +18,11 @@ class BagNetNetwork(Network):
         match key:
             case "name":
                 if value not in self._network_values:
-                    raise ValueError(f"Model {value!r} not supported for explainable "
-                                     f"BagNet. Choose one of "
-                                     f"{', '.join(self._network_values)}.")
+                    raise ValueError(
+                        f"Model {value!r} not supported for explainable "
+                        f"BagNet. Choose one of "
+                        f"{', '.join(self._network_values)}."
+                    )
 
         super().__setattr__(key, value)
 

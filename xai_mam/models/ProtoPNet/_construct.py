@@ -30,7 +30,7 @@ def construct_model(
     be specified as keyword arguments.
 
     :param logger:
-    :type logger: xai_mam.utils.log.Log
+    :type logger: xai_mam.utils.log.TrainLogger
     :param base_architecture: backbone/feature network type. Defaults to ``"resnet18"``.
     :type base_architecture: str
     :param pretrained: defines if the backbone is pretrained on ImageNet.
@@ -124,7 +124,7 @@ def construct_trainer(
     :param gpu: gpu usage information
     :type gpu: xai_mam.utils.config.types.Gpu
     :param logger:
-    :type logger: xai_mam.utils.log.Log
+    :type logger: xai_mam.utils.log.TrainLogger
     :param model_config: configuration of the model. Defaults to ``None``.
     :type model_config: xai_mam.utils.config.types.ModelConfig | None
     :param model_location: location of the file in which the trained model is saved.

@@ -6,8 +6,8 @@ from omegaconf import omegaconf
 
 from xai_mam.utils.environment import get_env
 
-
 log_created = {}
+
 
 def _get_package_name():
     import traceback
@@ -31,16 +31,14 @@ def _get_run_location():
     return pathlib.Path(get_env("RUNS_PATH"), _get_package_name())
 
 
-def _create(run_mode, sweep_dir, sweep_subdir="", filename="progress.log"):
+def _create(run_mode, sweep_dir, filename="progress.log"):
     if run_mode == RunMode.RUN:
         # do not create progress file
         return os.devnull
     if type(sweep_dir) is not pathlib.Path:
         sweep_dir = pathlib.Path(sweep_dir)
-    if type(sweep_subdir) is not pathlib.Path:
-        sweep_subdir = pathlib.Path(sweep_subdir)
 
-    filename = sweep_dir / sweep_subdir.parents[0] / filename
+    filename = sweep_dir / filename
 
     global log_created
 
@@ -50,13 +48,18 @@ def _create(run_mode, sweep_dir, sweep_subdir="", filename="progress.log"):
     return filename
 
 
-def resolve_format_backbone_only():
-    def format_backbone_only(backbone_only):
+def resolve_is_backbone_only():
+    def is_backbone_only(backbone_only):
         return "only-" if backbone_only else ""
 
-    omegaconf.OmegaConf.register_new_resolver(
-        "format_backbone_only", format_backbone_only
-    )
+    omegaconf.OmegaConf.register_new_resolver("is_backbone_only", is_backbone_only)
+
+
+def resolve_is_debug_mode():
+    def is_debug_mode(debug):
+        return "debug-" if debug else ""
+
+    omegaconf.OmegaConf.register_new_resolver("is_debug_mode", is_debug_mode)
 
 
 def resolve_model_type():
@@ -78,9 +81,26 @@ def resolve_create():
     omegaconf.OmegaConf.register_new_resolver("create", _create)
 
 
+def resolve_override_dirname():
+    def sanitize_override_dirname(override_dirname):
+        override_dirname = override_dirname.replace("model.phases.", "")
+        override_dirname = override_dirname.replace("model.params.", "")
+        override_dirname = override_dirname.replace("learning_rate", "LR")
+        override_dirname = override_dirname.replace("epochs", "E")
+        override_dirname = override_dirname.replace("batch_size", "BC")
+        override_dirname = override_dirname.replace("+", "")
+        return override_dirname.replace("/", "-")
+
+    omegaconf.OmegaConf.register_new_resolver(
+        "sanitize_override_dirname", sanitize_override_dirname
+    )
+
+
 def add_all_custom_resolvers():
     resolve_create()
-    resolve_format_backbone_only()
+    resolve_is_backbone_only()
+    resolve_is_debug_mode()
     resolve_model_type()
+    resolve_override_dirname()
     resolve_package_name()
     resolve_run_location()

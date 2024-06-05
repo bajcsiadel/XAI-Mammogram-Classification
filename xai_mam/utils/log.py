@@ -17,43 +17,27 @@ from torch.utils.tensorboard import SummaryWriter
 from xai_mam.utils import errors
 
 
-class Log(logging.Logger):
+class ScriptLogger(logging.Logger):
     """
     Object for managing the log directory
 
     :param name: The name of the logger
     :type name: str
-    :param outputs: output dirs and file prefixes
-    :type outputs: xai_mam.utils.config_types.Outputs
     """
 
-    def __init__(self, name, outputs, tensorboard=True, log_location=None):
+    def __init__(self, name, log_location=None):
         super().__init__(name)
         self.parent = logging.root
 
-        self.__log_location = log_location or Path(HydraConfig.get().runtime.output_dir)
-        self.__logs = dict()
-
-        self.__outputs = omegaconf.OmegaConf.to_object(outputs)
+        self._log_location = log_location or Path(HydraConfig.get().runtime.output_dir)
 
         # Ensure the directories exist
         self.log_location.mkdir(parents=True, exist_ok=True)
-        self.metadata_location.mkdir(parents=True, exist_ok=True)
-        self.checkpoint_location.mkdir(parents=True, exist_ok=True)
 
-        if tensorboard:
-            self.tensorboard_location.mkdir(parents=True, exist_ok=True)
-            self.__tensorboard_writer = SummaryWriter(
-                log_dir=str(self.tensorboard_location)
-            )
-        else:
-            self.__tensorboard_writer = None
-
-        self.__indent = 0
+        self._indent = 0
 
         logging.getLogger().manager.loggerDict[name] = self
-        self.info(self.log_location)
-
+        self.info(f"Log dir: {self.log_location}")
 
     @contextlib.contextmanager
     def increase_indent_context(self, times=1):
@@ -64,46 +48,16 @@ class Log(logging.Logger):
     def increase_indent(self, times=1):
         if times < 0:
             raise ValueError("times must be non-negative")
-        self.__indent += 4 * times
+        self._indent += 4 * times
 
     def decrease_indent(self, times=1):
         if times < 0:
             raise ValueError("times must be non-negative")
-        self.__indent = max(0, self.__indent - 4 * times)
+        self._indent = max(0, self._indent - 4 * times)
 
     @property
     def log_location(self):
-        return self.__log_location
-
-    @property
-    def checkpoint_location(self):
-        return self.__log_location / self.__outputs.dirs.checkpoints
-
-    @property
-    def image_location(self):
-        return self.__log_location / self.__outputs.dirs.image
-
-    @property
-    def metadata_location(self):
-        return self.__log_location / self.__outputs.dirs.metadata
-
-    @property
-    def tensorboard_location(self):
-        return self.__log_location / self.__outputs.dirs.tensorboard
-
-    @property
-    def file_prefixes(self):
-        """
-        :return: file prefixes defined in the config file
-        :rtype: xai_mam.utils.config._general_types.log.FilePrefixes
-        """
-        self.debug(str(self.__outputs))
-        self.debug(str(self.__outputs.file_prefixes))
-        return self.__outputs.file_prefixes
-
-    @property
-    def tensorboard(self):
-        return self.__tensorboard_writer
+        return self._log_location
 
     def _log(
         self,
@@ -135,7 +89,7 @@ class Log(logging.Logger):
         if type(msg) is not str:
             msg = str(msg)
 
-        msg = indent(msg, self.__indent * " ")
+        msg = indent(msg, self._indent * " ")
 
         for line in msg.splitlines():
             super()._log(
@@ -164,6 +118,88 @@ class Log(logging.Logger):
             log_fn = self.error
         log_fn(f"{type(ex).__name__}: {ex}", **kwargs)
         log_fn(traceback.format_exc(), **kwargs)
+
+    def __call__(self, message):
+        """
+        Log a message
+
+        :param message:
+        :type message: str
+        """
+        level, msg = message.split(": ", 1)
+        match level:
+            case "INFO":
+                self.info(msg)
+            case "WARNING":
+                self.warning(msg)
+            case "ERROR":
+                self.error(msg)
+            case _:
+                self.log(logging.INFO, message)
+
+
+class TrainLogger(ScriptLogger):
+    """
+    Object for managing the log directory
+
+    :param name: The name of the logger
+    :type name: str
+    :param outputs: output dirs and file prefixes
+    :type outputs: xai_mam.utils.config_types.Outputs
+    """
+
+    def __init__(self, name, outputs, tensorboard=True, log_location=None):
+        super().__init__(name, log_location)
+
+        self.__logs = dict()
+
+        self.__outputs = omegaconf.OmegaConf.to_object(outputs)
+
+        # Ensure the directories exist
+        self.metadata_location.mkdir(parents=True, exist_ok=True)
+        self.checkpoint_location.mkdir(parents=True, exist_ok=True)
+
+        if tensorboard:
+            self.tensorboard_location.mkdir(parents=True, exist_ok=True)
+            self.__tensorboard_writer = SummaryWriter(
+                log_dir=str(self.tensorboard_location)
+            )
+        else:
+            self.__tensorboard_writer = None
+
+        self.__indent = 0
+
+        logging.getLogger().manager.loggerDict[name] = self
+
+    @property
+    def checkpoint_location(self):
+        return self._log_location / self.__outputs.dirs.checkpoints
+
+    @property
+    def image_location(self):
+        return self._log_location / self.__outputs.dirs.image
+
+    @property
+    def metadata_location(self):
+        return self._log_location / self.__outputs.dirs.metadata
+
+    @property
+    def tensorboard_location(self):
+        return self._log_location / self.__outputs.dirs.tensorboard
+
+    @property
+    def file_prefixes(self):
+        """
+        :return: file prefixes defined in the config file
+        :rtype: xai_mam.utils.config._general_types.log.FilePrefixes
+        """
+        self.debug(str(self.__outputs))
+        self.debug(str(self.__outputs.file_prefixes))
+        return self.__outputs.file_prefixes
+
+    @property
+    def tensorboard(self):
+        return self.__tensorboard_writer
 
     def log_command_line(self):
         """
@@ -349,7 +385,8 @@ class Log(logging.Logger):
         :type model_location: pathlib.Path | None
         """
         if accu > target_accu:
-            self.info(f"\t\t\tabove {target_accu:.2%}")
+            with self.increase_indent_context():
+                self.info(f"above {target_accu:.2%}")
             self.save_model(f"{model_name}-{accu:.4f}", state, model_location)
 
     def save_image(self, image_name, image, image_location=None):

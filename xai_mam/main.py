@@ -12,11 +12,10 @@ import omegaconf
 import torch
 from hydra.utils import instantiate
 
-from xai_mam.models.ProtoPNet import AddOnLayers
 from xai_mam.utils import helpers
 from xai_mam.utils.config import script_main as main_cfg
 from xai_mam.utils.environment import get_env
-from xai_mam.utils.log import Log
+from xai_mam.utils.log import TrainLogger
 
 tick = "\u2714"
 cross = "\u2718"
@@ -28,7 +27,7 @@ cross = "\u2718"
     config_name="main_config",
 )
 def main(cfg: main_cfg.Config):
-    with Log(__name__, cfg.outputs) as logger:
+    with TrainLogger(__name__, cfg.outputs) as logger:
         try:
             warnings.showwarning = lambda message, *args: logger.exception(
                 message, warn_only=True
@@ -68,11 +67,12 @@ def log_gpu_usage(gpu, logger):
                     f"{tick if torch.cuda.is_available() else cross} available CUDA"
                 )
                 logger.info(
-                    f"Visible devices set to: {os.getenv('CUDA_VISIBLE_DEVICES')}"
+                    f"Visible devices set to: {gpu.device_ids}"
                 )
             case "Darwin":
                 logger.info(
-                    f"{tick if torch.backends.mps.is_available() else cross} available MPS"
+                    f"{tick if torch.backends.mps.is_available() else cross} "
+                    f"available MPS"
                 )
 
     else:
@@ -92,7 +92,7 @@ def set_seeds(seed):
     torch.cuda.manual_seed(seed)
 
 
-def run_experiment(cfg: main_cfg.Config, logger: Log):
+def run_experiment(cfg: main_cfg.Config, logger: TrainLogger):
     # save last commit number (source of the used code)
     commit_file = logger.metadata_location / "commit_hash"
     commit_file.write_bytes(helpers.get_current_commit_hash())
@@ -104,9 +104,7 @@ def run_experiment(cfg: main_cfg.Config, logger: Log):
         logger.info(f"{tick} cross validation")
         logger.increase_indent()
         logger.info(f"{cfg.cross_validation.folds} folds")
-        logger.info(
-            f"{tick if cfg.cross_validation.stratified else cross} stratified"
-        )
+        logger.info(f"{tick if cfg.cross_validation.stratified else cross} stratified")
         logger.info(f"{tick if cfg.cross_validation.balanced else cross} balanced")
         logger.info(f"{tick if cfg.cross_validation.grouped else cross} grouped")
         logger.decrease_indent()
@@ -136,7 +134,9 @@ def run_experiment(cfg: main_cfg.Config, logger: Log):
     logger.info(f"{cfg.data.set.image_properties.mean} mean")
     logger.info(f"{data_module.dataset.number_of_classes} classes")
 
-    hydra.utils.instantiate(cfg.model.log_parameters_fn)(number_of_classes=data_module.dataset.number_of_classes, logger=logger, cfg=cfg)
+    hydra.utils.instantiate(cfg.model.log_parameters_fn)(
+        number_of_classes=data_module.dataset.number_of_classes, logger=logger, cfg=cfg
+    )
     with logger.increase_indent_context():
         logger.info(f"{tick if cfg.model.network.pretrained else cross} pretrained")
         logger.info(f"{tick if cfg.model.backbone_only else cross} backbone only")

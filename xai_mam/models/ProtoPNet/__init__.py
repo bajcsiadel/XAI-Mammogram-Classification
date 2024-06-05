@@ -21,8 +21,9 @@ def log_parameters(logger, cfg, number_of_classes):
     logger.info("network settings")
     with logger.increase_indent_context():
         logger.info(f"{cfg.model.network.name} backbone")
-        logger.info(f"{cfg.model.network.add_on_layer_properties.type} "
-                    f"add on layer type")
+        logger.info(
+            f"{cfg.model.network.add_on_layer_properties.type} " f"add on layer type"
+        )
         logger.info(
             f"{cfg.model.network.add_on_layer_properties.activation} add on activation "
             f"({AddOnLayers.get_reference(cfg.model.network.add_on_layer_properties.activation)})"  # noqa

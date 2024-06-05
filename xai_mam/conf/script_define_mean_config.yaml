@@ -1,11 +1,12 @@
 defaults:
+  - _config_validation  # type verification defined in xai_mam/scripts/datasets/define_mean_and_std.py
   - _hydra_config
   - _self_
   - data/set: MIAS
 
 hydra:
   run:
-    dir: ${oc.env:RUNS_DIR}/${hydra.job.name}/${data.set.name}/${data.set.state}
+    dir: ${run_location:}/${data.set.name}/${data.set.state}
   sweep:
     subdir: ${data.set.name}/${data.set.state}
 

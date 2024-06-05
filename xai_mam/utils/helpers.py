@@ -3,11 +3,15 @@ import inspect
 import json
 import subprocess
 import typing as typ
+from copy import deepcopy
 from pathlib import Path
+from typing import Any, Sequence
 
+import albumentations as A
+import hydra.utils
 import numpy as np
-import torch
-from pipe import Pipe
+
+import xai_mam.utils.config._general_types.data as config
 
 
 def get_current_commit_hash():
@@ -53,32 +57,6 @@ def set_used_images(dataset_config, used_images, target):
     dataset_config.USED_IMAGES = dataset_config.VERSIONS[versions_key][used_images]
 
 
-class CustomPipe:
-    @staticmethod
-    @Pipe
-    def to_list(iterable):
-        """
-        Convert an iterable to a list (using with pipe)
-
-        :param iterable:
-        :return:
-        :rtype: list
-        """
-        return list(iterable)
-
-    @staticmethod
-    @Pipe
-    def to_numpy(iterable):
-        """
-        Convert an iterable to a list (using with pipe)
-
-        :param iterable:
-        :return:
-        :rtype: list
-        """
-        return np.array(list(iterable))
-
-
 class EnhancedJSONEncoder(json.JSONEncoder):
     def default(self, o):
         if hasattr(o, "to_json"):
@@ -98,7 +76,7 @@ class PartiallyFrozenDataClass:
         if key in self._mutable_attrs or key not in self.__dict__:
             super().__setattr__(key, value)
         else:
-            raise dc.FrozenInstanceError(f"cannot assign to field '{key}'")
+            raise dc.FrozenInstanceError(f"cannot assign to field {key!r}")
 
 
 class DotDict(dict):
@@ -125,3 +103,170 @@ class DotDict(dict):
 
     __setattr__ = dict.__setitem__
     __delattr__ = dict.__delitem__
+
+
+class RepeatedAugmentation(A.Compose):
+    """
+    Apply the given transformations n times to the input.
+
+    :param transforms: list of transformations to apply
+    :type transforms: list[albumentations.BasicTransform]|albumentations.BaseCompose
+    :param p: probability of applying the transformation. Defaults to ``1.0``.
+    :type p: float
+    :param n: number of times to apply the transformation. Defaults to ``1``.
+    :type n: int
+    """
+
+    def __init__(self, transforms, p=1.0, n=1):
+        super().__init__(transforms, p=p)
+        self._n_repeat = n
+
+    @property
+    def n_repeat(self):
+        return self._n_repeat
+
+    def __call__(self, *args, **kwargs):
+        return super().__call__(*args, **kwargs)
+
+    def __repr__(self):
+        return (
+            f"RepeatedAugmentation("
+            f"transforms={self.transforms}, "
+            f"p={self.p}, "
+            f"n={self._n_repeat})"
+        )
+
+
+class Shear(A.Affine):
+    """
+    A custom augmentation that only applies shear in one direction.
+
+    :param limit: maximum shear to apply (in degrees). Defaults to ``45``.
+    :type limit: int
+    :param always_apply: whether to always apply the transformation.
+    Defaults to ``False``.
+    :type always_apply: bool
+    :param crop_border: whether to crop the border of the image after
+    applying the transformation. Defaults to ``False``.
+    :type crop_border: bool
+    :param p: probability of applying the transformation. Defaults to ``0.5``.
+    :type p: float
+    """
+
+    def __init__(self, limit=45, always_apply=False, crop_border=False, p=0.5):
+        super().__init__(shear=(-limit, limit), always_apply=always_apply, p=p)
+        self.original = deepcopy(self.shear)
+        self.crop_border = crop_border
+        self.direction = None
+
+    def apply(
+        self,
+        img,
+        matrix=None,
+        output_shape: Sequence[int] = (),
+        **params: Any,
+    ) -> np.ndarray:
+        """
+        Apply the transform to the image.
+
+        :param img: image matrix
+        :type img: numpy.ndarray
+        :param matrix: affine transform matrix. Defaults to ``None``.
+        :param output_shape: shape of the output. Defaults to ``()``.
+        :param params:
+        :return: the transformed image
+        :rtype: numpy.ndarray
+        """
+        img_out = super().apply(img, matrix, output_shape, **params)
+
+        if self.crop_border:
+            height, width = img.shape[:2]
+            corners = np.array(
+                [[0, 0], [0, height - 1], [width - 1, height - 1], [width - 1, 0]]
+            )
+            corners = matrix(corners)
+
+            row_positions = (corners[:, 1] >= 0) * (corners[:, 1] < height)
+            col_positions = (corners[:, 0] >= 0) * (corners[:, 0] < width)
+
+            row_values = np.rint(sorted(corners[row_positions, 1])).astype(int)
+            col_values = np.rint(sorted(corners[col_positions, 0])).astype(int)
+
+            if self.direction == "x":
+                row_values = np.array([0, height])
+            else:
+                col_values = np.array([0, width])
+
+            if len(row_values) != 2 or len(col_values) != 2:
+                return img_out
+            img_out = img_out[
+                row_values[0] : row_values[1], col_values[0] : col_values[1]
+            ]
+        return img_out
+
+    def __call__(self, *args, **kwargs):
+        index = int(np.rint(np.random.uniform(0, 1)))
+        # limiting to shear only in one direction
+        self.shear[list(self.shear.keys())[index]] = (0.0, 0.0)
+        self.direction = list(self.shear.keys())[(index + 1) % 2]
+        result = super().__call__(*args, **kwargs)
+        self.shear = deepcopy(self.original)
+        return result
+
+
+@dc.dataclass
+class Augmentations:
+    transforms: list[A.BasicTransform | A.Compose | RepeatedAugmentation] = dc.field(
+        default_factory=lambda: [A.NoOp]
+    )
+
+    def __init__(self, transforms=None):
+        """
+        Transformations to apply to the images. Converted from the config.
+
+        :param transforms: transforms set in the configuration
+        :type transforms: xai_mam.utils.config._general_types.data.AugmentationsConfig
+        """
+        if transforms is None:
+            transforms = config.AugmentationsConfig()
+        self.transforms = hydra.utils.instantiate(transforms.transforms)
+
+    @property
+    def multiplier(self):
+        multiplier = 1 if len(self.transforms) == 0 else 0
+        for transform in self.transforms:
+            match transform:
+                case RepeatedAugmentation():
+                    multiplier += transform.n_repeat
+                case A.Compose():
+                    multiplier += 1
+                case _:
+                    return 1
+        return multiplier
+
+    def get_transforms(self):
+        if len(self.transforms) > 0:
+            match self.transforms[0]:
+                case RepeatedAugmentation() | A.Compose():
+                    for transform in self.transforms:
+                        yield transform
+                case _:
+                    yield A.Compose(transforms=[A.Sequential(self.transforms)])
+        else:
+            yield A.NoOp()
+
+    def get_repetitions(self):
+        """
+        Get the number of times each transformation is repeated.
+
+        :return: number of times each transformation is repeated
+        :rtype: numpy.ndarray
+        """
+        repetitions = []
+        for transform in self.transforms:
+            match transform:
+                case RepeatedAugmentation():
+                    repetitions.append(transform.n_repeat)
+                case _:
+                    repetitions.append(1)
+        return np.array(repetitions)

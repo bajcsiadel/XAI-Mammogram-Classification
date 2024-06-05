@@ -12,7 +12,7 @@ import xai_mam.models.ProtoPNet._helpers.prune as prune
 from xai_mam.utils.config.resolvers import resolve_run_location
 from xai_mam.utils.config.types import BatchSize, Gpu, Outputs
 from xai_mam.utils.environment import get_env
-from xai_mam.utils.log import Log
+from xai_mam.utils.log import TrainLogger
 from xai_mam.utils.preprocess import preprocess
 
 
@@ -59,7 +59,9 @@ def epoch_from_model_name(model_name):
     config_name="script_protopnet_run_pruning",
 )
 def main(cfg: ScriptConfig):
-    with Log("pruning", cfg.outputs, log_location=Path(cfg.result_dir)) as logger:
+    with TrainLogger(
+        "pruning", cfg.outputs, log_location=Path(cfg.result_dir)
+    ) as logger:
         try:
             cfg = OmegaConf.to_object(cfg)
 

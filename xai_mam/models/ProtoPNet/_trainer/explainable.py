@@ -400,6 +400,9 @@ class ExplainableTrainer(ProtoPNetTrainer):
                 "loss", {f"loss/{phase}": write_loss["loss"]}, epoch
             )
 
+            if "lr" in kwargs:
+                self.logger.tensorboard.add_scalars("lr", kwargs["lr"], epoch)
+
         return accuracy
 
     def _get_warm_optimizer(self):
@@ -491,6 +494,9 @@ class ExplainableTrainer(ProtoPNetTrainer):
             batch_size=self._phases["warm"].batch_size.validation,
         )
 
+        if self._fold == 1:
+            self.log_image_examples(train_loader.dataset, "train")
+
         self.logger.info("batch size:")
         with self.logger.increase_indent_context():
             self.logger.info(f"train: {train_loader.batch_size}")
@@ -502,21 +508,23 @@ class ExplainableTrainer(ProtoPNetTrainer):
             self.logger.info(f"warm epoch: \t{epoch}")
             self.logger.increase_indent()
 
-            self._step += len(train_loader)
             self.logger.csv_log_index("train_model", (self._fold, epoch, "warm train"))
             _ = self.train(
                 dataloader=train_loader,
                 optimizer=warm_optimizer,
-                epoch=self._step,
+                epoch=self._epoch,
+                lr={
+                    k: v
+                    for k, v in self._phases["joint"].learning_rates.items()
+                },
             )
 
-            self._step += len(validation_loader)
             self.logger.csv_log_index(
                 "train_model", (self._fold, epoch, "warm validation")
             )
             accu = self.eval(
                 dataloader=validation_loader,
-                epoch=self._step,
+                epoch=self._epoch,
             )
 
             self.logger.save_model_w_condition(
@@ -559,9 +567,6 @@ class ExplainableTrainer(ProtoPNetTrainer):
             self._params.push.define_push_epochs(self._phases["joint"].epochs)
             self.logger.info(f"push epochs: {self._params.push.push_epochs}")
 
-        if self._fold == 1:
-            self.log_image_examples(train_loader)
-
         self.logger.info("batch size:")
         with self.logger.increase_indent_context():
             self.logger.info(f"train: {train_loader.batch_size}")
@@ -577,21 +582,27 @@ class ExplainableTrainer(ProtoPNetTrainer):
             if epoch > 1:
                 joint_lr_scheduler.step()
 
-            self._step += len(train_loader)
             self.logger.csv_log_index("train_model", (self._fold, self._epoch, "train"))
             _ = self.train(
                 dataloader=train_loader,
                 optimizer=joint_optimizer,
-                epoch=self._step,
+                epoch=self._epoch,
+                lr={
+                    k: v
+                    for k, v in zip(
+                        self._phases["joint"].learning_rates.keys(),
+                        joint_lr_scheduler.get_last_lr(),
+                        strict=True
+                    )
+                },
             )
 
-            self._step += len(validation_loader)
             self.logger.csv_log_index(
                 "train_model", (self._fold, self._epoch, "validation")
             )
             accu = self.eval(
                 dataloader=validation_loader,
-                epoch=self._step,
+                epoch=self._epoch,
             )
             self.logger.save_model_w_condition(
                 model_name=self.model_name(f"{self._epoch}-no_push"),
@@ -628,7 +639,7 @@ class ExplainableTrainer(ProtoPNetTrainer):
                 )
                 accu = self.eval(
                     dataloader=validation_loader,
-                    epoch=self._step,
+                    epoch=self._epoch,
                 )
                 self.logger.save_model_w_condition(
                     model_name=self.model_name(f"{self._epoch}-push"),

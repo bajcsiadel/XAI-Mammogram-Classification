@@ -6,12 +6,12 @@ from icecream import ic
 
 from xai_mam.utils.config._general_types import (
     CrossValidationParameters,
-    Data,
-    Dataset,
+    DataConfig,
     Gpu,
     ModelConfig,
     Outputs,
 )
+from xai_mam.utils.config._general_types.data import init_data_config_store
 from xai_mam.utils.config.resolvers import add_all_custom_resolvers
 from xai_mam.utils.environment import get_env
 
@@ -33,7 +33,7 @@ class JobProperties:
 
 @dc.dataclass
 class Config:
-    data: Data
+    data: DataConfig
     cross_validation: CrossValidationParameters
     seed: int
     job: JobProperties
@@ -46,13 +46,12 @@ class Config:
 
 
 def init_config_store():
+    from xai_mam.utils.config import config_store_
+
     add_all_custom_resolvers()
 
-    config_store_ = ConfigStore.instance()
-
     config_store_.store(name="_config_validation", node=Config)
-    config_store_.store(name="_data_validation", group="data", node=Data)
-    config_store_.store(name="_data_set_validation", group="data/set", node=Dataset)
+    init_data_config_store()
     config_store_.store(name="_model_validation", group="model", node=ModelConfig)
     config_store_.store(
         name="_cross_validation_validation",
@@ -81,7 +80,7 @@ def process_config(cfg):
     ic(cfg)
 
     ic(cfg.data.set.image_properties.augmentations)
-    ic(instantiate(cfg.data.set.image_properties.augmentations.train))
+    ic(instantiate(cfg.data.set.image_properties.augmentations.train.transforms))
     ic(type(cfg))
     ic(instantiate(cfg.data.datamodule))
     return cfg

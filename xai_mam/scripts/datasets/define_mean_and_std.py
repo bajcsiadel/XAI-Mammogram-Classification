@@ -10,15 +10,20 @@ References & Footnotes
 ======================
 
 .. [#] https://www.binarystudy.com/2021/04/how-to-calculate-mean-standard-deviation-images-pytorch.html
-"""
 
-import logging
+Configuration
+=============
+
+File `xai_mam/conf/script_define_mean_config.yaml` contains the
+configuration of the script.
+"""
+import dataclasses as dc
 import os
 import sys
+import typing as typ
 
 import hydra
 import numpy as np
-import pipe
 from dotenv import load_dotenv
 from omegaconf import OmegaConf
 from omegaconf import errors as conf_errors
@@ -28,16 +33,32 @@ load_dotenv()
 sys.path.append(os.getenv("PROJECT_ROOT"))
 
 from xai_mam.dataset.dataloaders import my_collate_function
-from xai_mam.utils import helpers
-from xai_mam.utils.config.types import Config, init_config_store
+from xai_mam.utils import custom_pipe
+from xai_mam.utils.config import config_store_
+from xai_mam.utils.config._general_types.data import DatasetConfig
+from xai_mam.utils.config.resolvers import add_all_custom_resolvers
+from xai_mam.utils.log import ScriptLogger
 
 
-def flatten(lst: list) -> np.ndarray:
+@dc.dataclass
+class DataConfig:
+    set: DatasetConfig
+
+
+@dc.dataclass
+class Config:
+    data: DataConfig
+    dataset: dict[str, typ.Any]
+
+
+def flatten(lst):
     """
     Flatten a list of tensors to a numpy array
 
     :param lst:
+    :type lst: list[torch.Tensor]
     :return:
+    :rtype: numpy.ndarray
     """
     new_lst = []
     for tensor in lst:
@@ -54,10 +75,10 @@ def flatten(lst: list) -> np.ndarray:
     config_name="script_define_mean_config",
 )
 def compute_mean_and_std_of_dataset(cfg: Config):
-    logger = logging.getLogger()
+    logger = ScriptLogger(__name__)
 
     try:
-        cfg = helpers.DotDict.new(OmegaConf.to_object(cfg))
+        cfg = OmegaConf.to_object(cfg)
 
         logger.info(f"Dataset: {cfg.data.set.name}")
         logger.info(f"Size: {cfg.data.set.target.size}")
@@ -83,8 +104,8 @@ def compute_mean_and_std_of_dataset(cfg: Config):
         for images, _ in loader:
             sizes = (
                 list(images)
-                | pipe.map(lambda x: x.shape[1:])
-                | helpers.CustomPipe.to_numpy
+                | custom_pipe.map(lambda x: x.shape[1:])
+                | custom_pipe.to_numpy
             )
             average_image_size += np.sum(sizes, axis=0)
 
@@ -121,5 +142,8 @@ def compute_mean_and_std_of_dataset(cfg: Config):
         logger.exception(e)
 
 
-init_config_store()
+add_all_custom_resolvers()
+config_store_.store(name="_config_validation", node=Config)
+config_store_.store(name="_data_validation", group="data", node=DataConfig)
+config_store_.store(name="_data_set_validation", group="data/set", node=DatasetConfig)
 compute_mean_and_std_of_dataset()

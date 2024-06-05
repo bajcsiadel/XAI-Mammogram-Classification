@@ -28,7 +28,7 @@ class ProtoPNet(ProtoPNetBase, Explainable):
     :param n_classes: number of classes in the data
     :type n_classes: int
     :param logger:
-    :type logger: xai_mam.utils.log.Log
+    :type logger: xai_mam.utils.log.TrainLogger
     :param class_specific: Defaults to ``True``.
     :type class_specific: bool
     :param init_weights: flag to mark if the weights should be initialized.
