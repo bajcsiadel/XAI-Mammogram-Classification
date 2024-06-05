@@ -329,6 +329,8 @@ class CustomVisionDataset(datasets.VisionDataset):
 
         current_transform = self.__transform.transforms[selected_transform_index]
         final_transform = self.__compose_transform(current_transform)
+
+        image = image.transpose([1, 2, 0])  # the channel should be the last dimension
         image = final_transform(image=image)["image"]
         target = self.__target_transform(target)
 
@@ -456,7 +458,7 @@ class CustomDataModule:
         )
         self.__validation_data = CustomVisionDataset(
             **dataset_params,
-            subset="train",
+            subset="test",
         )
         self.__push_data = CustomVisionDataset(
             **dataset_params,
@@ -472,7 +474,7 @@ class CustomDataModule:
         self.__number_of_workers = num_workers
         self.__debug = debug
 
-        if self.__debug or cross_validation_folds in [None, 0, 1]:
+        if self.__debug:
             debug_specific_params = {}
             if self.__debug:
                 debug_specific_params = {
