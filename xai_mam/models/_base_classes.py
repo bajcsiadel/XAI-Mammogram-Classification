@@ -89,7 +89,6 @@ class BaseTrainer(ABC):
 
         self._fold = fold
         self._epoch = 0
-        self._step = 0
 
         self.logger = logger
 

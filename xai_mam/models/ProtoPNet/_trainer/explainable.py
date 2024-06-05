@@ -508,25 +508,23 @@ class ExplainableTrainer(ProtoPNetTrainer):
             self.logger.info(f"warm epoch: \t{epoch}")
             self.logger.increase_indent()
 
-            self._step += len(train_loader)
             self.logger.csv_log_index("train_model", (self._fold, epoch, "warm train"))
             _ = self.train(
                 dataloader=train_loader,
                 optimizer=warm_optimizer,
-                epoch=self._step,
+                epoch=self._epoch,
                 lr={
                     k: v
                     for k, v in self._phases["joint"].learning_rates.items()
                 },
             )
 
-            self._step += len(validation_loader)
             self.logger.csv_log_index(
                 "train_model", (self._fold, epoch, "warm validation")
             )
             accu = self.eval(
                 dataloader=validation_loader,
-                epoch=self._step,
+                epoch=self._epoch,
             )
 
             self.logger.save_model_w_condition(
@@ -584,12 +582,11 @@ class ExplainableTrainer(ProtoPNetTrainer):
             if epoch > 1:
                 joint_lr_scheduler.step()
 
-            self._step += len(train_loader)
             self.logger.csv_log_index("train_model", (self._fold, self._epoch, "train"))
             _ = self.train(
                 dataloader=train_loader,
                 optimizer=joint_optimizer,
-                epoch=self._step,
+                epoch=self._epoch,
                 lr={
                     k: v
                     for k, v in zip(
@@ -600,13 +597,12 @@ class ExplainableTrainer(ProtoPNetTrainer):
                 },
             )
 
-            self._step += len(validation_loader)
             self.logger.csv_log_index(
                 "train_model", (self._fold, self._epoch, "validation")
             )
             accu = self.eval(
                 dataloader=validation_loader,
-                epoch=self._step,
+                epoch=self._epoch,
             )
             self.logger.save_model_w_condition(
                 model_name=self.model_name(f"{self._epoch}-no_push"),
@@ -643,7 +639,7 @@ class ExplainableTrainer(ProtoPNetTrainer):
                 )
                 accu = self.eval(
                     dataloader=validation_loader,
-                    epoch=self._step,
+                    epoch=self._epoch,
                 )
                 self.logger.save_model_w_condition(
                     model_name=self.model_name(f"{self._epoch}-push"),
