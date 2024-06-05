@@ -5,6 +5,37 @@ import numpy as np
 import torch
 from skimage import feature, transform
 
+import dataclasses as dc
+import os
+import sys
+import typing as typ
+
+import hydra
+from dotenv import load_dotenv
+from omegaconf import OmegaConf
+from omegaconf import errors as conf_errors
+from torch.utils.data import DataLoader
+
+load_dotenv()
+sys.path.append(os.getenv("PROJECT_ROOT"))
+
+from xai_mam.dataset.dataloaders import my_collate_function
+from xai_mam.utils import custom_pipe
+from xai_mam.utils.config import config_store_
+from xai_mam.utils.config._general_types.data import Dataset
+from xai_mam.utils.config.resolvers import add_all_custom_resolvers
+from xai_mam.utils.log import ScriptLogger
+
+
+@dc.dataclass
+class Data:
+    set: Dataset
+
+
+@dc.dataclass
+class Config:
+    data: Data
+    dataset: dict[str, typ.Any]
 
 def plot_heatmap(
     heatmap,
@@ -202,7 +233,14 @@ def generate_heatmap_pytorch(
 batch_size = 1  # todo: read this from config
 patch_size = 17
 
-if __name__ == "__main__":
+@hydra.main(
+    version_base=None,
+    config_path=os.getenv("CONFIG_PATH"),
+    config_name="script_define_mean_config",
+)
+
+def main_plot(cfg: Config):
+        
     device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
     model = expl.bagnet17(
         2, None, color_channels=1, pretrained=True
@@ -230,129 +268,144 @@ if __name__ == "__main__":
 
     model.eval()
 
-    val_loader = dl.test_loader
+    dataset = hydra.utils.instantiate(cfg.dataset)
+
+    loader = DataLoader(
+    dataset,
+    batch_size=64,
+    num_workers=0,
+    shuffle=False,
+    collate_fn=my_collate_function,
+    )
+
 
     filenumber = 0
 
-    # for i, (images, target, filename) in enumerate(val_loader):
+# for i, (images, target, filename) in enumerate(val_loader):
     for i, (images, target) in enumerate(val_loader):
-        # filename = filename[0].replace("/", "__")
-        # filename = filename.replace(".png", "")
-
+    # filename = filename[0].replace("/", "__")
+    # filename = filename.replace(".png", "")
         print(i)
         image = images.numpy()
 
-        # print(image.shape)
-        #
-        # image = np.reshape(np.mean(image, axis=1), (1, 3, 224, 224))
-        # image = np.reshape(
-        #     image[:, 0, :, :],
-        #     (
-        #         batch_size,
-        #         config["color_channels"],
-        #         config["img_shape"][0],
-        #         config["img_shape"][1],
-        #     ),
-        # )
-        # print("Target:")
-        # print(target)
+    # print(image.shape)
+    #
+    # image = np.reshape(np.mean(image, axis=1), (1, 3, 224, 224))
+    # image = np.reshape(
+    #     image[:, 0, :, :],
+    #     (
+    #         batch_size,
+    #         config["color_channels"],
+    #         config["img_shape"][0],
+    #         config["img_shape"][1],
+    #     ),
+    # )
+    # print("Target:")
+    # print(target)
         target_num = target.detach().cpu().numpy()[0]
 
         images = images.to(device, non_blocking=True)
         output = model(images)
-        # print("Predicted:")
+    # print("Predicted:")
         pr = output.detach().cpu().numpy()[0].argmax()
         pred = np.append([], int(pr))
-        # print(pred)
-        # print(torch.from_numpy(np.array(pred)))
+    # print(pred)
+    # print(torch.from_numpy(np.array(pred)))
 
-        # heatmap_pred = generate_heatmap_pytorch(model,
-        #   image,
-        #   pred,
-        #   patch_size,
-        #   padding='replication')
-        # heatmap_target = generate_heatmap_pytorch(model,
-        #   image,
-        #   target,
-        #   patch_size,
-        #   padding='replication')
+    # heatmap_pred = generate_heatmap_pytorch(model,
+    #   image,
+    #   pred,
+    #   patch_size,
+    #   padding='replication')
+    # heatmap_target = generate_heatmap_pytorch(model,
+    #   image,
+    #   target,
+    #   patch_size,
+    #   padding='replication')
 
         heatmap_0 = generate_heatmap_pytorch(
-            model, image, [target_num], patch_size, padding="replication"
-        )
+        model, image, [target_num], patch_size, padding="replication"
+    )
         heatmap_1 = generate_heatmap_pytorch(
-            model, image, [pr], patch_size, padding="replication"
-        )
+        model, image, [pr], patch_size, padding="replication"
+    )
         heatmap_2 = generate_heatmap_pytorch(
-            model, image, [pr], patch_size, padding="replication"
-        )
+        model, image, [pr], patch_size, padding="replication"
+    )
 
-        # plot heatmap
+    # plot heatmap
         fig = plt.figure(figsize=(8, 4))
 
         original_image = image[0].transpose([1, 2, 0])
 
         ax = plt.subplot(311)
-        # ax.set_title('original')
-        # plt.imshow(original_image / 255.)
-        # plt.imshow(original_image, cmap='Greys_r')
+    # ax.set_title('original')
+    # plt.imshow(original_image / 255.)
+    # plt.imshow(original_image, cmap='Greys_r')
         plot_heatmap_protopnet_style(
-            heatmap_0,
-            original_image,
-            ax,
-            filenumber,
-            target_num,
-            pr,
-            pr,
-            80,
-            False,
-        )
+        heatmap_0,
+        original_image,
+        ax,
+        filenumber,
+        target_num,
+        pr,
+        pr,
+        80,
+        False,
+    )
         plt.axis("off")
 
         ax = plt.subplot(312)
-        # ax.set_title(pr, fontsize=12)
-        # plot_heatmap(
-        #     heatmap, original_image, ax, dilation=0.5, percentile=99, alpha=0.25
-        #     # heatmap, None, ax, dilation=0.5, percentile=99, alpha=0.25
-        # )
-        # plot_heatmap_protopnet_style(heatmap_pred, original_image, ax, 98, False)
+    # ax.set_title(pr, fontsize=12)
+    # plot_heatmap(
+    #     heatmap, original_image, ax, dilation=0.5, percentile=99, alpha=0.25
+    #     # heatmap, None, ax, dilation=0.5, percentile=99, alpha=0.25
+    # )
+    # plot_heatmap_protopnet_style(heatmap_pred, original_image, ax, 98, False)
         plot_heatmap_protopnet_style(
-            heatmap_1,
-            original_image,
-            ax,
-            filenumber,
-            target_num,
-            pr,
-            target_num,
-            80,
-            False,
-        )
+        heatmap_1,
+        original_image,
+        ax,
+        filenumber,
+        target_num,
+        pr,
+        target_num,
+        80,
+        False,
+    )
         plt.axis("off")
 
         ax = plt.subplot(313)
-        # ax.set_title(target.detach().cpu().numpy()[0], fontsize=12)
-        # plot_heatmap(
-        #     heatmap, original_image, ax, dilation=0.5, percentile=99, alpha=0.25
-        #     # heatmap, None, ax, dilation=0.5, percentile=99, alpha=0.25
-        # )
-        # plot_heatmap_protopnet_style(heatmap_target, original_image, ax, 98, False)
+    # ax.set_title(target.detach().cpu().numpy()[0], fontsize=12)
+    # plot_heatmap(
+    #     heatmap, original_image, ax, dilation=0.5, percentile=99, alpha=0.25
+    #     # heatmap, None, ax, dilation=0.5, percentile=99, alpha=0.25
+    # )
+    # plot_heatmap_protopnet_style(heatmap_target, original_image, ax, 98, False)
         plot_heatmap_protopnet_style(
-            heatmap_2,
-            original_image,
-            ax,
-            filenumber,
-            target_num,
-            target_num,
-            target_num,
-            80,
-            False,
-        )
+        heatmap_2,
+        original_image,
+        ax,
+        filenumber,
+        target_num,
+        target_num,
+        target_num,
+        80,
+        False,
+    )
         plt.axis("off")
 
-        # plt.show()
-        # plt.savefig(f'{i}.png')
+    # plt.show()
+    # plt.savefig(f'{i}.png')
         plt.savefig(
-            f"./heatmaps/pascalvoc-inv/{filenumber}_plot_{target_num}_{pr}.png"
-        )
+        f"./heatmaps/pascalvoc-inv/{filenumber}_plot_{target_num}_{pr}.png"
+    )
 
         filenumber = filenumber + 1
+
+
+add_all_custom_resolvers()
+config_store_.store(name="_config_validation", node=Config)
+config_store_.store(name="_data_validation", group="data", node=Data)
+config_store_.store(name="_data_set_validation", group="data/set", node=Dataset)
+main_plot()
