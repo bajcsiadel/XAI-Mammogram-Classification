@@ -37,7 +37,7 @@ hydra:
           - data.set.image_properties.width
           - model
           - model/network
-          - model/backbone_only@model
+          - model/backbone_only
   job_logging:
     root:
       level: INFO
