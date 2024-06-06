@@ -146,8 +146,8 @@ class CustomVisionDataset(datasets.VisionDataset):
                 self.__meta_information[(self.__classification, "subset")]
                 == self.__subset
             ]
-        self.__classes = (
-            self.__meta_information[(self.__classification, "label")].unique().tolist()
+        self.__classes = np.unique(
+            self.__meta_information[(self.__classification, "label")].values
         )
         self.__dataset_meta.number_of_classes = len(self.__classes)
         self.__class_to_number = {cls: i for i, cls in enumerate(self.__classes)}
@@ -160,7 +160,9 @@ class CustomVisionDataset(datasets.VisionDataset):
             dataset_meta.image_properties.width,
         )
 
-        self.__remaining_transforms = np.zeros((len(self.__meta_information), len(self.__transform.transforms)))
+        self.__remaining_transforms = np.zeros(
+            (len(self.__meta_information), len(self.__transform.transforms))
+        )
         self.reset_used_transforms()
 
     def reset_used_transforms(self):
@@ -254,12 +256,16 @@ class CustomVisionDataset(datasets.VisionDataset):
         sample = self.__meta_information.iloc[index]
 
         # Define name suffix in case of lesion classification
-        suffix = f"-{sample[('mammogram_properties', 'image_number')]}" \
-            if self.__classification == "benign_vs_malignant" else ""
+        suffix = (
+            f"-{sample[('mammogram_properties', 'image_number')]}"
+            if self.__classification == "benign_vs_malignant"
+            else ""
+        )
         # Load the image
         image_path = (
             self.__dataset_meta.image_dir
-            / f"{sample.name[1]}{suffix}{self.__dataset_meta.image_properties.extension}"
+            / f"{sample.name[1]}{suffix}"
+              f"{self.__dataset_meta.image_properties.extension}"
         )
 
         image = (
@@ -330,7 +336,9 @@ class CustomVisionDataset(datasets.VisionDataset):
         current_transform = self.__transform.transforms[selected_transform_index]
         final_transform = self.__compose_transform(current_transform)
 
-        image = image.transpose([1, 2, 0])  # the channel should be the last dimension
+        if len(image.shape) > 2:
+            # the channel should be the last dimension
+            image = image.transpose([1, 2, 0])
         image = final_transform(image=image)["image"]
         target = self.__target_transform(target)
 

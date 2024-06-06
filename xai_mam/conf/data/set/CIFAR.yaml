@@ -1,0 +1,31 @@
+defaults:
+  - _data_config@_here_
+
+name: CIFAR10
+
+root: ${oc.env:DATA_ROOT}/CIFAR-10/
+image_dir: ${data.set.root}/images
+
+image_properties:
+  width: 32
+  height: 32
+  color_channels: 3
+  max_value: 255
+  mean:
+    - 0.4919
+    - 0.4827
+    - 0.4472
+  std:
+    - 0.2470
+    - 0.2434
+    - 0.2616
+
+metadata:
+  file: ${data.set.root}/extended_data.csv
+  parameters:
+    header:
+      - 0
+      - 1
+    index_col:
+      - 0
+      - 1
