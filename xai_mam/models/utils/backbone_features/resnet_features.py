@@ -68,8 +68,9 @@ class BasicBlock(ResidualBlock):
         self.conv2 = conv3x3(out_channels, out_channels)
         self.bn2 = nn.BatchNorm2d(out_channels)
 
-        # if stride is not 1 then self.down_sample cannot be None
-        self.down_sample = down_sample
+        # if stride is not 1 then self.downsample cannot be None
+        # should be without underscore (down_sample) to match the saved pretrained layer
+        self.downsample = down_sample
         self.stride = stride
         self.in_channels = in_channels
 
@@ -83,8 +84,8 @@ class BasicBlock(ResidualBlock):
         out = self.conv2(out)
         out = self.bn2(out)
 
-        if self.down_sample is not None:
-            residual = self.down_sample(x)
+        if self.downsample is not None:
+            residual = self.downsample(x)
 
         # the residual connection
         out += residual
@@ -131,10 +132,11 @@ class Bottleneck(ResidualBlock):
         self.relu = nn.ReLU(inplace=True)
 
         # if stride is not 1 then self.down_sample cannot be None
+        # should be without underscore (down_sample) to match the saved pretrained layer
         self.kernel_size = kernel_size
         self.stride = stride
         self.padding = padding
-        self.down_sample = down_sample
+        self.downsample = down_sample
 
     def forward(self, x):
         residual = x
@@ -150,8 +152,8 @@ class Bottleneck(ResidualBlock):
         out = self.conv3(out)
         out = self.bn3(out)
 
-        if self.down_sample is not None:
-            residual = self.down_sample(x)
+        if self.downsample is not None:
+            residual = self.downsample(x)
 
         if residual.size(-1) != out.size(-1):
             diff = residual.size(-1) - out.size(-1)
@@ -417,7 +419,11 @@ def resnet18_features(color_channels=3, pretrained=False, **kwargs):
         BasicBlock, [2, 2, 2, 2], color_channels=color_channels, **kwargs
     )
     if pretrained:
-        pretrained_state_dict = get_state_dict(__model_urls["resnet18"], color_channels)
+        pretrained_state_dict = get_state_dict(
+            __model_urls["resnet18"],
+            color_channels,
+            {r"layer[0-9]\.*": "residual_blocks"}
+        )
         model.load_state_dict(pretrained_state_dict, strict=False)
     return model
 

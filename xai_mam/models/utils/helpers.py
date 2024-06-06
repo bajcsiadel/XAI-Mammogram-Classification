@@ -1,10 +1,12 @@
+import re
+
 import torch
 from torch.utils import model_zoo
 
 from xai_mam.utils.environment import get_env
 
 
-def get_state_dict(model_url, color_channels=3):
+def get_state_dict(model_url, color_channels=3, prefixes=None):
     """
     Load the model state dict from a pretrained model of ImageNet.
 
@@ -12,6 +14,8 @@ def get_state_dict(model_url, color_channels=3):
     :type model_url: str
     :param color_channels: number of color channels. Defaults to ``3``.
     :type color_channels: int
+    :param prefixes: prefix of the layer names.
+    :type prefixes: dict[str, str] | None
     :return: state dict of the pretrained model
     :rtype: dict
     """
@@ -27,4 +31,19 @@ def get_state_dict(model_url, color_channels=3):
         conv1_w = pretrained_state_dict.pop("conv1.weight")
         conv1_w = torch.sum(conv1_w, dim=1, keepdim=True)
         pretrained_state_dict["conv1.weight"] = conv1_w
+
+    if prefixes:
+        layer_names = list(pretrained_state_dict.keys())
+        for layer_pattern, prefix in prefixes.items():
+            if prefix and not prefix.endswith("."):
+                prefix = f"{prefix}."
+                matching_layers = [
+                    layer_name
+                    for layer_name in layer_names
+                    if re.match(layer_pattern, layer_name)
+                ]
+                for layer_name in matching_layers:
+                    value = pretrained_state_dict.pop(layer_name)
+                    pretrained_state_dict[f"{prefix}{layer_name}"] = value
+
     return pretrained_state_dict
