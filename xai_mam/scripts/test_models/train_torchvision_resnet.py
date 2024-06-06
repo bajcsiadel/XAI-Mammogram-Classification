@@ -9,6 +9,7 @@ import numpy as np
 import random
 
 from dotenv import load_dotenv
+from torchinfo import summary
 from tqdm import tqdm
 from torchvision import models
 
@@ -172,6 +173,21 @@ def run(cfg, logger):
         )
     model.fc = nn.Linear(model.fc.in_features, data_module.dataset.number_of_classes)
     model.to(device)
+
+    logger.info(model)
+    exit()
+    logger.info(summary(
+        model,
+        input_size=(
+            data_module.dataset.image_properties.color_channels,
+            data_module.dataset.image_properties.height,
+            data_module.dataset.image_properties.width,
+        ),
+        depth=5,
+        batch_dim=0,
+        device=device,
+        verbose=0,
+    ))
 
     # Optimizer.
     optimizer = optim.SGD(model.parameters(), lr=learning_rate)

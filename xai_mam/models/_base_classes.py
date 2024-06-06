@@ -7,6 +7,7 @@ import torch
 import torchvision
 from albumentations.pytorch import ToTensorV2
 from torch import nn
+from torch.utils.data import DataLoader
 from torchinfo import summary
 
 from xai_mam.dataset.dataloaders import CustomSubset
@@ -111,8 +112,8 @@ class BaseTrainer(ABC):
                         data_module.dataset.image_properties.height,
                         data_module.dataset.image_properties.width,
                     ),
-                    depth=5,
-                    batch_dim=1,
+                    depth=6,
+                    batch_dim=0,
                     device=torch.device(gpu.device),
                     verbose=0,
                 )
@@ -276,7 +277,8 @@ class BaseTrainer(ABC):
             ToTensorV2(),
         ])
         originals = [
-            transform(image=image)["image"] for image in originals]
+            transform(image=image)["image"] for image in originals
+        ]
         self.logger.tensorboard.add_image(
             f"{self._data_module.dataset.name} original examples",
             torchvision.utils.make_grid(originals),
@@ -293,3 +295,28 @@ class BaseTrainer(ABC):
             self.model, first_batch_input.to(self._gpu.device)
         )
         dataset.reset_used_transforms()
+
+    def log_dataloader_information(self, *dataloaders):
+        """
+        Log information about the dataloaders. Each dataloader should be represented
+        by a tuple where the first element is the name of the dataloader and the
+        second is the dataloader itself.
+
+        :param dataloaders:
+        :type dataloaders: tuple[str, DataLoader]
+        """
+        if len(dataloaders) == 0:
+            self.logger.info("No dataloaders to log.")
+            return
+
+        self.logger.info("batch size:")
+        with self.logger.increase_indent_context():
+            for name, dataloader in dataloaders:
+                self.logger.info(f"{name}: {dataloader.batch_size}")
+
+        self.logger.info("number of batches (dataset length):")
+        with self.logger.increase_indent_context():
+            for name, dataloader in dataloaders:
+                self.logger.info(
+                    f"{name}: {len(dataloader)} ({len(dataloader.dataset)})"
+                )

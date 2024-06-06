@@ -497,10 +497,10 @@ class ExplainableTrainer(ProtoPNetTrainer):
         if self._fold == 1:
             self.log_image_examples(train_loader.dataset, "train")
 
-        self.logger.info("batch size:")
-        with self.logger.increase_indent_context():
-            self.logger.info(f"train: {train_loader.batch_size}")
-            self.logger.info(f"validation: {validation_loader.batch_size}")
+        self.log_dataloader_information(
+            ("train", train_loader),
+            ("validation", validation_loader)
+        )
 
         warm_optimizer = self._get_warm_optimizer()
 
@@ -567,11 +567,11 @@ class ExplainableTrainer(ProtoPNetTrainer):
             self._params.push.define_push_epochs(self._phases["joint"].epochs)
             self.logger.info(f"push epochs: {self._params.push.push_epochs}")
 
-        self.logger.info("batch size:")
-        with self.logger.increase_indent_context():
-            self.logger.info(f"train: {train_loader.batch_size}")
-            self.logger.info(f"validation: {validation_loader.batch_size}")
-            self.logger.info(f"push: {push_loader.batch_size}")
+        self.log_dataloader_information(
+            ("train", train_loader),
+            ("validation", validation_loader),
+            ("push", push_loader)
+        )
 
         joint_optimizer, joint_lr_scheduler = self._get_joint_optimizer()
 

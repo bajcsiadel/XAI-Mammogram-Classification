@@ -274,6 +274,10 @@ class CustomVisionDataset(datasets.VisionDataset):
             else cv2.imread(str(image_path), cv2.IMREAD_GRAYSCALE)
         )
 
+        if len(image.shape) > 2:
+            # the channel should be the last dimension
+            image = image.transpose([1, 2, 0])
+
         target = self.__class_to_number[sample[self.__classification, "label"]]
 
         return image, target
@@ -336,9 +340,6 @@ class CustomVisionDataset(datasets.VisionDataset):
         current_transform = self.__transform.transforms[selected_transform_index]
         final_transform = self.__compose_transform(current_transform)
 
-        if len(image.shape) > 2:
-            # the channel should be the last dimension
-            image = image.transpose([1, 2, 0])
         image = final_transform(image=image)["image"]
         target = self.__target_transform(target)
 

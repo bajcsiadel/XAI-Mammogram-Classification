@@ -180,10 +180,10 @@ class BackboneTrainer(ProtoPNetTrainer):
         if self._fold == 1:
             self.log_image_examples(train_loader.dataset, "train")
 
-        self.logger.info("batch size:")
-        with self.logger.increase_indent_context():
-            self.logger.info(f"train: {train_loader.batch_size}")
-            self.logger.info(f"validation: {validation_loader.batch_size}")
+        self.log_dataloader_information(
+            ("train", train_loader),
+            ("validation", validation_loader)
+        )
 
         joint_optimizer, joint_lr_scheduler = self._get_joint_optimizer()
 

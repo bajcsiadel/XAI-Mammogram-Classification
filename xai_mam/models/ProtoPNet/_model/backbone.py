@@ -51,11 +51,11 @@ class ProtoPNetBackbone(ProtoPNetBase, Backbone):
             add_on_layers_activation,
         )
 
-        x = torch.randn(1, color_channels, *img_shape)
+        x = torch.randn(8, color_channels, *img_shape)
 
         x = self.features(x)
         x = self.add_on_layers(x)
-        n, d, w, h = x.size()
+        _, d, w, h = x.size()
         self.last_layer = nn.Linear(
             d * w * h, self._n_classes, bias=False
         )  # do not use bias
