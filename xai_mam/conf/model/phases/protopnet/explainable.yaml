@@ -7,6 +7,8 @@ phases:
     learning_rates:
       add_on_layers: 3e-3
       prototype_vectors: 3e-3
+    optimizer:
+      _target_: torch.optim.Adam
     weight_decay: 1e-3
   joint:
     batch_size:
@@ -17,6 +19,8 @@ phases:
       features: 1e-4
       add_on_layers: 3e-3
       prototype_vectors: 3e-3
+    optimizer:
+      _target_: torch.optim.Adam
     scheduler:
       _target_: torch.optim.lr_scheduler.StepLR
       step_size: 5
@@ -28,6 +32,8 @@ phases:
     epochs: 4
     learning_rates:
       features: 1e-4
+    optimizer:
+      _target_: torch.optim.Adam
 
 params:
   _target_: xai_mam.models.ProtoPNet.config.explainable.ProtoPNetExplainableParameters

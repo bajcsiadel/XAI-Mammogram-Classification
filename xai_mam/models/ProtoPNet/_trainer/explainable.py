@@ -2,6 +2,7 @@ import datetime
 import time
 from functools import partial
 
+import hydra.utils
 import numpy as np
 import torch
 from sklearn.metrics import f1_score
@@ -426,7 +427,10 @@ class ExplainableTrainer(ProtoPNetTrainer):
                     "lr": self._phases["warm"].learning_rates["prototype_vectors"],
                 },
             ]
-        return torch.optim.Adam(warm_optimizer_specs)
+        return hydra.utils.instantiate(
+            self._phases["warm"].optimizer,
+            warm_optimizer_specs,
+        )
 
     def _get_last_layer_optimizer(self):
         """
@@ -441,7 +445,10 @@ class ExplainableTrainer(ProtoPNetTrainer):
                 "lr": self._phases["finetune"].learning_rates["features"],
             }
         ]
-        return torch.optim.Adam(last_layer_optimizer_specs)
+        return hydra.utils.instantiate(
+            self._phases["finetune"].optimizer,
+            last_layer_optimizer_specs,
+        )
 
     def _warm_only(self):
         """
@@ -505,6 +512,7 @@ class ExplainableTrainer(ProtoPNetTrainer):
         warm_optimizer = self._get_warm_optimizer()
 
         for epoch in np.arange(self._phases["warm"].epochs) + 1:
+            self._epoch += 1
             self.logger.info(f"warm epoch: \t{epoch}")
             self.logger.increase_indent()
 

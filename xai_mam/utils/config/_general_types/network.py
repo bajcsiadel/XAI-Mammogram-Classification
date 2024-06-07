@@ -45,12 +45,31 @@ class CrossValidationParameters:
 
 
 @dc.dataclass
+class Optimizer:
+    _target_: str = "torch.optim.Adam"
+    _args_: list = dc.field(default_factory=list)
+
+    __target_values = ["torch.optim.Adam", "torch.optim.SGD"]
+
+    def __setattr__(self, key, value):
+        match key:
+            case "_target_":
+                if value not in self.__target_values:
+                    raise ValueError(
+                        f"Optimizer does not support {value!r}. Must be one "
+                        f"of the following: {', '.join(self.__target_values)}"
+                    )
+        super().__setattr__(key, value)
+
+
+@dc.dataclass
 class Phase:
     batch_size: BatchSize = dc.field(default_factory=BatchSize)
     epochs: int = 0
     learning_rates: dict[str, float] = dc.field(default_factory=dict)
     weight_decay: float = 0.0
     scheduler: dict[str, typ.Any] = dc.field(default_factory=dict)
+    optimizer: Optimizer = dc.field(default_factory=Optimizer)
 
     def __setattr__(self, key, value):
         match key:

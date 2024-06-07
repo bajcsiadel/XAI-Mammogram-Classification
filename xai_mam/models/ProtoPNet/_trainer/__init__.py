@@ -130,7 +130,10 @@ class ProtoPNetTrainer(BaseTrainer):
                 },
             ]
 
-        joint_optimizer = torch.optim.Adam(joint_optimizer_specs)
+        joint_optimizer = hydra.utils.instantiate(
+            self._phases["joint"].optimizer,
+            joint_optimizer_specs,
+        )
         joint_lr_scheduler = hydra.utils.instantiate(
             self._phases["joint"].scheduler, joint_optimizer
         )
