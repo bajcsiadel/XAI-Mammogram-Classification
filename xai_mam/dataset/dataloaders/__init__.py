@@ -187,8 +187,8 @@ class CustomVisionDataset(datasets.VisionDataset):
         """
         return A.Compose(
             [
-                A.ToFloat(max_value=self.__dataset_meta.image_properties.max_value),
                 transform,  # unpack list of transforms
+                A.ToFloat(max_value=self.__dataset_meta.image_properties.max_value),
                 self.__normalize_transform,
                 A.Resize(
                     width=self.__dataset_meta.image_properties.width,
