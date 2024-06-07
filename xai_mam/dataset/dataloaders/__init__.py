@@ -329,80 +329,24 @@ class CustomVisionDataset(datasets.VisionDataset):
         # Load the image
         image, target = self.get_original(sample_index)
 
-        # apply transforms
-        remaining_transform_indices = np.where(
-            self.__remaining_transforms[sample_index] > 0
-        )[0]
-        # convert the index to int, otherwise it will be np.int64
-        selected_transform_index = int(np.random.choice(remaining_transform_indices))
-        self.__remaining_transforms[sample_index][selected_transform_index] -= 1
+        if self.__transform.multiplier > 1:
+            # apply transforms
+            remaining_transform_indices = np.where(
+                self.__remaining_transforms[sample_index] > 0
+            )[0]
+            # convert the index to int, otherwise it will be np.int64
+            selected_transform_index = int(np.random.choice(remaining_transform_indices))
+            self.__remaining_transforms[sample_index][selected_transform_index] -= 1
 
-        current_transform = self.__transform.transforms[selected_transform_index]
+            current_transform = self.__transform.transforms[selected_transform_index]
+        else:
+            current_transform = self.__transform.transforms[0]
         final_transform = self.__compose_transform(current_transform)
 
         image = final_transform(image=image)["image"]
         target = self.__target_transform(target)
 
         return image, target
-
-
-class CustomSubset(torch.utils.data.Subset):
-    """
-    Custom Subset class for PyTorch containing `targets` and `groups` properties.
-
-    :param dataset: root dataset
-    :type dataset: CustomVisionDataset
-    :param indices: indices of the included samples
-    :type indices: typ.Sequence[int]
-    """
-
-    def __init__(self, dataset, indices):
-        self.__patient_indices = copy.deepcopy(indices)
-        if dataset.multiplier > 1:
-            indices = np.array(
-                [
-                    range(
-                        index * dataset.multiplier,
-                        (index + 1) * dataset.multiplier,
-                    )
-                    for index in indices
-                ]
-            ).flatten()
-        super().__init__(dataset, indices)
-
-    @property
-    def metadata(self):
-        if hasattr(self.dataset, "metadata"):
-            return self.dataset.metadata.iloc[self.__patient_indices]
-        return pd.DataFrame()
-
-    @property
-    def targets(self):
-        if hasattr(self.dataset, "targets"):
-            return self.dataset.targets[self.__patient_indices]
-        return []
-
-    @property
-    def groups(self):
-        if hasattr(self.dataset, "groups"):
-            return self.dataset.groups[self.__patient_indices]
-        return []
-
-    @property
-    def multiplier(self):
-        if hasattr(self.dataset, "multiplier"):
-            return self.dataset.multiplier
-        return 1
-
-    def __repr__(self):
-        return (
-            f"CustomSubset(\n"
-            f"\tdataset={self.dataset},\n"
-            f"\tindices={self.indices},\n"
-            f"\tmin(indices)={min(*self.indices)},\n"
-            f"\tmax(indices)={max(*self.indices)},\n"
-            f")"
-        )
 
 
 class CustomDataModule:
@@ -430,7 +374,7 @@ class CustomDataModule:
     :param debug:
     :type debug: bool
     :param batch_size:
-    :type batch_size: conf_typ.BatchSize
+    :type batch_size: xai_mam.utils.config.types.BatchSize
     """
 
     def __init__(
@@ -467,7 +411,7 @@ class CustomDataModule:
         )
         self.__validation_data = CustomVisionDataset(
             **dataset_params,
-            subset="test",
+            subset="train",
         )
         self.__push_data = CustomVisionDataset(
             **dataset_params,
@@ -483,35 +427,12 @@ class CustomDataModule:
         self.__number_of_workers = num_workers
         self.__debug = debug
 
-        if self.__debug:
-            debug_specific_params = {}
-            if self.__debug:
-                debug_specific_params = {
-                    "test_size": batch_size.validation,
-                    "train_size": batch_size.train,
-                }
-            train_idx, validation_idx = stratified_grouped_train_test_split(
-                self.__train_data.metadata,
-                self.__train_data.targets,
-                self.__train_data.groups,
-                **debug_specific_params,
-                random_state=seed,
-            )
-
-            self.__validation_data = CustomSubset(
-                self.__validation_data, validation_idx
-            )
-            # using the original image indices
-            self.__push_data = CustomSubset(self.__push_data, train_idx)
-            # using the image indices considering the augmentation
-            self.__train_data = CustomSubset(self.__train_data, train_idx)
-
         self.__init_cross_validation(
-            cross_validation_folds, stratified, balanced, grouped, seed
+            cross_validation_folds, stratified, balanced, grouped, batch_size, seed
         )
 
     def __init_cross_validation(
-        self, cross_validation_folds, stratified, balanced, groups, seed
+        self, cross_validation_folds, stratified, balanced, groups, batch_size, seed
     ):
         """
         Initialize cross validation folds
@@ -523,11 +444,36 @@ class CustomDataModule:
         :type balanced: bool
         :param groups:
         :type groups: bool
+        :param batch_size:
+        :type batch_size: xai_mam.utils.config.types.BatchSize
         :param seed:
         :type seed: int
         """
-        if cross_validation_folds in [None, 0, 1] or self.__debug:
-            self.__fold_generator = [(None, None)]
+        if self.__debug or cross_validation_folds in [None, 0, 1]:
+            debug_specific_params = {}
+            if self.__debug:
+                debug_specific_params = {
+                    "test_size": batch_size.validation,
+                    "train_size": batch_size.train,
+                }
+            # else:
+            #     debug_specific_params = {
+            #         "test_size": 0.4,
+            #     }
+            train_idx, validation_idx = stratified_grouped_train_test_split(
+                self.__train_data.metadata,
+                self.__train_data.targets,
+                self.__train_data.groups,
+                **debug_specific_params,
+                random_state=seed,
+            )
+
+            # if not self.__debug:
+            #     train_idx, validation_idx = validation_idx, train_idx
+            train_idx = np.array([0, 1, 4, 5, 6, 8, 9, 10, 12, 13, 14, 15, 16, 19, 20, 21, 22, 23, 24, 25, 26, 27, 30, 31, 32, 33, 34, 35, 36, 37, 38, 40, 41, 42, 44, 45, 46, 47, 48, 49, 50, 52, 54, 55, 56, 57, 58, 59, 61, 62, 63, 65, 66, 67, 69, 70, 71, 73, 74, 75, 76, 77, 78, 79])
+            validation_idx = np.array([2, 3, 7, 11, 17, 18, 28, 29, 39, 43, 51, 53, 60, 64, 68, 72, 80])
+
+            self.__fold_generator = [(train_idx, validation_idx)]
             return
 
         targets = self.__train_data.targets
@@ -565,7 +511,7 @@ class CustomDataModule:
             n_splits=cross_validation_folds, shuffle=True, random_state=seed
         )
 
-        self.__fold_generator = cross_validator.split(self.__train_data, **cv_kwargs)
+        self.__fold_generator = cross_validator.split(self.__train_data.metadata, **cv_kwargs)
 
     @property
     def debug(self):
@@ -604,7 +550,21 @@ class CustomDataModule:
                 torch.utils.data.SubsetRandomSampler
             ]]
         """
-        yield from self.__fold_generator
+        for fold, (train_idx, validation_idx) in enumerate(self.__fold_generator, start=1):
+            if self.__train_data.multiplier > 1:
+                train_idx = np.array(
+                    [
+                        range(
+                            index * self.__train_data.multiplier,
+                            (index + 1) * self.__train_data.multiplier,
+                        )
+                        for index in train_idx
+                    ]
+                ).flatten()
+            yield fold, (
+                torch.utils.data.SubsetRandomSampler(train_idx),
+                torch.utils.data.SubsetRandomSampler(validation_idx),
+            )
 
     def log_data_information(self, logger):
         """
@@ -625,7 +585,7 @@ class CustomDataModule:
         :param logger:
         :type logger: ProtoPNet.utils.log.Log
         :param data:
-        :type data: CustomSubset | CustomVisionDataset
+        :type data: CustomVisionDataset
         :param name:
         :type name: str
         """
@@ -647,7 +607,7 @@ class CustomDataModule:
         """
         Get a data loader for a given dataset
         :param dataset:
-        :type dataset: CustomVisionDataset | CustomSubset
+        :type dataset: CustomVisionDataset
         :param kwargs:
         :type kwargs: dict[str, typing.Any]
         :return: data loader
@@ -723,7 +683,7 @@ class CustomDataModule:
         :param batch_size:
         :type batch_size: int
         :param sampler:
-        :type sampler: torch.utils.data.Sampler | typing.Iterable[int] | None
+        :type sampler: torch.utils.data.sampler.SubsetRandomSampler | typing.Iterable[int] | None
         :param kwargs:
         :type kwargs: dict[str, typing.Any]
         :return: push data loader
@@ -734,6 +694,14 @@ class CustomDataModule:
                 "shuffle": False,
             }
         else:
+            if self.__train_data.multiplier > 1:
+                if isinstance(sampler, torch.utils.data.SubsetRandomSampler):
+                    indices = sampler.indices
+                else:
+                    indices = copy.deepcopy(sampler)
+                sampler = torch.utils.data.sampler.SubsetRandomSampler(
+                    np.array(indices) // self.__train_data.multiplier
+                )
             param = {
                 "sampler": sampler,
             }

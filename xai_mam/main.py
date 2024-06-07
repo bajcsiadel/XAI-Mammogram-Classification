@@ -151,12 +151,18 @@ def run_experiment(cfg: main_cfg.Config, logger: TrainLogger):
     logger.info("start training")
     start_training = time.time()
 
-    for fold, (train_sampler, validation_sampler) in enumerate(
-        data_module.folds, start=1
-    ):
+    for fold, (train_sampler, validation_sampler) in data_module.folds:
         if cfg.cross_validation.folds > 1:
+            logger.info(f"fold #{fold}")
             logger.increase_indent()
         start_fold = time.time()
+        logger.info(
+            f"train sampler: {len(train_sampler)} "
+            f"({len(train_sampler) // data_module.train_data.multiplier})"
+        )
+        logger.info(train_sampler.indices.tolist())
+        logger.info(f"validation sampler: {len(validation_sampler)}")
+        logger.info(validation_sampler.indices.tolist())
         trainer = cfg.model.params.construct_trainer(
             data_module=data_module,
             model_config=cfg.model,
@@ -166,6 +172,7 @@ def run_experiment(cfg: main_cfg.Config, logger: TrainLogger):
             train_sampler=train_sampler,
             validation_sampler=validation_sampler,
         )
+        trainer.reset_epochs()
 
         trainer.execute()
 
