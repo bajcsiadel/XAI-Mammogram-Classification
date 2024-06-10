@@ -94,8 +94,7 @@ class ProtoPNetBackbone(ProtoPNetBase, Backbone):
         :rtype: str
         """
         return (
-            f"BBNet(\n"
-            f"\tfeatures: {self.features},\n"
+            f"{self.__class__.__name__}(\n"
             f"\timg_shape: {self._image_shape},\n"
             f"\tnum_classes: {self._n_classes},\n"
             f"\tepsilon: {self._epsilon}\n)\n"

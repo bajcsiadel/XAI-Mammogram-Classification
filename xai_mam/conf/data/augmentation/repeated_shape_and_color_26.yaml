@@ -4,7 +4,7 @@ train:
     - _target_: xai_mam.utils.helpers.RepeatedAugmentation
       transforms:
         - _target_: albumentations.Rotate
-          limit: 20
+          limit: 10
           border_mode: 0
           crop_border: true
           p: 1.0
@@ -26,7 +26,7 @@ train:
     - _target_: xai_mam.utils.helpers.RepeatedAugmentation
       transforms:
         - _target_: xai_mam.utils.helpers.Shear
-          limit: 20
+          limit: 10
           crop_border: true
           p: 1.0
         - _target_: albumentations.OneOf

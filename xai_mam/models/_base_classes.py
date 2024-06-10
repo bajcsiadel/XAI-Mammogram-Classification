@@ -78,10 +78,9 @@ class BaseTrainer(ABC):
         logger,
     ):
         if not gpu.disabled:
-            model = model.to(gpu.device)
             self._parallel_model = torch.nn.DataParallel(
                 model,
-                device_ids=[int(i) for i in gpu.device_ids.split(",")]
+                device_ids=gpu.device_ids,
             )
         else:
             self._parallel_model = model
@@ -114,7 +113,6 @@ class BaseTrainer(ABC):
                     ),
                     depth=6,
                     batch_dim=0,
-                    device=torch.device(gpu.device),
                     verbose=0,
                 )
             )
@@ -287,7 +285,7 @@ class BaseTrainer(ABC):
             torchvision.utils.make_grid(first_batch_un_normalized, nrow=dataset.multiplier),
         )
         self.logger.tensorboard.add_graph(
-            self.model, first_batch_input.to(self._gpu.device)
+            self.model, first_batch_input.to(self._gpu.device_instance)
         )
         dataset.reset_used_transforms()
 

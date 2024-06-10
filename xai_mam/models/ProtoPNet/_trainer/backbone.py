@@ -86,8 +86,8 @@ class BackboneTrainer(ProtoPNetTrainer):
         grad_req = torch.enable_grad() if is_train else torch.no_grad()
 
         for image, label in dataloader:
-            input_ = image.to(self._gpu.device)
-            target_ = label.to(self._gpu.device)
+            input_ = image.to(self._gpu.device_instance)
+            target_ = label.to(self._gpu.device_instance)
             true_labels = np.append(true_labels, label.numpy())
             with grad_req:
                 # nn.Module has implemented __call__() function

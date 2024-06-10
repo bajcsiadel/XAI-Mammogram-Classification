@@ -62,7 +62,7 @@ class BagNetTrainer(BaseTrainer):
             logger,
         )
 
-        self.__criterion = torch.nn.CrossEntropyLoss().to(gpu.device)
+        self.__criterion = torch.nn.CrossEntropyLoss().to(gpu.device_instance)
 
         self.logger.info("batch size:")
         with self.logger.increase_indent_context():
@@ -138,8 +138,8 @@ class BagNetTrainer(BaseTrainer):
                 data_time.update(time.time() - start)
 
                 # move data to the same device as model
-                images = images.to(self._gpu.device, non_blocking=True)
-                target = target.to(self._gpu.device, non_blocking=True)
+                images = images.to(self._gpu.device_instance, non_blocking=True)
+                target = target.to(self._gpu.device_instance, non_blocking=True)
 
                 # compute output
                 output = self.parallel_model(images)
@@ -262,7 +262,7 @@ class BagNetTrainer(BaseTrainer):
             torchvision.utils.make_grid(first_batch_images),
         )
         self.logger.tensorboard.add_graph(
-            self.model, first_batch_images.to(self._gpu.device)
+            self.model, first_batch_images.to(self._gpu.device_instance)
         )
 
 

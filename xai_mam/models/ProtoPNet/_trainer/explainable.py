@@ -128,7 +128,7 @@ class ExplainableTrainer(ProtoPNetTrainer):
         """
         if self.model.class_specific and use_l1_mask:
             l1_mask = 1 - torch.t(self.model.prototype_class_identity).to(
-                self._gpu.device
+                self._gpu.device_instance
             )
             return (self.model.last_layer.weight * l1_mask).norm(p=1)
 
@@ -147,7 +147,7 @@ class ExplainableTrainer(ProtoPNetTrainer):
                     self.model.prototype_vectors[:, :, 0, 0],
                     self.model.prototype_vectors[:, :, 0, 0].t(),
                 )
-                - torch.eye(self.model.n_prototypes).to(self._gpu.device)
+                - torch.eye(self.model.n_prototypes).to(self._gpu.device_instance)
             ).norm(p=2)
 
         return 0.0
@@ -173,7 +173,7 @@ class ExplainableTrainer(ProtoPNetTrainer):
             expected = expected.to(self.model.prototype_class_identity.device)
             prototypes_of_correct_class = torch.t(
                 self.model.prototype_class_identity[:, expected]
-            ).to(self._gpu.device)
+            ).to(self._gpu.device_instance)
             inverted_distances, target_proto_index = torch.max(
                 (max_dist - min_distances) * prototypes_of_correct_class,
                 dim=1,
@@ -200,7 +200,7 @@ class ExplainableTrainer(ProtoPNetTrainer):
             expected = expected.to(self.model.prototype_class_identity.device)
             prototypes_of_correct_class = torch.t(
                 self.model.prototype_class_identity[:, expected]
-            ).to(self._gpu.device)
+            ).to(self._gpu.device_instance)
 
             prototypes_of_wrong_class = 1 - prototypes_of_correct_class
 
@@ -306,8 +306,8 @@ class ExplainableTrainer(ProtoPNetTrainer):
         grad_req = torch.enable_grad() if is_train else torch.no_grad()
 
         for image, label in dataloader:
-            input_ = image.to(self._gpu.device)
-            target_ = label.to(self._gpu.device)
+            input_ = image.to(self._gpu.device_instance)
+            target_ = label.to(self._gpu.device_instance)
             true_labels = np.append(true_labels, label.numpy())
             with grad_req:
                 # nn.Module has implemented __call__() function
@@ -639,7 +639,7 @@ class ExplainableTrainer(ProtoPNetTrainer):
                     # if not provided, prototypes saved previously will be overwritten
                     save_prototype_class_identity=True,
                     logger=self.logger,
-                    device=self._gpu.device,
+                    device=self._gpu.device_instance,
                 )
 
                 self.logger.csv_log_index(
