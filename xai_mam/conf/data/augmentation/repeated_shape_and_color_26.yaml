@@ -4,9 +4,9 @@ train:
     - _target_: xai_mam.utils.helpers.RepeatedAugmentation
       transforms:
         - _target_: albumentations.Rotate
-          limit: 10
-          border_mode: 0
-          crop_border: true
+          limit: 20
+#          border_mode: 0
+#          crop_border: true
           p: 1.0
         - _target_: albumentations.OneOf
           transforms:
@@ -21,13 +21,13 @@ train:
           p: 0.95
         - _target_: albumentations.GaussNoise
           var_limit: 0.1
-          p: 0.15
+          p: 0.5
       n: 5
     - _target_: xai_mam.utils.helpers.RepeatedAugmentation
       transforms:
         - _target_: xai_mam.utils.helpers.Shear
-          limit: 10
-          crop_border: true
+          limit: 20
+#          crop_border: true
           p: 1.0
         - _target_: albumentations.OneOf
           transforms:
@@ -42,7 +42,7 @@ train:
           p: 0.95
         - _target_: albumentations.GaussNoise
           var_limit: 0.1
-          p: 0.15
+          p: 0.5
       n: 5
     - _target_: xai_mam.utils.helpers.RepeatedAugmentation
       transforms:
@@ -64,7 +64,7 @@ train:
           p: 0.95
         - _target_: albumentations.GaussNoise
           var_limit: 0.1
-          p: 0.15
+          p: 0.5
       n: 5
     - _target_: xai_mam.utils.helpers.RepeatedAugmentation
       transforms:
@@ -83,7 +83,7 @@ train:
           p: 1.0
         - _target_: albumentations.GaussNoise
           var_limit: 0.1
-          p: 0.15
+          p: 0.5
       n: 5
     - _target_: xai_mam.utils.helpers.RepeatedAugmentation
       transforms:
@@ -102,6 +102,6 @@ train:
           p: 1.0
         - _target_: albumentations.GaussNoise
           var_limit: 0.1
-          p: 0.15
+          p: 0.5
       n: 5
   exclude_identity_transform: false

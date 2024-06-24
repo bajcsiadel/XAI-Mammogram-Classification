@@ -411,6 +411,9 @@ class CustomDataModule:
         )
         self.__validation_data = CustomVisionDataset(
             **dataset_params,
+            transform=Augmentations(
+                transforms=self.__data.image_properties.augmentations.train
+            ),
             subset="train",
         )
         self.__push_data = CustomVisionDataset(
@@ -559,6 +562,16 @@ class CustomDataModule:
                             (index + 1) * self.__train_data.multiplier,
                         )
                         for index in train_idx
+                    ]
+                ).flatten()
+            if self.__validation_data.multiplier > 1:
+                validation_idx = np.array(
+                    [
+                        range(
+                            index * self.__validation_data.multiplier,
+                            (index + 1) * self.__validation_data.multiplier,
+                        )
+                        for index in validation_idx
                     ]
                 ).flatten()
             yield fold, (
