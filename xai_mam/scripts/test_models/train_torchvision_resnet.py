@@ -142,7 +142,7 @@ def run(cfg, logger):
     learning_rate = 0.01
     device = torch.device(
         f"{cfg.gpu.device}" +
-        f":{cfg.gpu.device_ids.split(',')[0]}" if cfg.gpu.device == "cuda" else ""
+        f":{cfg.gpu.device_ids[0]}" if cfg.gpu.device == "cuda" else ""
     )
 
     train_loader = data_module.train_dataloader(batch_size=batch_size)
