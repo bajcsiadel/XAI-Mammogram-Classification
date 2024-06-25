@@ -17,9 +17,6 @@ from xai_mam.utils.config import script_main as main_cfg
 from xai_mam.utils.environment import get_env
 from xai_mam.utils.log import TrainLogger
 
-tick = "\u2714"
-cross = "\u2718"
-
 
 @hydra.main(
     version_base=None,
@@ -64,19 +61,17 @@ def log_gpu_usage(gpu, logger):
         match platform.system():
             case "Windows" | "Linux":
                 logger.info(
-                    f"{tick if torch.cuda.is_available() else cross} available CUDA"
+                    f"{logger.print_symbol(torch.cuda.is_available())} available CUDA"
                 )
-                logger.info(
-                    f"Visible devices set to: {gpu.device_ids}"
-                )
+                logger.info(f"Visible devices set to: {gpu.device_ids}")
             case "Darwin":
                 logger.info(
-                    f"{tick if torch.backends.mps.is_available() else cross} "
+                    f"{logger.print_symbol(torch.backends.mps.is_available())} "
                     f"available MPS"
                 )
 
     else:
-        logger.info(f"{tick} disabled")
+        logger.info(f"{logger.special_characters.tick} disabled")
     logger.decrease_indent()
 
 
@@ -101,20 +96,22 @@ def run_experiment(cfg: main_cfg.Config, logger: TrainLogger):
 
     if cfg.cross_validation.folds > 1:
         logger.info("")
-        logger.info(f"{tick} cross validation")
+        logger.info(f"{logger.special_characters.tick} cross validation")
         logger.increase_indent()
         logger.info(f"{cfg.cross_validation.folds} folds")
-        logger.info(f"{tick if cfg.cross_validation.stratified else cross} stratified")
-        logger.info(f"{tick if cfg.cross_validation.balanced else cross} balanced")
-        logger.info(f"{tick if cfg.cross_validation.grouped else cross} grouped")
+        logger.info(
+            f"{logger.print_symbol(cfg.cross_validation.stratified)} stratified"
+        )
+        logger.info(f"{logger.print_symbol(cfg.cross_validation.balanced)} balanced")
+        logger.info(f"{logger.print_symbol(cfg.cross_validation.grouped)} grouped")
         logger.decrease_indent()
     else:
-        logger.info(f"{cross} cross validation")
+        logger.info(f"{logger.special_characters.cross} cross validation")
 
     data_module = instantiate(cfg.data.datamodule)
 
     logger.info("")
-    logger.info(f"{tick if data_module.debug else cross} debug")
+    logger.info(f"{logger.print_symbol(data_module.debug)} debug")
 
     image_shape = (
         cfg.data.set.image_properties.height,
@@ -138,8 +135,8 @@ def run_experiment(cfg: main_cfg.Config, logger: TrainLogger):
         number_of_classes=data_module.dataset.number_of_classes, logger=logger, cfg=cfg
     )
     with logger.increase_indent_context():
-        logger.info(f"{tick if cfg.model.network.pretrained else cross} pretrained")
-        logger.info(f"{tick if cfg.model.backbone_only else cross} backbone only")
+        logger.info(f"{logger.print_symbol(cfg.model.network.pretrained)} pretrained")
+        logger.info(f"{logger.print_symbol(cfg.model.backbone_only)} backbone only")
     logger.decrease_indent()
 
     with (logger.log_location / get_env("CONFIG_DIR_NAME") / "config.pickle").open(

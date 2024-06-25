@@ -3,11 +3,12 @@ import logging
 import os
 import sys
 import traceback
-import typing as typ
 from datetime import datetime
+from enum import StrEnum
 from pathlib import Path
 from textwrap import indent
 
+import numpy as np
 import omegaconf
 import torch
 from hydra.core.hydra_config import HydraConfig
@@ -15,6 +16,17 @@ from matplotlib import pyplot as plt
 from torch.utils.tensorboard import SummaryWriter
 
 from xai_mam.utils import errors
+from xai_mam.utils.config._general_types import Outputs
+from xai_mam.utils.config._general_types.log import FilePrefixes
+
+
+# fmt off
+class SpecialCharacters(StrEnum):
+    tick = "\u2714"  # noqa
+    cross = "\u2718"
+
+
+# fmt on
 
 
 class ScriptLogger(logging.Logger):
@@ -22,14 +34,17 @@ class ScriptLogger(logging.Logger):
     Object for managing the log directory
 
     :param name: The name of the logger
-    :type name: str
+    :param log_location: location where the log file will be saved.
+    Defaults to ``None`` ==> hydra output directory
     """
 
-    def __init__(self, name, log_location=None):
+    special_characters = SpecialCharacters
+
+    def __init__(self, name: str, log_location: Path | str | None = None):
         super().__init__(name)
         self.parent = logging.root
 
-        self._log_location = log_location or Path(HydraConfig.get().runtime.output_dir)
+        self._log_location = Path(log_location or HydraConfig.get().runtime.output_dir)
 
         # Ensure the directories exist
         self.log_location.mkdir(parents=True, exist_ok=True)
@@ -40,20 +55,46 @@ class ScriptLogger(logging.Logger):
         self.info(f"Log dir: {self.log_location}")
 
     @contextlib.contextmanager
-    def increase_indent_context(self, times=1):
+    def increase_indent_context(self, times: int = 1):
+        """
+        Context manager increasing the indent,
+
+        :param times:
+        """
         self.increase_indent(times)
         yield
         self.decrease_indent(times)
 
-    def increase_indent(self, times=1):
+    def increase_indent(self, times: int = 1):
+        """
+        Increase the indentation
+
+        :param times:
+        """
         if times < 0:
             raise ValueError("times must be non-negative")
         self._indent += 4 * times
 
-    def decrease_indent(self, times=1):
+    def decrease_indent(self, times: int = 1):
+        """
+        Decrease the indentation.
+
+        :param times:
+        """
         if times < 0:
             raise ValueError("times must be non-negative")
         self._indent = max(0, self._indent - 4 * times)
+
+    def print_symbol(self, condition: bool) -> str:
+        """
+        Get tick or cross based on the given condition.
+
+        :param condition:
+        :return: tick if the condition is ``True``, cross otherwise.
+        """
+        return (
+            self.special_characters.tick if condition else self.special_characters.cross
+        )
 
     @property
     def log_location(self):
@@ -61,30 +102,24 @@ class ScriptLogger(logging.Logger):
 
     def _log(
         self,
-        level,
-        msg,
+        level: int,
+        msg: str,
         args,
         exc_info=None,
-        extra=None,
-        stack_info=False,
-        stacklevel=1,
+        extra: dict[str, object] = None,
+        stack_info: bool = False,
+        stacklevel: int = 1,
     ):
         """
         Write a message to the log file
 
         :param level: the level of the message, e.g. logging.INFO
-        :type level: int
         :param msg: the message string to be written to the log file
-        :type msg: str
         :param args: arguments for the message
-        :type args:
-        :param exc_info: exception info. Defaults to None
-        :param extra: extra information. Defaults to None
-        :type extra: typ.Mapping[str, object] | None
-        :param stack_info: whether to include stack info. Defaults to False
-        :type stack_info: bool
-        :param stacklevel: the stack level. Defaults to 1
-        :type stacklevel: int
+        :param exc_info: exception info. Defaults to ``None``.
+        :param extra: extra information. Defaults to ``None``.
+        :param stack_info: whether to include stack info. Defaults to ``False``.
+        :param stacklevel: the stack level. Defaults to ``1``.
         """
         if type(msg) is not str:
             msg = str(msg)
@@ -102,15 +137,12 @@ class ScriptLogger(logging.Logger):
                 stacklevel=stacklevel,
             )
 
-    def exception(self, ex, warn_only=False, **kwargs):
+    def exception(self, ex: Exception, warn_only: bool = False, **kwargs):
         """
         Customize logging an exception
 
         :param ex:
-        :type ex: Exception
         :param warn_only: Defaults to False
-        :type warn_only: bool
-        :type ex: Exception
         """
         if warn_only:
             log_fn = self.warning
@@ -119,12 +151,11 @@ class ScriptLogger(logging.Logger):
         log_fn(f"{type(ex).__name__}: {ex}", **kwargs)
         log_fn(traceback.format_exc(), **kwargs)
 
-    def __call__(self, message):
+    def __call__(self, message: str):
         """
-        Log a message
+        Log a message.
 
         :param message:
-        :type message: str
         """
         level, msg = message.split(": ", 1)
         match level:
@@ -143,12 +174,19 @@ class TrainLogger(ScriptLogger):
     Object for managing the log directory
 
     :param name: The name of the logger
-    :type name: str
     :param outputs: output dirs and file prefixes
-    :type outputs: xai_mam.utils.config_types.Outputs
+    :param tensorboard: enables TensorBoard logging. Defaults to ``True``.
+    :param log_location: location where the log file will be saved.
+    Defaults to ``None`` ==> hydra output directory
     """
 
-    def __init__(self, name, outputs, tensorboard=True, log_location=None):
+    def __init__(
+        self,
+        name: str,
+        outputs: Outputs,
+        tensorboard: bool = True,
+        log_location: Path | str | None = None,
+    ):
         super().__init__(name, log_location)
 
         self.__logs = dict()
@@ -172,33 +210,32 @@ class TrainLogger(ScriptLogger):
         logging.getLogger().manager.loggerDict[name] = self
 
     @property
-    def checkpoint_location(self):
+    def checkpoint_location(self) -> Path:
         return self._log_location / self.__outputs.dirs.checkpoints
 
     @property
-    def image_location(self):
+    def image_location(self) -> Path:
         return self._log_location / self.__outputs.dirs.image
 
     @property
-    def metadata_location(self):
+    def metadata_location(self) -> Path:
         return self._log_location / self.__outputs.dirs.metadata
 
     @property
-    def tensorboard_location(self):
+    def tensorboard_location(self) -> Path:
         return self._log_location / self.__outputs.dirs.tensorboard
 
     @property
-    def file_prefixes(self):
+    def file_prefixes(self) -> FilePrefixes:
         """
         :return: file prefixes defined in the config file
-        :rtype: xai_mam.utils.config._general_types.log.FilePrefixes
         """
         self.debug(str(self.__outputs))
         self.debug(str(self.__outputs.file_prefixes))
         return self.__outputs.file_prefixes
 
     @property
-    def tensorboard(self):
+    def tensorboard(self) -> SummaryWriter:
         return self.__tensorboard_writer
 
     def log_command_line(self):
@@ -235,38 +272,22 @@ class TrainLogger(ScriptLogger):
             fd.write("# attaching the screen\n")
             fd.write(f"screen -r {screen_name}\n")
 
-    def __call__(self, message):
-        """
-        Log a message
-
-        :param message:
-        :type message: str
-        """
-        level, msg = message.split(": ", 1)
-        match level:
-            case "INFO":
-                self.info(msg)
-            case "WARNING":
-                self.warning(msg)
-            case "ERROR":
-                self.error(msg)
-            case _:
-                self.log(logging.INFO, message)
-
-    def create_csv_log(self, log_name, key_name, *value_names, exist_ok=False):
+    def create_csv_log(
+        self,
+        log_name: str,
+        key_name: str | list[str],
+        *value_names: str,
+        exist_ok: bool = False,
+    ):
         """
         Create a csv for logging information.
 
         :param log_name: The name of the log. The log filename will be <log_name>.csv.
-        :type log_name: str
         :param key_name: The name of the attribute that is used as key
             (e.g. epoch number)
-        :type key_name: str|typing.Iterable[str]
         :param value_names: The names of the attributes that are logged
-        :type value_names: str
         :param exist_ok: defines if it is okay to append to result file.
             Defaults to ``False``.
-        :type exist_ok: bool
         """
         if log_name in self.__logs.keys():
             if not exist_ok:
@@ -301,15 +322,13 @@ class TrainLogger(ScriptLogger):
         with (self.log_location / f"{log_name}.csv").open(mode="a") as f:
             f.write(",".join(str(v) for v in key) + ",")
 
-    def csv_log_values(self, log_name, *values):
+    def csv_log_values(self, log_name: str, *values: any):
         """
         Log values in an existent log file. The key should be
         specified in advance by calling create_csv_log
 
         :param log_name: The name of the log file
-        :type log_name: str
         :param values: value attributes that will be stored in the log
-        :type values: typ.Any
         :raises FileNotFoundError: If the log file does not exist
         :raises errors.CsvMismatchedColumnsError: If the number of
         values does not match the number of columns
@@ -325,16 +344,13 @@ class TrainLogger(ScriptLogger):
         with (self.log_location / f"{log_name}.csv").open(mode="a") as f:
             f.write(",".join(str(v) for v in values) + "\n")
 
-    def csv_log_line(self, log_name, key, *values):
+    def csv_log_line(self, log_name: str, key: str | list[str], *values: any):
         """
         Log the given line in an existent log file
 
         :param log_name: The name of the log file
-        :type log_name: str
         :param key: The key attribute for logging these values
-        :type key: str|typ.Iterable[str]
         :param values: value attributes that will be stored in the log
-        :type values: str
         :raises FileNotFoundError: If the log file does not exist
         :raises errors.CsvMismatchedColumnsError: If the number of values
         does not match the number of columns
@@ -342,16 +358,16 @@ class TrainLogger(ScriptLogger):
         self.csv_log_index(log_name, key)
         self.csv_log_values(log_name, *values)
 
-    def save_model(self, model_name, state, model_location=None):
+    def save_model(
+        self, model_name: str, state: dict[str, any], model_location: Path | str = None
+    ):
         """
         Save the model.
 
         :param model_name: name of the file in which the model is saved
-        :type model_name: str
         :param state: state of the training including the model state dict, the
             optimizer state dict and the scheduler state dict, the epoch and
             the accuracy
-        :type state: dict[str, any]
         :param model_location: location where the model is saved. If it is
             ``None``, then the model will be saved into the ``"checkpoints"``
             folder. Defaults to ``None``.
@@ -364,41 +380,43 @@ class TrainLogger(ScriptLogger):
         )
 
     def save_model_w_condition(
-        self, model_name, state, accu, target_accu=0.6, model_location=None
+        self,
+        model_name: str,
+        state: dict[str, any],
+        accu: float,
+        target_accu: float = 0.6,
+        model_location: Path | str = None,
     ):
         """
         Save the model if it's accuracy reaches a given threshold.
 
         :param model_name: name of the file in which the model is saved
-        :type model_name: str
         :param state: state of the training including the model state dict, the
             optimizer state dict and the scheduler state dict, the epoch and
             the accuracy
-        :type state: dict[str, any]
         :param accu: test accuracy of the model
-        :type accu: float
         :param target_accu: accuracy threshold. Defaults to ``0.6``.
-        :type target_accu: float
         :param model_location: location where the model is saved. If it is
             ``None``, then the model will be saved into the ``"checkpoints"``
             folder. Defaults to ``None``.
-        :type model_location: pathlib.Path | None
         """
         if accu > target_accu:
             with self.increase_indent_context():
                 self.info(f"above {target_accu:.2%}")
             self.save_model(f"{model_name}-{accu:.4f}", state, model_location)
 
-    def save_image(self, image_name, image, image_location=None):
+    def save_image(
+        self,
+        image_name: Path | str,
+        image: np.ndarray,
+        image_location: Path | str = None,
+    ):
         """
         Save the image.
 
         :param image_name: name of the output image
-        :type image_name: str | pathlib.Path
-        :param image: image to save
-        :type image: numpy.ndarray
+        :param image: content of the image to save
         :param image_location: location where the image is saved. Defaults to ``None``.
-        :type image_location: str | pathlib.Path
         """
         if image_location is None:
             image_location = self.image_location
