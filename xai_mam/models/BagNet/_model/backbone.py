@@ -1,11 +1,10 @@
+import torch
 from torch import nn
-from torch.utils import model_zoo
 
 from xai_mam.models._base_classes import Backbone
 from xai_mam.models.BagNet._model import BagNetBase
 from xai_mam.models.utils.backbone_features import resnet_features
-from xai_mam.models.utils.helpers import get_state_dict
-from xai_mam.utils.environment import get_env
+from xai_mam.utils.log import TrainLogger
 
 
 class BagNetBackbone(BagNetBase, Backbone):
@@ -14,21 +13,17 @@ class BagNetBackbone(BagNetBase, Backbone):
     a ResNet-50.
 
     :param n_classes: number of classes in the data
-    :type n_classes: int
     :param logger:
-    :type logger: ProtoPNet.utils.log.Log
     :param color_channels: number of color channels in the input. Defaults to ``3``.
-    :type color_channels: int
     :param pretrained: whether to use a pre-trained model or not. Defaults to ``False``.
-    :type pretrained: bool
     """
 
     def __init__(
         self,
-        n_classes,
-        logger,
-        color_channels=3,
-        pretrained=False,
+        n_classes: int,
+        logger: TrainLogger,
+        color_channels: int = 3,
+        pretrained: bool = False,
     ):
         super(BagNetBackbone, self).__init__(n_classes, logger, color_channels)
 
@@ -53,7 +48,13 @@ class BagNetBackbone(BagNetBase, Backbone):
             self.features.residual_blocks.layer4[-1].out_channels, n_classes
         )
 
-    def forward(self, x):
+    def forward(self, x: torch.Tensor):
+        """
+        Push the `x` input forward on the module.
+
+        :param x:
+        :return: the result of the module
+        """
         x = self.features(x)
         x = self.avg_pool(x)
         x = x.view(x.size(0), -1)
