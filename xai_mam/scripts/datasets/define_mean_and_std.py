@@ -29,9 +29,6 @@ from omegaconf import OmegaConf
 from omegaconf import errors as conf_errors
 from torch.utils.data import DataLoader
 
-load_dotenv()
-sys.path.append(os.getenv("PROJECT_ROOT"))
-
 from xai_mam.dataset.dataloaders import my_collate_function
 from xai_mam.utils import custom_pipe
 from xai_mam.utils.config import config_store_
@@ -142,6 +139,7 @@ def compute_mean_and_std_of_dataset(cfg: Config):
         logger.exception(e)
 
 
+load_dotenv()
 add_all_custom_resolvers()
 config_store_.store(name="_config_validation", node=Config)
 config_store_.store(name="_data_validation", group="data", node=DataConfig)

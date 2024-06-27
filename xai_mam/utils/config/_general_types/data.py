@@ -50,8 +50,8 @@ class AugmentationsConfig:
                         raise ValueError(
                             f"Augmentations must have a _target_. {key} = {value}"
                         )
-                self.__identity_transform_present = (
-                    self.set_identity_transform_present(value)
+                self.__identity_transform_present = self.set_identity_transform_present(
+                    value
                 )
 
         super().__setattr__(key, value)
@@ -267,8 +267,8 @@ class DataModuleConfig:
 @dc.dataclass
 class DataConfig:
     set: DatasetConfig
-    filters: list[FilterConfig]
     datamodule: DataModuleConfig
+    filters: list[FilterConfig] = dc.field(default_factory=list)
 
 
 def init_data_config_store():
