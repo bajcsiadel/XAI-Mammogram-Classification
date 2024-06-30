@@ -241,7 +241,7 @@ patch_size = 17
 
 def main_plot(cfg: Config):
         
-    device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
+    device = torch.device("cuda:1" if torch.cuda.is_available() else "cpu")
     model = expl.bagnet17(
         2, None, color_channels=1, pretrained=True
     )
@@ -272,7 +272,7 @@ def main_plot(cfg: Config):
 
     loader = DataLoader(
     dataset,
-    batch_size=64,
+    batch_size=1,
     num_workers=0,
     shuffle=False,
     collate_fn=my_collate_function,
@@ -282,27 +282,15 @@ def main_plot(cfg: Config):
     filenumber = 0
 
 # for i, (images, target, filename) in enumerate(val_loader):
-    for i, (images, target) in enumerate(loader):
-    # filename = filename[0].replace("/", "__")
-    # filename = filename.replace(".png", "")
-        print(i)
-        image = images.numpy()
+    for _, (images, target) in enumerate(loader):
 
-    # print(image.shape)
-    #
-    # image = np.reshape(np.mean(image, axis=1), (1, 3, 224, 224))
-    # image = np.reshape(
-    #     image[:, 0, :, :],
-    #     (
-    #         batch_size,
-    #         config["color_channels"],
-    #         config["img_shape"][0],
-    #         config["img_shape"][1],
-    #     ),
-    # )
-    # print("Target:")
-    # print(target)
-        target_num = target.detach().cpu().numpy()[0]
+        # list of tensors -> tensor of tensors of [B x C x W x H]
+        images = torch.stack(images, dim=0)
+        print(target.shape)
+
+
+        target_num = target[0].detach().cpu().numpy()
+        print(target_num)
 
         images = images.to(device, non_blocking=True)
         output = model(images)
