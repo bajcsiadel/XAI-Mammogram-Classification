@@ -22,14 +22,14 @@ sys.path.append(os.getenv("PROJECT_ROOT"))
 from xai_mam.dataset.dataloaders import my_collate_function
 from xai_mam.utils import custom_pipe
 from xai_mam.utils.config import config_store_
-from xai_mam.utils.config._general_types.data import Dataset
+from xai_mam.utils.config._general_types.data import DatasetConfig
 from xai_mam.utils.config.resolvers import add_all_custom_resolvers
 from xai_mam.utils.log import ScriptLogger
 
 
 @dc.dataclass
 class Data:
-    set: Dataset
+    set: DatasetConfig
 
 
 @dc.dataclass
@@ -252,7 +252,7 @@ def main_plot(cfg: Config):
     #   "/home/miafranc/bosch/bagnet/model_best_bagnet17-bosch.pth.tar",
     #   map_location=device)
     checkpoint = torch.load(
-        "/home/annamari/tankstorage/ProtoPNet-Mammogram/runs/main/bagnet/MIAS-bagnet17-preprocessed-benign_vs_malignant/2024-05-21/18-53-44/checkpoints/1-150-60.4938.pth",
+        "/home/annamari/tankstorage/ProtoPNet-Mammogram/runs/main/bagnet/2024-06-27/MIAS-bagnet17-preprocessed-benign_vs_malignant/150-150-data-augmentation=repeated_32/16-24-49/checkpoints/1-29-58.3333.pth",
         map_location=device,
     )
 
@@ -282,7 +282,7 @@ def main_plot(cfg: Config):
     filenumber = 0
 
 # for i, (images, target, filename) in enumerate(val_loader):
-    for i, (images, target) in enumerate(val_loader):
+    for i, (images, target) in enumerate(loader):
     # filename = filename[0].replace("/", "__")
     # filename = filename.replace(".png", "")
         print(i)
@@ -407,5 +407,5 @@ def main_plot(cfg: Config):
 add_all_custom_resolvers()
 config_store_.store(name="_config_validation", node=Config)
 config_store_.store(name="_data_validation", group="data", node=Data)
-config_store_.store(name="_data_set_validation", group="data/set", node=Dataset)
+config_store_.store(name="_data_set_validation", group="data/set", node=DatasetConfig)
 main_plot()
