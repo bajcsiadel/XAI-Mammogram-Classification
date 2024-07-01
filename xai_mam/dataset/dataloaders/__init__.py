@@ -367,8 +367,8 @@ class CustomDataModule:
     :type balanced: bool
     :param grouped:
     :type grouped: bool
-    :param num_workers:
-    :type num_workers: int
+    :param n_workers:
+    :type n_workers: int
     :param seed:
     :type seed: int
     :param debug:
@@ -386,7 +386,7 @@ class CustomDataModule:
         stratified=False,
         balanced=False,
         grouped=False,
-        num_workers=0,
+        n_workers=0,
         seed=None,
         debug=False,
         batch_size=None,
@@ -427,7 +427,7 @@ class CustomDataModule:
             subset="test",
         )
 
-        self.__number_of_workers = num_workers
+        self.__n_workers = n_workers
         self.__debug = debug
 
         self.__init_cross_validation(
@@ -626,7 +626,7 @@ class CustomDataModule:
         :return: data loader
         :rtype: DataLoader
         """
-        return DataLoader(dataset, num_workers=self.__number_of_workers, **kwargs)
+        return DataLoader(dataset, num_workers=self.__n_workers, **kwargs)
 
     def train_dataloader(self, batch_size, sampler=None, **kwargs):
         """

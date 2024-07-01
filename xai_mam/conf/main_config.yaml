@@ -53,14 +53,14 @@ data:
     stratified: ${cross_validation.stratified}
     balanced: ${cross_validation.balanced}
     grouped: ${cross_validation.grouped}
-    num_workers: ${job.number_of_workers}
+    n_workers: ${job.n_workers}
     seed: ${seed}
     debug: false
 
 seed: 42
 
 job:
-  number_of_workers: 4
+  n_workers: 4
 
 outputs:
   dirs:

@@ -85,7 +85,7 @@ def compute_mean_and_std_of_dataset(cfg: Config):
         loader = DataLoader(
             dataset,
             batch_size=64,
-            num_workers=0,
+            n_workers=0,
             shuffle=False,
             collate_fn=my_collate_function,
         )

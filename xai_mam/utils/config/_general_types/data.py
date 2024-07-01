@@ -270,7 +270,7 @@ class DataModuleConfig:
     stratified: bool = False
     balanced: bool = False
     grouped: bool = False
-    num_workers: int = 0
+    n_workers: int = 0
     seed: int = 1234
     debug: bool = False
     batch_size: BatchSize = dc.field(default_factory=lambda: BatchSize(32, 16))

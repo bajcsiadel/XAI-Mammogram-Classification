@@ -17,11 +17,11 @@ from xai_mam.utils.environment import get_env
 
 @dc.dataclass
 class JobConfig:
-    number_of_workers: int
+    n_workers: int
 
     def __setattr__(self, key, value):
         match key:
-            case "number_of_workers":
+            case "n_workers":
                 if value < 0:
                     raise ValueError(
                         f"Number of workers must be greater than 0.\n{key} = {value}"
