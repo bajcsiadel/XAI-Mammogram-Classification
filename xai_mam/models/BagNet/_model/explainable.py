@@ -89,7 +89,8 @@ class BagNet(BagNetBase, Explainable):
             kernels = [[1] * num_blocks for num_blocks in layers]
             if n_kernel_3x3 >= len(layers):
                 raise ValueError(
-                    f"Number of 3x3 kernels ({n_kernel_3x3}) should be less than the number of layers ({len(layers)})."
+                    f"Number of 3x3 kernels ({n_kernel_3x3}) should be less than the "
+                    f"number of layers ({len(layers)})."
                 )
             for num_blocks in range(n_kernel_3x3):
                 kernels[num_blocks][0] = 3

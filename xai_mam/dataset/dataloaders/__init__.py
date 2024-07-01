@@ -27,7 +27,7 @@ def _identity_transform(image: np.ndarray) -> np.ndarray:
     return image
 
 
-def my_collate_function(batch: tuple) -> list[list[typing.Any] | torch.LongTensor]:
+def my_collate_function(batch: tuple):
     data = [item[0] for item in batch]
     target = [item[1] for item in batch]
     target = torch.LongTensor(target)

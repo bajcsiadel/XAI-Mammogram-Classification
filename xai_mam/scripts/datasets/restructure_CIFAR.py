@@ -7,7 +7,6 @@ Restructure the CIFAR-10 dataset to be compatible with the XAI-MAM datamodule.
 import pickle
 
 import pandas as pd
-import numpy as np
 
 from pathlib import Path
 
@@ -25,7 +24,9 @@ def process_batch(batch_file, df, meta, output_paths):
         filename = f"{meta['label_names'][label]}_{len(df) + 1:05}"
         # for d in output_paths:
             # np.savez(d[0] / d[1].format(filename), image=image)
-        df.loc[(len(df) + 1, filename), :] = [label, subset, label, subset, label, subset]
+        df.loc[(len(df) + 1, filename), :] = [
+            label, subset, label, subset, label, subset
+        ]
     return df
 
 

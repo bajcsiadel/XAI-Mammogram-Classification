@@ -166,15 +166,13 @@ class ScriptLogger(logging.Logger):
             else:
                 indices = copy.deepcopy(sampler)
         else:
+            sampler = np.arange(len(dataset))
             indices = np.arange(len(dataset))
 
         indices = np.unique(indices // dataset.multiplier)
         self.info(f"{name}")
         self.increase_indent()
-        self.info(
-            f"size: {len(sampler)} "
-            f"({len(dataset.targets[indices])} x {dataset.multiplier})"
-        )
+        self.info(f"size: {len(sampler)} ({len(indices)} x {dataset.multiplier})")
         self.info("distribution:")
         self.increase_indent()
         distribution = pd.DataFrame(columns=["count", "perc"])
@@ -184,7 +182,7 @@ class ScriptLogger(logging.Logger):
             distribution.loc[cls] = [count, count / len(sampler)]
         distribution["count"] = distribution["count"].astype("int")
         self.info(
-            f"{distribution.to_string(formatters={'perc': '{:.2%}'.format})}")
+            f"{distribution.to_string(formatters={'perc': '{:3.2%}'.format})}")
         self.decrease_indent(times=2)
 
     def log_dataloader(self, *dataloaders: tuple[str, DataLoader]):

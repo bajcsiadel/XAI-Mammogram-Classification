@@ -24,7 +24,8 @@ class PrototypeProperties:
             case "per_class":
                 if value <= 0:
                     raise ValueError(
-                        f"Number of prototypes per class must be positive. {key} = {value}"
+                        f"Number of prototypes per class "
+                        f"must be positive. {key} = {value}"
                     )
             case "size":
                 if value <= 0:

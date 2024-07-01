@@ -159,7 +159,7 @@ def construct_trainer(
             n_classes=n_classes,
             prototype_activation_function=model_config.params.prototypes.activation_fn,
             add_on_layers_type=model_config.network.add_on_layer_properties.type,
-            add_on_layers_activation=model_config.network.add_on_layer_properties.activation,
+            add_on_layers_activation=model_config.network.add_on_layer_properties.activation,  # noqa
             backbone_only=model_config.backbone_only,
             positive_weights_in_classifier=False,
         )

@@ -462,7 +462,9 @@ def resnet34_features(n_color_channels=3, pretrained=False, **kwargs):
         BasicBlock, [3, 4, 6, 3], n_color_channels=n_color_channels, **kwargs
     )
     if pretrained:
-        pretrained_state_dict = get_state_dict(__model_urls["resnet34"], n_color_channels)
+        pretrained_state_dict = get_state_dict(
+            __model_urls["resnet34"], n_color_channels
+        )
         model.load_state_dict(pretrained_state_dict, strict=False)
     return model
 
@@ -483,7 +485,9 @@ def resnet50_features(n_color_channels=3, pretrained=False, **kwargs):
         Bottleneck, [3, 4, 6, 3], n_color_channels=n_color_channels, **kwargs
     )
     if pretrained:
-        pretrained_state_dict = get_state_dict(__model_urls["resnet50"], n_color_channels)
+        pretrained_state_dict = get_state_dict(
+            __model_urls["resnet50"], n_color_channels
+        )
         model.load_state_dict(pretrained_state_dict, strict=False)
     return model
 
@@ -492,8 +496,8 @@ def resnet101_features(n_color_channels=3, pretrained=False, **kwargs):
     """
     Constructs a ResNet-101 model.
 
-    :param color_channels: number of color channels. Defaults to ``3``.
-    :type color_channels: int
+    :param n_color_channels: number of color channels. Defaults to ``3``.
+    :type n_color_channels: int
     :param pretrained: If ``True``, returns a model pretrained on ImageNet.
         Defaults to ``False``.
     :type pretrained: bool
@@ -501,22 +505,22 @@ def resnet101_features(n_color_channels=3, pretrained=False, **kwargs):
     :rtype: ResNetFeatures
     """
     model = ResNetFeatures(
-        Bottleneck, [3, 4, 23, 3], color_channels=color_channels, **kwargs
+        Bottleneck, [3, 4, 23, 3], n_color_channels=n_color_channels, **kwargs
     )
     if pretrained:
         pretrained_state_dict = get_state_dict(
-            __model_urls["resnet101"], color_channels
+            __model_urls["resnet101"], n_color_channels
         )
         model.load_state_dict(pretrained_state_dict, strict=False)
     return model
 
 
-def resnet152_features(color_channels=3, pretrained=False, **kwargs):
+def resnet152_features(n_color_channels=3, pretrained=False, **kwargs):
     """
     Constructs a ResNet-152 model.
 
-    :param color_channels: number of color channels. Defaults to ``3``.
-    :type color_channels: int
+    :param n_color_channels: number of color channels. Defaults to ``3``.
+    :type n_color_channels: int
     :param pretrained: If ``True``, returns a model pretrained on ImageNet.
         Defaults to ``False``.
     :type pretrained: bool
@@ -524,11 +528,11 @@ def resnet152_features(color_channels=3, pretrained=False, **kwargs):
     :rtype: ResNetFeatures
     """
     model = ResNetFeatures(
-        Bottleneck, [3, 8, 36, 3], color_channels=color_channels, **kwargs
+        Bottleneck, [3, 8, 36, 3], n_color_channels=n_color_channels, **kwargs
     )
     if pretrained:
         pretrained_state_dict = get_state_dict(
-            __model_urls["resnet152"], color_channels
+            __model_urls["resnet152"], n_color_channels
         )
         model.load_state_dict(pretrained_state_dict, strict=False)
     return model

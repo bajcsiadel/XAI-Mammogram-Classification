@@ -6,8 +6,8 @@ from sklearn.model_selection import GroupKFold
 class BalancedGroupKFold(GroupKFold):
     """
     K-fold iterator variant with non-overlapping groups and balanced class distribution.
-    The smallest class samples are used in each fold. The other classes are used to fill the fold,
-    with the same number of samples from each class
+    The smallest class samples are used in each fold. The other classes are used to fill
+    the fold, with the same number of samples from each class
 
     :param n_splits:
     :type n_splits: int
@@ -182,7 +182,7 @@ class BalancedGroupKFold(GroupKFold):
         sample_usage,
     ):
         cum_sum = np.cumsum(
-            class_information["samples_in_group"][class_information["start_index"] :]
+            class_information["samples_in_group"][class_information["start_index"]:]
         )
         cum_sum -= number_of_samples
 
@@ -191,10 +191,10 @@ class BalancedGroupKFold(GroupKFold):
             i += 1
 
         remaining_groups = class_information["groups"][
-            class_information["start_index"] :
+            class_information["start_index"]:
         ]
         remaining_samples_in_group = class_information["samples_in_group"][
-            class_information["start_index"] :
+            class_information["start_index"]:
         ]
         current_groups = np.copy(remaining_groups[: i + 1])
 
@@ -228,8 +228,9 @@ class BalancedGroupKFold(GroupKFold):
                     new_group_idx -= 1
 
                     if class_information["extra_samples"] + new_group_idx + 1 < 0:
-                        # if all the extra elements with minimal use are checked and none of them is suitable
-                        # then start again from the end after increasing the minimal use limit
+                        # if all the extra elements with minimal use are checked and
+                        # none of them is suitable then start again from the end after
+                        # increasing the minimal use limit
                         new_group_idx = -1
                         min_use += 1
 
