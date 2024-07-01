@@ -2,6 +2,7 @@ import dataclasses as dc
 import typing as typ
 
 import hydra
+from hydra.core.config_store import ConfigStore
 
 from xai_mam.utils.config._general_types._multifunctional import BatchSize
 
@@ -42,6 +43,21 @@ class CrossValidationParameters:
             raise AttributeError(
                 "Cross validation cannot be both " "stratified and balanced."
             )
+
+    @staticmethod
+    def init_store(
+        config_store_: ConfigStore = None, group: str = "cross_validation"
+    ) -> ConfigStore:
+        if config_store_ is None:
+            from xai_mam.utils.config import config_store_
+
+        config_store_.store(
+            name="_cross_validation_validation",
+            group=group,
+            node=CrossValidationParameters,
+        )
+
+        return config_store_
 
 
 @dc.dataclass
@@ -102,3 +118,14 @@ class ModelConfig:
 
         if "_target_" in self.validate_fn:
             hydra.utils.instantiate(self.validate_fn)(cfg=self)
+
+    @staticmethod
+    def init_store(
+        config_store_: ConfigStore = None, group: str = "model"
+    ) -> ConfigStore:
+        if config_store_ is None:
+            from xai_mam.utils.config import config_store_
+
+        config_store_.store(name="_model_validation", group=group, node=ModelConfig)
+
+        return config_store_

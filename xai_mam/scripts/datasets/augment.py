@@ -26,7 +26,6 @@ from omegaconf import OmegaConf
 from omegaconf import errors as conf_errors
 from tqdm import tqdm
 
-from xai_mam.utils.config import config_store_
 from xai_mam.utils.config._general_types.data import (
     AugmentationGroupsConfig,
     DatasetConfig,
@@ -141,7 +140,7 @@ def augment_images(cfg: Config):
 
 load_dotenv()
 add_all_custom_resolvers()
+config_store_ = DatasetConfig.init_store()
 config_store_.store(name="_config_validation", node=Config)
 config_store_.store(name="_data_validation", group="data", node=DataConfig)
-config_store_.store(name="_data_set_validation", group="data/set", node=DatasetConfig)
 augment_images()

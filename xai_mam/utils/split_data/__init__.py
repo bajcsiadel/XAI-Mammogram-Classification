@@ -300,9 +300,9 @@ if __name__ == "__main__":
     from omegaconf import omegaconf
 
     from xai_mam.dataset.dataloaders import CustomDataModule
-    from xai_mam.utils.config.script_main import Config, init_config_store
+    from xai_mam.utils.config.script_main import Config
 
-    init_config_store()
+    Config.init_store()
 
     @hydra.main(version_base=None, config_path="../../conf", config_name="main_config")
     def test_split(cfg: Config):

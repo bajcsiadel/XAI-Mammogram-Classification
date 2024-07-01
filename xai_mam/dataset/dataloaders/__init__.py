@@ -13,7 +13,7 @@ from torch.utils.data import DataLoader
 from torchvision import datasets
 
 import xai_mam.utils.config.types as conf_typ
-from xai_mam.utils.config.script_main import Config, init_config_store
+from xai_mam.utils.config.script_main import Config
 from xai_mam.utils.helpers import Augmentations
 from xai_mam.utils.split_data import stratified_grouped_train_test_split
 
@@ -759,7 +759,7 @@ if __name__ == "__main__":
 
     from xai_mam.utils.environment import get_env
 
-    init_config_store()
+    Config.init_store()
 
     @hydra.main(
         version_base=None,

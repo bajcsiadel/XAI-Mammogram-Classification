@@ -195,6 +195,6 @@ def run_experiment(cfg: main_cfg.Config, logger: TrainLogger):
 
 
 if __name__ == "__main__":
-    main_cfg.init_config_store()
+    main_cfg.Config.init_store()
 
     main()

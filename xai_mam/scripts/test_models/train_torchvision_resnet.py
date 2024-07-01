@@ -239,5 +239,5 @@ def run(cfg, logger):
 
 if __name__ == "__main__":
     load_dotenv()
-    main_cfg.init_config_store()
+    main_cfg.Config.init_store()
     main()

@@ -4,6 +4,7 @@ from pathlib import Path
 
 import albumentations as A
 import numpy as np
+from hydra.core.config_store import ConfigStore
 
 from xai_mam.utils import custom_pipe
 from xai_mam.utils.config._general_types._multifunctional import BatchSize
@@ -238,6 +239,19 @@ class DatasetConfig:
 
         super().__setattr__(key, value)
 
+    @staticmethod
+    def init_store(
+        config_store_: ConfigStore = None, group: str = "data/set"
+    ) -> ConfigStore:
+        if config_store_ is None:
+            from xai_mam.utils.config import config_store_
+
+        config_store_.store(
+            name="_data_set_validation", group=group, node=DatasetConfig
+        )
+
+        return config_store_
+
 
 @dc.dataclass
 class FilterConfig:
@@ -270,11 +284,14 @@ class DataConfig:
     datamodule: DataModuleConfig
     filters: list[FilterConfig] = dc.field(default_factory=list)
 
+    @staticmethod
+    def init_store(
+        config_store_: ConfigStore = None, group: str = "data"
+    ) -> ConfigStore:
+        if config_store_ is None:
+            from xai_mam.utils.config import config_store_
 
-def init_data_config_store():
-    from xai_mam.utils.config import config_store_
+        config_store_.store(name="_data_validation", group=group, node=DataConfig)
+        DatasetConfig.init_store(config_store_)
 
-    config_store_.store(name="_data_validation", group="data", node=DataConfig)
-    config_store_.store(
-        name="_data_set_validation", group="data/set", node=DatasetConfig
-    )
+        return config_store_
