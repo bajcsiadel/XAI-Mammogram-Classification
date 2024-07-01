@@ -502,9 +502,14 @@ class ExplainableTrainer(ProtoPNetTrainer):
         )
 
         if self._fold == 1:
-            self.log_image_examples(train_loader.dataset, "train")
+            self.logger.log_image_examples(
+                self.model,
+                train_loader.dataset,
+                "train",
+                device=self._gpu.device_instance,
+            )
 
-        self.log_dataloader_information(
+        self.logger.log_dataloader(
             ("train", train_loader),
             ("validation", validation_loader)
         )
@@ -575,7 +580,7 @@ class ExplainableTrainer(ProtoPNetTrainer):
             self._params.push.define_push_epochs(self._phases["joint"].epochs)
             self.logger.info(f"push epochs: {self._params.push.push_epochs}")
 
-        self.log_dataloader_information(
+        self.logger.log_dataloader(
             ("train", train_loader),
             ("validation", validation_loader),
             ("push", push_loader)

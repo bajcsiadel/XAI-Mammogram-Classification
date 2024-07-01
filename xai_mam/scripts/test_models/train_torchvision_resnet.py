@@ -137,7 +137,7 @@ def main(cfg: main_cfg.Config):
 
 def run(cfg, logger):
     data_module = hydra.utils.instantiate(cfg.data.datamodule)
-    data_module.log_data_information(logger)
+    logger.log_data_module(data_module)
     epochs = cfg.model.phases["joint"].epochs
     batch_size = 16
     learning_rate = 0.01

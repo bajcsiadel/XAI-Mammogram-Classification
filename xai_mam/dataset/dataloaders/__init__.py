@@ -7,9 +7,10 @@ import omegaconf
 import pandas as pd
 import pipe
 import torch
+import typing
 from albumentations.pytorch import ToTensorV2
 from icecream import ic
-from torch.utils.data import DataLoader
+from torch.utils.data import DataLoader, SubsetRandomSampler
 from torchvision import datasets
 
 import xai_mam.utils.config.types as conf_typ
@@ -18,15 +19,15 @@ from xai_mam.utils.helpers import Augmentations
 from xai_mam.utils.split_data import stratified_grouped_train_test_split
 
 
-def _target_transform(target):
+def _target_transform(target: int) -> torch.Tensor:
     return torch.tensor(target, dtype=torch.long)
 
 
-def _identity_transform(image):
+def _identity_transform(image: np.ndarray) -> np.ndarray:
     return image
 
 
-def my_collate_function(batch):
+def my_collate_function(batch: tuple) -> list[list[typing.Any] | torch.LongTensor]:
     data = [item[0] for item in batch]
     target = [item[1] for item in batch]
     target = torch.LongTensor(target)
@@ -335,7 +336,9 @@ class CustomVisionDataset(datasets.VisionDataset):
                 self.__remaining_transforms[sample_index] > 0
             )[0]
             # convert the index to int, otherwise it will be np.int64
-            selected_transform_index = int(np.random.choice(remaining_transform_indices))
+            selected_transform_index = int(
+                np.random.choice(remaining_transform_indices)
+            )
             self.__remaining_transforms[sample_index][selected_transform_index] -= 1
 
             current_transform = self.__transform.transforms[selected_transform_index]
@@ -514,7 +517,9 @@ class CustomDataModule:
             n_splits=cross_validation_folds, shuffle=True, random_state=seed
         )
 
-        self.__fold_generator = cross_validator.split(self.__train_data.metadata, **cv_kwargs)
+        self.__fold_generator = cross_validator.split(
+            self.__train_data.metadata, **cv_kwargs
+        )
 
     @property
     def debug(self):
@@ -553,7 +558,9 @@ class CustomDataModule:
                 torch.utils.data.SubsetRandomSampler
             ]]
         """
-        for fold, (train_idx, validation_idx) in enumerate(self.__fold_generator, start=1):
+        for fold, (train_idx, validation_idx) in enumerate(
+            self.__fold_generator, start=1
+        ):
             if self.__train_data.multiplier > 1:
                 train_idx = np.array(
                     [
@@ -578,43 +585,6 @@ class CustomDataModule:
                 torch.utils.data.SubsetRandomSampler(train_idx),
                 torch.utils.data.SubsetRandomSampler(validation_idx),
             )
-
-    def log_data_information(self, logger):
-        """
-        Log information about the data
-
-        :param logger:
-        :type logger: ProtoPNet.utils.log.Log
-        """
-        CustomDataModule.__log_data(logger, self.__train_data, "train")
-        if self.__validation_data is not None:
-            CustomDataModule.__log_data(logger, self.__validation_data, "validation")
-        CustomDataModule.__log_data(logger, self.__push_data, "push")
-
-    @staticmethod
-    def __log_data(logger, data, name):
-        """
-        Log information about a dataset
-        :param logger:
-        :type logger: ProtoPNet.utils.log.Log
-        :param data:
-        :type data: CustomVisionDataset
-        :param name:
-        :type name: str
-        """
-        logger.info(f"{name}")
-        logger.increase_indent()
-        logger.info(f"size: {len(data)} ({len(data.targets)} x {data.multiplier})")
-        logger.info("distribution:")
-        logger.increase_indent()
-        distribution = pd.DataFrame(columns=["count", "perc"])
-        classes = np.unique(data.targets)
-        for cls in classes:
-            count = np.sum(data.targets == cls) * data.multiplier
-            distribution.loc[cls] = [count, count / len(data)]
-        distribution["count"] = distribution["count"].astype("int")
-        logger.info(f"{distribution.to_string(formatters={'perc': '{:.2%}'.format})}")
-        logger.decrease_indent(times=2)
 
     def __get_data_loader(self, dataset, **kwargs):
         """
@@ -690,17 +660,18 @@ class CustomDataModule:
             **kwargs,
         )
 
-    def push_dataloader(self, batch_size, sampler=None, **kwargs):
+    def push_dataloader(
+        self,
+        batch_size: int,
+        sampler: SubsetRandomSampler | typing.Iterable[int] | None = None,
+        **kwargs,
+    ) -> DataLoader:
         """
         Get a data loader for the training push set
         :param batch_size:
-        :type batch_size: int
         :param sampler:
-        :type sampler: torch.utils.data.sampler.SubsetRandomSampler | typing.Iterable[int] | None
         :param kwargs:
-        :type kwargs: dict[str, typing.Any]
         :return: push data loader
-        :rtype: DataLoader
         """
         if sampler is None:
             param = {
@@ -735,15 +706,12 @@ class CustomDataModule:
             **kwargs,
         )
 
-    def test_dataloader(self, batch_size, **kwargs):
+    def test_dataloader(self, batch_size: int, **kwargs) -> DataLoader:
         """
         Get a data loader for the testing set
         :param batch_size:
-        :type batch_size: int
         :param kwargs:
-        :type kwargs: dict[str, typing.Any]
         :return: test data loader
-        :rtype: DataLoader
         """
         kwargs = kwargs | {"batch_size": batch_size, "shuffle": False}
 
