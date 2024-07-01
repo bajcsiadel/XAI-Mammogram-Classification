@@ -129,7 +129,7 @@ def run_experiment(cfg: main_cfg.Config, logger: TrainLogger):
     logger.info(f"{cfg.data.set.target.size}")
     logger.info(f"{cfg.data.set.target.name}")
     logger.info(f"{' x '.join(map(str, image_shape))} image shape")
-    logger.info(f"{cfg.data.set.image_properties.color_channels} color channels")
+    logger.info(f"{cfg.data.set.image_properties.n_color_channels} color channels")
     logger.info(f"{cfg.data.set.image_properties.std} std")
     logger.info(f"{cfg.data.set.image_properties.mean} mean")
     logger.info(f"{data_module.dataset.number_of_classes} classes")

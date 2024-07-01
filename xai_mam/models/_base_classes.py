@@ -107,7 +107,7 @@ class BaseTrainer(ABC):
                 summary(
                     model,
                     input_size=(
-                        data_module.dataset.image_properties.color_channels,
+                        data_module.dataset.image_properties.n_color_channels,
                         data_module.dataset.image_properties.height,
                         data_module.dataset.image_properties.width,
                     ),
@@ -279,10 +279,16 @@ class BaseTrainer(ABC):
         first_batch_input = torch.stack(
             [dataset[i][0] for i in range(n_images * dataset.multiplier)], dim=0
         )
-        first_batch_un_normalized = first_batch_input * np.array(dataset.dataset_meta.image_properties.std)[:, None, None] + np.array(dataset.dataset_meta.image_properties.mean)[:, None, None]
+        first_batch_un_normalized = first_batch_input * np.array(
+            dataset.dataset_meta.image_properties.std
+        )[:, None, None] + np.array(
+            dataset.dataset_meta.image_properties.mean
+        )[:, None, None]
         self.logger.tensorboard.add_image(
             f"{self._data_module.dataset.name} {set_name} examples (un-normalized)",
-            torchvision.utils.make_grid(first_batch_un_normalized, nrow=dataset.multiplier),
+            torchvision.utils.make_grid(
+                first_batch_un_normalized, nrow=dataset.multiplier
+            ),
         )
         self.logger.tensorboard.add_graph(
             self.model, first_batch_input.to(self._gpu.device_instance)

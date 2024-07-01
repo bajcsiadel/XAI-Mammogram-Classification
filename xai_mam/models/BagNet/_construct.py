@@ -10,7 +10,7 @@ def construct_model(
     logger,
     base_architecture="bagnet17",
     pretrained=True,
-    color_channels=3,
+    n_color_channels=3,
     n_classes=200,
     backbone_only=False,
     **kwargs,
@@ -26,8 +26,8 @@ def construct_model(
     :param pretrained: defines if the backbone is pretrained on ImageNet.
         Defaults to ``True``.
     :type pretrained: bool
-    :param color_channels: number of color channels in the image. Defaults to ``3``.
-    :type color_channels: int
+    :param n_color_channels: number of color channels in the image. Defaults to ``3``.
+    :type n_color_channels: int
     :param n_classes: number of classes in the dataset. Defaults to ``200``.
     :type n_classes: int
     :param backbone_only: defines if only the backbone is trained.
@@ -40,14 +40,14 @@ def construct_model(
         return BagNetBackbone(
             n_classes=n_classes,
             logger=logger,
-            color_channels=color_channels,
+            n_color_channels=n_color_channels,
             pretrained=pretrained,
         )
     else:
         return all_models[base_architecture](
             n_classes=n_classes,
             logger=logger,
-            color_channels=color_channels,
+            n_color_channels=n_color_channels,
             pretrained=pretrained,
         )
 
@@ -102,7 +102,7 @@ def construct_trainer(
             logger=logger,
             base_architecture=model_config.network.name,
             pretrained=model_config.network.pretrained,
-            color_channels=data_module.dataset.image_properties.color_channels,
+            n_color_channels=data_module.dataset.image_properties.n_color_channels,
             n_classes=n_classes,
             backbone_only=model_config.backbone_only,
         )

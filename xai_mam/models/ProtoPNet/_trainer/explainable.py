@@ -67,7 +67,7 @@ class ExplainableTrainer(ProtoPNetTrainer):
         preprocess_parameters = {
             "mean": data_module.dataset.image_properties.mean,
             "std": data_module.dataset.image_properties.std,
-            "number_of_channels": data_module.dataset.image_properties.color_channels,
+            "number_of_channels": data_module.dataset.image_properties.n_color_channels,
         }
         self.__preprocess_prototype_fn = partial(preprocess, **preprocess_parameters)
 

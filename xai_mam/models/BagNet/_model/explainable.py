@@ -35,8 +35,8 @@ class BagNet(BagNetBase, Explainable):
     :type logger: ProtoPNet.utils.log.Log
     :param n_classes: number of classes in the data
     :type n_classes: int
-    :param color_channels: number of color channels in the data. Defaults to ``3``.
-    :type color_channels: int
+    :param n_color_channels: number of color channels in the data. Defaults to ``3``.
+    :type n_color_channels: int
     :param channels: number of output channels of the stem. Defaults to ``64``.
     :type channels: int
     :param channels_per_layer: number of output channels of each residual block.
@@ -61,7 +61,7 @@ class BagNet(BagNetBase, Explainable):
         layers,
         n_classes,
         logger,
-        color_channels=3,
+        n_color_channels=3,
         channels=64,
         channels_per_layer=None,
         kernels=None,
@@ -70,9 +70,9 @@ class BagNet(BagNetBase, Explainable):
         avg_pool=True,
         n_kernel_3x3=3,
     ):
-        super(BagNet, self).__init__(n_classes, logger, color_channels)
+        super(BagNet, self).__init__(n_classes, logger, n_color_channels)
         self.conv1 = nn.Conv2d(
-            color_channels,
+            n_color_channels,
             channels,
             kernel_size=1,
             stride=1,
@@ -145,7 +145,7 @@ class BagNet(BagNetBase, Explainable):
 
 
 def bagnet33(
-    n_classes, logger, color_channels=3, pretrained=False, strides=None, **kwargs
+    n_classes, logger, n_color_channels=3, pretrained=False, strides=None, **kwargs
 ):
     """
     Constructs a Bagnet-33 model.
@@ -154,8 +154,8 @@ def bagnet33(
     :type n_classes: int
     :param logger:
     :type logger: ProtoPNet.utils.log.Log
-    :param color_channels: number of color channels. Defaults to ``3``.
-    :type color_channels: int
+    :param n_color_channels: number of color channels. Defaults to ``3``.
+    :type n_color_channels: int
     :param pretrained: If ``True``, returns a model pre-trained on ImageNet.
         Defaults to ``False``.
     :type pretrained: bool
@@ -170,21 +170,21 @@ def bagnet33(
         [3, 4, 6, 3],
         n_classes=n_classes,
         logger=logger,
-        color_channels=color_channels,
+        n_color_channels=n_color_channels,
         strides=strides,
         n_kernel_3x3=4,
         **kwargs,
     )
     if pretrained:
         pretrained_state_dict = get_state_dict(
-            __model_urls["bagnet33"], color_channels=color_channels
+            __model_urls["bagnet33"], n_color_channels=n_color_channels
         )
         model.load_state_dict(pretrained_state_dict)
     return model
 
 
 def bagnet17(
-    n_classes, logger, color_channels=3, pretrained=False, strides=None, **kwargs
+    n_classes, logger, n_color_channels=3, pretrained=False, strides=None, **kwargs
 ):
     """
     Constructs a Bagnet-17 model.
@@ -193,8 +193,8 @@ def bagnet17(
     :type n_classes: int
     :param logger:
     :type logger: ProtoPNet.utils.log.Log
-    :param color_channels: number of color channels. Defaults to ``3``.
-    :type color_channels: int
+    :param n_color_channels: number of color channels. Defaults to ``3``.
+    :type n_color_channels: int
     :param pretrained: If ``True``, returns a model pre-trained on ImageNet.
         Defaults to ``False``.
     :type pretrained: bool
@@ -209,14 +209,14 @@ def bagnet17(
         [3, 4, 6, 3],
         n_classes=n_classes,
         logger=logger,
-        color_channels=color_channels,
+        n_color_channels=n_color_channels,
         strides=strides,
         n_kernel_3x3=3,
         **kwargs,
     )
     if pretrained:
         pretrained_state_dict = get_state_dict(
-            __model_urls["bagnet17"], color_channels=color_channels
+            __model_urls["bagnet17"], n_color_channels=n_color_channels
         )
 
         model.load_state_dict(pretrained_state_dict, strict=False)
@@ -224,7 +224,7 @@ def bagnet17(
 
 
 def bagnet9(
-    n_classes, logger, color_channels=3, pretrained=False, strides=None, **kwargs
+    n_classes, logger, n_color_channels=3, pretrained=False, strides=None, **kwargs
 ):
     """
     Constructs a Bagnet-9 model.
@@ -233,8 +233,8 @@ def bagnet9(
     :type n_classes: int
     :param logger:
     :type logger: ProtoPNet.utils.log.Log
-    :param color_channels: number of color channels. Defaults to ``3``.
-    :type color_channels: int
+    :param n_color_channels: number of color channels. Defaults to ``3``.
+    :type n_color_channels: int
     :param pretrained: If ``True``, returns a model pre-trained on ImageNet.
         Defaults to ``False``.
     :type pretrained: bool
@@ -249,14 +249,14 @@ def bagnet9(
         [3, 4, 6, 3],
         n_classes=n_classes,
         logger=logger,
-        color_channels=color_channels,
+        n_color_channels=n_color_channels,
         strides=strides,
         n_kernel_3x3=2,
         **kwargs,
     )
     if pretrained:
         pretrained_state_dict = get_state_dict(
-            __model_urls["bagnet9"], color_channels=color_channels
+            __model_urls["bagnet9"], n_color_channels=n_color_channels
         )
         model.load_state_dict(pretrained_state_dict)
     return model
@@ -272,7 +272,7 @@ if __name__ == "__main__":
     from icecream import ic
     from torchinfo import summary
 
-    bagnet = bagnet17(3, color_channels=3, pretrained=True)
+    bagnet = bagnet17(3, n_color_channels=3, pretrained=True)
 
     ic(
         summary(

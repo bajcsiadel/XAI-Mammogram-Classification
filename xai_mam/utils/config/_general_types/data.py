@@ -124,7 +124,7 @@ class ImagePropertiesConfig:
     extension: str
     width: int
     height: int
-    color_channels: int
+    n_color_channels: int
     max_value: float
     mean: list[float]
     std: list[float]
@@ -140,7 +140,7 @@ class ImagePropertiesConfig:
             case "width" | "height":
                 if value <= 0:
                     raise ValueError(f"Image {key} must be positive. {key} = {value}")
-            case "color_channels":
+            case "n_color_channels":
                 if value not in [1, 3]:
                     raise ValueError(
                         f"Number of color channels must be 1 or 3. {key} = {value}"
@@ -151,11 +151,11 @@ class ImagePropertiesConfig:
                         f"Maximum pixel value must be at least 1.0. {key} = {value}"
                     )
             case "mean" | "std":
-                if len(value) != self.color_channels:
+                if len(value) != self.n_color_channels:
                     raise ValueError(
                         f"{key} must have the same number of elements "
                         f"as the number of color channels.\n"
-                        f"{self.color_channels = }\n"
+                        f"{self.n_color_channels = }\n"
                         f"{len(self.mean) = }\n"
                         f"{len(self.std) = }\n"
                     )

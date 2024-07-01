@@ -6,14 +6,14 @@ from torch.utils import model_zoo
 from xai_mam.utils.environment import get_env
 
 
-def get_state_dict(model_url, color_channels=3, prefixes=None):
+def get_state_dict(model_url, n_color_channels=3, prefixes=None):
     """
     Load the model state dict from a pretrained model of ImageNet.
 
     :param model_url: url to the pretrained model
     :type model_url: str
-    :param color_channels: number of color channels. Defaults to ``3``.
-    :type color_channels: int
+    :param n_color_channels: number of color channels. Defaults to ``3``.
+    :type n_color_channels: int
     :param prefixes: prefix of the layer names.
     :type prefixes: dict[str, str] | None
     :return: state dict of the pretrained model
@@ -27,7 +27,7 @@ def get_state_dict(model_url, color_channels=3, prefixes=None):
     # the number of classes could be different from the original model
     pretrained_state_dict.pop("fc.weight")
     pretrained_state_dict.pop("fc.bias")
-    if color_channels == 1:
+    if n_color_channels == 1:
         conv1_w = pretrained_state_dict.pop("conv1.weight")
         conv1_w = torch.sum(conv1_w, dim=1, keepdim=True)
         pretrained_state_dict["conv1.weight"] = conv1_w

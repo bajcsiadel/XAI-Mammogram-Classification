@@ -92,8 +92,8 @@ def compute_mean_and_std_of_dataset(cfg: Config):
 
         average_image_size = np.zeros((2,))
 
-        fst_moment = np.zeros((cfg.data.set.image_properties.color_channels,))
-        snd_moment = np.zeros((cfg.data.set.image_properties.color_channels,))
+        fst_moment = np.zeros((cfg.data.set.image_properties.n_color_channels,))
+        snd_moment = np.zeros((cfg.data.set.image_properties.n_color_channels,))
         cnt = 0
 
         for images, _ in loader:

@@ -17,8 +17,8 @@ class BagNetBackbone(BagNetBase, Backbone):
     :type n_classes: int
     :param logger:
     :type logger: ProtoPNet.utils.log.Log
-    :param color_channels: number of color channels in the input. Defaults to ``3``.
-    :type color_channels: int
+    :param n_color_channels: number of color channels in the input. Defaults to ``3``.
+    :type n_color_channels: int
     :param pretrained: whether to use a pre-trained model or not. Defaults to ``False``.
     :type pretrained: bool
     """
@@ -27,10 +27,10 @@ class BagNetBackbone(BagNetBase, Backbone):
         self,
         n_classes,
         logger,
-        color_channels=3,
+        n_color_channels=3,
         pretrained=False,
     ):
-        super(BagNetBackbone, self).__init__(n_classes, logger, color_channels)
+        super(BagNetBackbone, self).__init__(n_classes, logger, n_color_channels)
 
         self.logger.create_csv_log(
             "train_model",
@@ -46,7 +46,7 @@ class BagNetBackbone(BagNetBase, Backbone):
 
         resnet50 = resnet_features.all_features["resnet50"]
         # loads state dict if pretrained is True
-        self.features = resnet50.construct(color_channels, pretrained)
+        self.features = resnet50.construct(n_color_channels, pretrained)
 
         self.avg_pool = nn.AdaptiveAvgPool2d((1, 1))
         self.fc = nn.Linear(

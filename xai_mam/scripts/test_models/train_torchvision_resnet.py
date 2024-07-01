@@ -167,7 +167,7 @@ def run(cfg, logger):
     else:
         weights = getattr(models, weights[0]).DEFAULT
     model = getattr(models, cfg.model.network.name)(weights=weights)
-    if cfg.data.set.image_properties.color_channels != 3:
+    if cfg.data.set.image_properties.n_color_channels != 3:
         model.conv1 = nn.Conv2d(
             1, 64, kernel_size=(7, 7), stride=(2, 2), padding=(3, 3), bias=False
         )
@@ -179,7 +179,7 @@ def run(cfg, logger):
     logger.info(summary(
         model,
         input_size=(
-            data_module.dataset.image_properties.color_channels,
+            data_module.dataset.image_properties.n_color_channels,
             data_module.dataset.image_properties.height,
             data_module.dataset.image_properties.width,
         ),
