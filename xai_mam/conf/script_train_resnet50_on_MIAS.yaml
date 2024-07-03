@@ -5,13 +5,24 @@ defaults:
 
 epochs: 60
 batch_size: 128
+learning_rate: 0.001
 dropout: false
 train_test: false
 train_validation: false
 train_feature_extraction: false
+
+gpu:
+  disabled: false
+  device_ids:
+    - 0
 
 hydra:
   run:
     dir: ${run_location:}/${hydra.job.override_dirname}/${now:%Y-%m-%d-%H-%M-%S}
   sweep:
     subdir: ${hydra.job.override_dirname}/${now:%Y-%m-%d-%H-%M-%S}
+  job:
+    config:
+      override_dirname:
+        exclude_keys:
+          - gpu.device_ids
