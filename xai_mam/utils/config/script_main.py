@@ -63,8 +63,7 @@ class Config:
         config_store_.store(name="_config_validation", node=Config)
         DataConfig.init_store(config_store_)
         ModelConfig.init_store(config_store_)
-        CrossValidationParameters.init_config(config_store_)
-
+        CrossValidationParameters.init_store(config_store_)
 
         return config_store_
 
@@ -94,6 +93,6 @@ def process_config(cfg):
 
 
 if __name__ == "__main__":
-    Config.init_config_store()
+    Config.init_store()
 
     process_config()

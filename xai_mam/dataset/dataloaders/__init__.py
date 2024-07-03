@@ -14,8 +14,11 @@ from torch.utils.data import DataLoader, SubsetRandomSampler
 from torchvision import datasets
 
 import xai_mam.utils.config.types as conf_typ
+from xai_mam.dataset.metadata import DataFilter
+from xai_mam.utils.config._general_types import DatasetConfig
+from xai_mam.utils.config._general_types._multifunctional import BatchSize
 from xai_mam.utils.config.script_main import Config
-from xai_mam.utils.helpers import Augmentations
+from xai_mam.utils.helpers import Augmentations, RepeatedAugmentation
 from xai_mam.utils.split_data import stratified_grouped_train_test_split
 
 
@@ -27,7 +30,7 @@ def _identity_transform(image: np.ndarray) -> np.ndarray:
     return image
 
 
-def my_collate_function(batch: tuple) -> list[list[typing.Any] | torch.LongTensor]:
+def my_collate_function(batch: tuple):
     data = [item[0] for item in batch]
     target = [item[1] for item in batch]
     target = torch.LongTensor(target)
@@ -39,32 +42,27 @@ class CustomVisionDataset(datasets.VisionDataset):
     Custom Vision Dataset class for PyTorch.
 
     :param dataset_meta: Dataset metadata
-    :type dataset_meta: xai_mam.util.config_types.Dataset
     :param classification: Classification type
-    :type classification: str
-    :param subset: Subset to use
-    :type subset: str
-    :param data_filters: Filters to apply to the data
-    :type data_filters: list[ProtoPNet.dataset.metadata.DataFilter] | None
-    :param transform: Transform to apply to the images
-    :type transform: xai_mam.utils.helpers.Augmentations
+    :param subset: Subset to use. Defaults to ``"train"``.
+    :param data_filters: Filters to apply to the data. Defaults to ``None``.
+    :param normalize: marks whether to normalize the images or not.
+        Defaults to ``True``.
+    :param transform: Transform to apply to the images. Defaults to ``None``.
     :param target_transform: Transform to apply to the targets.
         Should return a tensor representing the target.
-    :type target_transform: typ.Callable[[], torch.Tensor]
-    :param debug: flag to mark debug mode, defaults to False
-    :type debug: bool
+        Defaults to ``_target_transform``.
+    :param debug: flag to mark debug mode, defaults to ``False``
     """
-
     def __init__(
         self,
-        dataset_meta,
-        classification,
-        subset="train",
-        data_filters=None,
-        normalize=True,
-        transform=None,
-        target_transform=_target_transform,
-        debug=False,
+        dataset_meta: DatasetConfig,
+        classification: str,
+        subset: str = "train",
+        data_filters: list[DataFilter] | None = None,
+        normalize: bool = True,
+        transform: Augmentations = None,
+        target_transform: typing.Callable[[int], torch.Tensor] = _target_transform,
+        debug: bool = False,
     ):
         if transform is None:
             transform = Augmentations()
@@ -153,6 +151,13 @@ class CustomVisionDataset(datasets.VisionDataset):
         self.__dataset_meta.number_of_classes = len(self.__classes)
         self.__class_to_number = {cls: i for i, cls in enumerate(self.__classes)}
 
+        self.__raw_targets = self.__meta_information[
+            (self.__classification, "label")
+        ].to_numpy().repeat(transform.multiplier)
+        self.__raw_groups = self.__meta_information.index.get_level_values(
+            "patient_id"
+        ).to_numpy().repeat(transform.multiplier)
+
         self.__transform = transform
         self.__target_transform = target_transform
 
@@ -175,16 +180,15 @@ class CustomVisionDataset(datasets.VisionDataset):
             for _ in range(len(self.__meta_information))
         ]
 
-    def __compose_transform(self, transform):
+    def __compose_transform(
+        self, transform: A.Compose | RepeatedAugmentation
+    ) -> A.Compose:
         """
         Creating transforms. Surround the transforms with the necessary
         transforms (ToFloat, Normalize, Resize, ToTensor).
 
         :param transform:
-        :type transform: albumentations.Compose |
-        xai_mam.utils.helpers.RepeatedAugmentation
         :return: the final transform
-        :rtype: albumentations.Compose
         """
         return A.Compose(
             [
@@ -204,59 +208,88 @@ class CustomVisionDataset(datasets.VisionDataset):
         return copy.deepcopy(self.__class_to_number)
 
     @property
-    def targets(self):
+    def targets(self) -> np.ndarray:
         """
-        Get the targets of the dataset
+        Get the targets of the dataset (after applying the transformations).
 
-        :return:
-        :rtype: np.ndarray
+        :return: targets of the dataset after transformations
+        """
+        return self.__raw_targets.copy()
+
+    @property
+    def original_targets(self) -> np.ndarray:
+        """
+        Get the targets of the original dataset (before applying the transformations).
+
+        :return: targets of the original dataset
         """
         return self.__meta_information[(self.__classification, "label")].to_numpy()
 
     @property
-    def groups(self):
+    def groups(self) -> np.ndarray:
+        """
+        Get the group of each image after the transformations are applied to the
+        dataset.
+
+        :return: group of all data after transformations
+        """
+        return self.__raw_groups.copy()
+
+    @property
+    def original_groups(self) -> np.ndarray:
+        """
+        Get the group of each image before the transformations are applied to the
+        dataset.
+
+        :return: group of all data before transformations
+        """
         return self.__meta_information.index.get_level_values("patient_id").to_numpy()
 
     @property
-    def multiplier(self):
+    def multiplier(self) -> int:
+        """
+        Get the number of repetition of an image as a result of transformations.
+
+        :return: number of repetition of an image
+        """
         return self.__transform.multiplier
 
     @property
-    def metadata(self):
+    def metadata(self) -> pd.DataFrame:
         """
-        Get metadata of the dataset
+        Get metadata of the dataset.
 
-        :return:
-        :rtype: pd.DataFrame
+        :return: metadata of the dataset
         """
         return self.__meta_information.copy()
 
     @property
-    def dataset_meta(self):
+    def dataset_meta(self) -> DatasetConfig:
+        """
+        Get the dataset information specified in the configuration.
+
+        :return: dataset configuration
+        """
         return copy.deepcopy(self.__dataset_meta)
 
-    def debug(self, state="on"):
+    def debug(self, state: str = "on") -> bool:
         """
         Switch debug mode on and off.
 
         :param state: if ``"on"``, debug mode is turned on.
             If ``"off"``, debug mode is turned off.
             Defaults to ``"on"``
-        :type state: str
         :return: current state of debug mode
-        :rtype: bool
         """
         self.__debug = state == "on"
         return self.__debug
 
-    def get_original(self, index):
+    def get_original(self, index: int) -> tuple[np.ndarray, int]:
         """
         Get the original image at a specific index from the dataset
 
         :param index: Index of the sample
-        :type index: int
-        :return: Return the image and its label at a given index
-        :rtype: (numpy.ndarray, int)
+        :return: the image and its label at a given index
         """
         sample = self.__meta_information.iloc[index]
 
@@ -287,12 +320,11 @@ class CustomVisionDataset(datasets.VisionDataset):
 
         return image, target
 
-    def __repr__(self):
+    def __repr__(self) -> str:
         """
-        Get the representation of the dataset
+        Get the representation of the dataset.
 
-        :return:
-        :rtype: str
+        :return: string representation of the dataset
         """
         formatted_transform = "\n\t\t".join(str(self.__transform).split("\n"))
 
@@ -311,23 +343,20 @@ class CustomVisionDataset(datasets.VisionDataset):
             f")"
         )
 
-    def __len__(self):
+    def __len__(self) -> int:
         """
-        Get the number of images in the dataset
+        Get the number of images in the dataset.
 
         :return: number of images
-        :rtype: int
         """
         return len(self.__meta_information) * self.__transform.multiplier
 
-    def __getitem__(self, index):
+    def __getitem__(self, index: int) -> [torch.Tensor, torch.Tensor]:
         """
-        Get sample at a specific index from the dataset
+        Get sample at a specific index from the dataset.
 
-        :param index: Index of the sample
-        :type index: int
-        :return: Return the image and its label at a given index
-        :rtype: typ.Tuple[torch.Tensor, torch.Tensor]
+        :param index: index of the sample
+        :return: the image and its label at a given index
         """
         sample_index = index // self.__transform.multiplier
 
@@ -361,42 +390,31 @@ class CustomDataModule:
     DataModule to define data loaders.
 
     :param data:
-    :type data: Dataset
     :param classification:
-    :type classification: str
-    :param data_filters: Filters to apply to the data
-    :type data_filters: list[(pd.DataFrame) -> pd.DataFrame] | None
-    :param cross_validation_folds: Number of cross validation folds
-    :type cross_validation_folds: int
-    :param stratified:
-    :type stratified: bool
-    :param balanced:
-    :type balanced: bool
-    :param grouped:
-    :type grouped: bool
-    :param n_workers:
-    :type n_workers: int
-    :param seed:
-    :type seed: int
-    :param debug:
-    :type debug: bool
-    :param batch_size:
-    :type batch_size: xai_mam.utils.config.types.BatchSize
+    :param data_filters: Filters to apply to the data. Defaults to ``None``.
+    :param cross_validation_folds: Number of cross validation folds.
+        Defaults to ``None``.
+    :param stratified: Defaults to ``False``.
+    :param balanced: Defaults to ``False``.
+    :param grouped: Defaults to ``False``.
+    :param n_workers: Defaults to ``0``.
+    :param seed: Defaults to ``0``.
+    :param debug: Defaults to ``False``.
+    :param batch_size: Defaults to ``None``.
     """
-
     def __init__(
         self,
-        data,
-        classification,
-        data_filters=None,
-        cross_validation_folds=None,
-        stratified=False,
-        balanced=False,
-        grouped=False,
-        n_workers=0,
-        seed=None,
-        debug=False,
-        batch_size=None,
+        data: DatasetConfig,
+        classification: str,
+        data_filters: list[typing.Callable[[pd.DataFrame], pd.DataFrame]] | None = None,
+        cross_validation_folds: int | None = None,
+        stratified: bool = False,
+        balanced: bool = False,
+        grouped: bool = False,
+        n_workers: int = 0,
+        seed: int = 0,
+        debug: bool = False,
+        batch_size: BatchSize = None,
     ):
         if batch_size is None:
             batch_size = conf_typ.BatchSize(32, 16)
@@ -442,22 +460,23 @@ class CustomDataModule:
         )
 
     def __init_cross_validation(
-        self, cross_validation_folds, stratified, balanced, groups, batch_size, seed
+        self,
+        cross_validation_folds: int,
+        stratified: bool,
+        balanced: bool,
+        groups: bool,
+        batch_size: BatchSize,
+        seed: int,
     ):
         """
-        Initialize cross validation folds
+        Initialize cross validation folds.
+
         :param cross_validation_folds: number of cross validation folds
-        :type cross_validation_folds: int
         :param stratified:
-        :type stratified: bool
         :param balanced:
-        :type balanced: bool
         :param groups:
-        :type groups: bool
         :param batch_size:
-        :type batch_size: xai_mam.utils.config.types.BatchSize
         :param seed:
-        :type seed: int
         """
         if self.__debug or cross_validation_folds in [None, 0, 1]:
             debug_specific_params = {}
@@ -472,8 +491,8 @@ class CustomDataModule:
             #     }
             train_idx, validation_idx = stratified_grouped_train_test_split(
                 self.__train_data.metadata,
-                self.__train_data.targets,
-                self.__train_data.groups,
+                self.__train_data.original_targets,
+                self.__train_data.original_groups,
                 **debug_specific_params,
                 random_state=seed,
             )
@@ -526,41 +545,42 @@ class CustomDataModule:
         )
 
     @property
-    def debug(self):
+    def debug(self) -> bool:
+        """
+        Get debug mode of the module.
+
+        :return: debug mode
+        """
         return self.__debug
 
     @property
-    def dataset(self):
+    def dataset(self) -> DatasetConfig:
         return copy.deepcopy(self.__data)
 
     @property
-    def train_data(self):
+    def train_data(self) -> CustomVisionDataset:
         return self.__train_data
 
     @property
-    def validation_data(self):
+    def validation_data(self) -> CustomVisionDataset:
         return self.__validation_data or self.__train_data
 
     @property
-    def push_data(self):
+    def push_data(self) -> CustomVisionDataset:
         return self.__push_data
 
     @property
-    def test_data(self):
+    def test_data(self) -> CustomVisionDataset:
         return self.__test_data
 
     @property
-    def folds(self):
+    def folds(
+        self
+    ) -> typing.Iterator[tuple[int, (SubsetRandomSampler, SubsetRandomSampler)]]:
         """
-        Generate the folds and the corresponding samplers
+        Generate the folds and the corresponding samplers.
 
         :return: fold number, (train sampler, validation sampler)
-        :rtype: typing.Generator[
-            int,
-            tuple[
-                torch.utils.data.SubsetRandomSampler,
-                torch.utils.data.SubsetRandomSampler
-            ]]
         """
         for fold, (train_idx, validation_idx) in enumerate(
             self.__fold_generator, start=1
@@ -590,29 +610,28 @@ class CustomDataModule:
                 SubsetRandomSampler(validation_idx),
             )
 
-    def __get_data_loader(self, dataset, **kwargs):
+    def __get_data_loader(self, dataset: CustomVisionDataset, **kwargs) -> DataLoader:
         """
         Get a data loader for a given dataset
         :param dataset:
-        :type dataset: CustomVisionDataset
         :param kwargs:
-        :type kwargs: dict[str, typing.Any]
         :return: data loader
-        :rtype: DataLoader
         """
         return DataLoader(dataset, num_workers=self.__n_workers, **kwargs)
 
-    def train_dataloader(self, batch_size, sampler=None, **kwargs):
+    def train_dataloader(
+        self,
+        batch_size: int,
+        sampler: torch.utils.data.Sampler | typing.Iterable[int] = None,
+        **kwargs
+    ) -> DataLoader:
         """
-        Get a data loader for the training set
+        Get a data loader for the training set.
+
         :param batch_size:
-        :type batch_size: int
         :param sampler:
-        :type sampler: torch.utils.data.Sampler | typing.Iterable[int] | None
         :param kwargs:
-        :type kwargs: dict[str, typing.Any]
         :return: train data loader
-        :rtype: DataLoader
         """
         if sampler is None:
             param = {
@@ -633,17 +652,19 @@ class CustomDataModule:
             **kwargs,
         )
 
-    def validation_dataloader(self, batch_size, sampler=None, **kwargs):
+    def validation_dataloader(
+        self,
+        batch_size: int,
+        sampler: torch.utils.data.Sampler | typing.Iterable[int] = None,
+        **kwargs
+    ) -> DataLoader:
         """
-        Get a data loader for the validation set
+        Get a data loader for the validation set.
+
         :param batch_size:
-        :type batch_size: int
         :param sampler:
-        :type sampler: torch.utils.data.Sampler | typing.Iterable[int] | None
         :param kwargs:
-        :type kwargs: dict[str, typing.Any]
         :return: validation data loader
-        :rtype: DataLoader
         """
         if sampler is None:
             param = {
@@ -667,11 +688,12 @@ class CustomDataModule:
     def push_dataloader(
         self,
         batch_size: int,
-        sampler: SubsetRandomSampler | typing.Iterable[int] | None = None,
+        sampler: SubsetRandomSampler | typing.Iterable[int] = None,
         **kwargs,
     ) -> DataLoader:
         """
-        Get a data loader for the training push set
+        Get a data loader for the training push set.
+
         :param batch_size:
         :param sampler:
         :param kwargs:

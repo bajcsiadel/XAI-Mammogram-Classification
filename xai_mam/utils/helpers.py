@@ -200,7 +200,7 @@ class Shear(A.Affine):
             if len(row_values) != 2 or len(col_values) != 2:
                 return img_out
             img_out = img_out[
-                row_values[0] : row_values[1], col_values[0] : col_values[1]
+                row_values[0]:row_values[1], col_values[0]:col_values[1]
             ]
         return img_out
 
