@@ -1,5 +1,4 @@
-# @package data.set.image_properties.augmentations
-train:
+transforms:
   - _target_: albumentations.Rotate
     limit: 10
     p: 1.0

@@ -6,6 +6,8 @@ defaults:
   - data/filters: default
   - cross_validation: stratified
   - model: protopnet
+  - data/augmentation@data.set.image_properties.augmentations.train: none
+  - data/augmentation@data.set.image_properties.augmentations.validation: none
 
 hydra:
   run:

@@ -1,4 +1,2 @@
-# @package data.set.image_properties.augmentations
-train:
-  transforms:
-    - _target_: albumentations.NoOp
+transforms:
+  - _target_: albumentations.NoOp
