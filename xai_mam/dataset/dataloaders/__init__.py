@@ -200,6 +200,10 @@ class CustomVisionDataset(datasets.VisionDataset):
         )
 
     @property
+    def class_to_number(self):
+        return copy.deepcopy(self.__class_to_number)
+
+    @property
     def targets(self):
         """
         Get the targets of the dataset
@@ -476,8 +480,8 @@ class CustomDataModule:
 
             # if not self.__debug:
             #     train_idx, validation_idx = validation_idx, train_idx
-            train_idx = np.array([0, 1, 4, 5, 6, 8, 9, 10, 12, 13, 14, 15, 16, 19, 20, 21, 22, 23, 24, 25, 26, 27, 30, 31, 32, 33, 34, 35, 36, 37, 38, 40, 41, 42, 44, 45, 46, 47, 48, 49, 50, 52, 54, 55, 56, 57, 58, 59, 61, 62, 63, 65, 66, 67, 69, 70, 71, 73, 74, 75, 76, 77, 78, 79])
-            validation_idx = np.array([2, 3, 7, 11, 17, 18, 28, 29, 39, 43, 51, 53, 60, 64, 68, 72, 80])
+            # train_idx = np.array([0, 1, 4, 5, 6, 8, 9, 10, 12, 13, 14, 15, 16, 19, 20, 21, 22, 23, 24, 25, 26, 27, 30, 31, 32, 33, 34, 35, 36, 37, 38, 40, 41, 42, 44, 45, 46, 47, 48, 49, 50, 52, 54, 55, 56, 57, 58, 59, 61, 62, 63, 65, 66, 67, 69, 70, 71, 73, 74, 75, 76, 77, 78, 79])
+            # validation_idx = np.array([2, 3, 7, 11, 17, 18, 28, 29, 39, 43, 51, 53, 60, 64, 68, 72, 80])
 
             self.__fold_generator = [(train_idx, validation_idx)]
             return
@@ -582,8 +586,8 @@ class CustomDataModule:
                     ]
                 ).flatten()
             yield fold, (
-                torch.utils.data.SubsetRandomSampler(train_idx),
-                torch.utils.data.SubsetRandomSampler(validation_idx),
+                SubsetRandomSampler(train_idx),
+                SubsetRandomSampler(validation_idx),
             )
 
     def __get_data_loader(self, dataset, **kwargs):

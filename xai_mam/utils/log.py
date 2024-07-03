@@ -158,7 +158,7 @@ class ScriptLogger(logging.Logger):
         :param dataset:
         :param name: name of the dataset
         :param sampler: sampler to be applied on the dataset if any.
-        Defaults to ``None``.
+            Defaults to ``None``.
         """
         if sampler is not None:
             if isinstance(sampler, SubsetRandomSampler):
@@ -175,6 +175,7 @@ class ScriptLogger(logging.Logger):
             f"size: {len(sampler)} "
             f"({len(dataset.targets[indices])} x {dataset.multiplier})"
         )
+        self.info(f"classes to numbers: {dataset.class_to_number}")
         self.info("distribution:")
         self.increase_indent()
         distribution = pd.DataFrame(columns=["count", "perc"])
