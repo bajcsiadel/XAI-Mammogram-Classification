@@ -166,20 +166,19 @@ class ScriptLogger(logging.Logger):
             else:
                 indices = copy.deepcopy(sampler)
         else:
-            sampler = np.arange(len(dataset))
             indices = np.arange(len(dataset))
 
-        indices = np.unique(indices // dataset.multiplier)
+        original_indices = np.unique(indices // dataset.multiplier)
         self.info(f"{name}")
         self.increase_indent()
-        self.info(f"size: {len(sampler)} ({len(indices)} x {dataset.multiplier})")
+        self.info(f"size: {len(indices)} ({len(original_indices)} x {dataset.multiplier})")
         self.info("distribution:")
         self.increase_indent()
         distribution = pd.DataFrame(columns=["count", "perc"])
         classes = np.unique(dataset.targets)
         for cls in classes:
-            count = np.sum(dataset.targets[indices] == cls) * dataset.multiplier
-            distribution.loc[cls] = [count, count / len(sampler)]
+            count = np.sum(dataset.targets[indices] == cls)
+            distribution.loc[cls] = [count, count / len(indices)]
         distribution["count"] = distribution["count"].astype("int")
         self.info(
             f"{distribution.to_string(formatters={'perc': '{:3.2%}'.format})}")
