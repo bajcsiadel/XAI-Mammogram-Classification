@@ -59,7 +59,6 @@ class ProtoPNetBackbone(ProtoPNetBase, Backbone):
         self.last_layer = nn.Linear(
             d * w * h, self._n_classes, bias=False
         )  # do not use bias
-        self.softmax = nn.Softmax(dim=1)
 
         self.logger.create_csv_log(
             "train_model",
@@ -85,7 +84,7 @@ class ProtoPNetBackbone(ProtoPNetBase, Backbone):
         x = self.features(x)
         x = self.add_on_layers(x)
         x = x.view(x.size()[0], -1)
-        return self.softmax(self.last_layer(x))
+        return self.last_layer(x)
 
     def __repr__(self):
         """
