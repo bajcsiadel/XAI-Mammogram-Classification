@@ -1,0 +1,65 @@
+defaults:
+  - _config_validation  # type verification defined in config_types.py
+  - _hydra_config
+  - _self_
+  - data/set: MIAS
+
+batch_size: 256
+epochs: 60
+n_angles: 360
+seed: 42
+train_feature_extraction: true
+train_test: true
+train_validation: true
+use_dropouts: true
+
+data:
+  datamodule:
+    _target_: xai_mam.dataset.dataloaders.CustomDataModule
+    _convert_: object  # Structured Configs are converted to instances
+    data: ${data.set}
+    classification: ${data.set.target.name}
+    data_filters: ${data.filters}
+    cross_validation_folds: 1
+    stratified: false
+    balanced: false
+    grouped: false
+    n_workers: ${job.n_workers}
+    seed: ${seed}
+    debug: false
+
+gpu:
+  disabled: false
+  device_ids:
+    - 0
+
+job:
+  n_workers: 4
+
+hydra:
+  run:
+    dir: "${run_location:}/${data.set.name}-\
+       ${data.set.state}-${data.set.target.name}/\
+       ${data.set.image_properties.height}-${data.set.image_properties.width}-\
+       ${epochs}E-${batch_size}B-\
+       ${sanitize_override_dirname:${hydra:job.override_dirname}}/\
+       ${now:%Y-%m-%d-%H-%M-%S}"
+  sweep:
+    subdir: "${data.set.name}-\
+      ${data.set.state}-${data.set.target.name}/\
+      ${data.set.image_properties.height}-${data.set.image_properties.width}-\
+      ${sanitize_override_dirname:${hydra:job.override_dirname}}/\
+      ${now:%Y-%m-%d-%H-%M-%S}"
+  job:
+    config:
+      override_dirname:
+        exclude_keys:
+          - gpu.device_ids
+          - data/set
+          - data/set/state
+          - data/set/target
+          - data.set.image_properties.height
+          - data.set.image_properties.width
+  job_logging:
+    root:
+      level: INFO
