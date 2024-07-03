@@ -1,0 +1,17 @@
+defaults:
+  - _hydra_config
+  - _config_validation  # type verification defined in xai_mam/scripts/test_models/train_resnet50_on_MIAS.py
+  - _self_
+
+epochs: 60
+batch_size: 128
+dropout: false
+train_test: false
+train_validation: false
+train_feature_extraction: false
+
+hydra:
+  run:
+    dir: ${run_location:}/${hydra.job.override_dirname}/${now:%Y-%m-%d-%H-%M-%S}
+  sweep:
+    subdir: ${hydra.job.override_dirname}/${now:%Y-%m-%d-%H-%M-%S}
