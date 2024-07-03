@@ -1,3 +1,4 @@
+import copy
 import datetime
 import time
 from functools import partial
@@ -70,6 +71,11 @@ class ExplainableTrainer(ProtoPNetTrainer):
             "number_of_channels": data_module.dataset.image_properties.n_color_channels,
         }
         self.__preprocess_prototype_fn = partial(preprocess, **preprocess_parameters)
+        if train_sampler is not None:
+            self.__push_sampler = copy.deepcopy(train_sampler.indices) // data_module.train_data.multiplier
+            self.__push_sampler = np.unique(self.__push_sampler)
+        else:
+            self.__push_sampler = None
 
     def compute_loss(self, **kwargs):
         """
@@ -572,7 +578,7 @@ class ExplainableTrainer(ProtoPNetTrainer):
             batch_size=self._phases["joint"].batch_size.validation,
         )
         push_loader = self._data_module.push_dataloader(
-            sampler=self._train_sampler,
+            sampler=self.__push_sampler,
             batch_size=self._params.push.batch_size,
         )
 
