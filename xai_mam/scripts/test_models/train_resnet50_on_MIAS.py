@@ -182,7 +182,7 @@ class Model(nn.Module):
         return out
 
 
-def fit(model, X, y, batch_size, criterion, optimizer=None, mode=None):
+def fit(model, X, y, batch_size, criterion, optimizer=None):
     if optimizer is None:
         model.eval()
     else:
@@ -216,6 +216,23 @@ def fit(model, X, y, batch_size, criterion, optimizer=None, mode=None):
     return loss, accu
 
 
+def print_set_information(logger, set_name, patient_ids, labels):
+    logger.info(f"{set_name}")
+    logger.increase_indent()
+
+    logger.info(f"Number of patients: {len(patient_ids)}")
+    logger.info(f"Number of images: {len(labels)}")
+    logger.info(f"IDs: {patient_ids}")
+    distribution = pd.DataFrame(np.unique(labels, return_counts=True)).T
+    distribution.columns = ["label", "count"]
+    distribution["perc"] = distribution["count"] / distribution["count"].sum()
+    logger.info(
+        distribution.to_string(index=False, formatters={"perc": "{:3.2%}".format})
+    )
+
+    logger.decrease_indent()
+
+
 def run(cfg: Config, logger: ScriptLogger):
     result_dir = Path(hydra_config.HydraConfig.get().runtime.output_dir)
 
@@ -224,6 +241,15 @@ def run(cfg: Config, logger: ScriptLogger):
     logger.info("Read image contents and augment")
     image_info = read_image(cfg.data_path, cfg.no_angles)
     patient_ids = np.unique(list(label_info.keys()))
+
+    logger.info(f"Class mapping:\n\tB --> 0\n\tM --> 1")
+
+    print_set_information(
+        logger,
+        "all",
+        patient_ids,
+        np.array([list(label_info[id].values()) for id in patient_ids]).flatten()
+    )
 
     if cfg.train_test:
         x_train, y_train, x_test, y_test, train_ids, test_ids = patient_split_data(
@@ -271,9 +297,13 @@ def run(cfg: Config, logger: ScriptLogger):
             all_image_ids, train_indices, X, Y
         )
 
-    logger.info(f"{np.unique(train_ids) = }")
-    logger.info(f"{np.unique(validation_ids) = }")
-    logger.info(f"{np.unique(test_ids) = }")
+    print_set_information(logger, "train", np.unique(train_ids), y_train)
+    print_set_information(logger, "validation", np.unique(validation_ids), y_validation)
+    print_set_information(logger, "test", np.unique(test_ids), y_test)
+
+    logger.info(f"train ∩ validation: {set(train_ids) & set(validation_ids)}")
+    logger.info(f"train ∩ test: {set(train_ids) & set(test_ids)}")
+    logger.info(f"test ∩ validation: {set(test_ids) & set(validation_ids)}")
 
     metrics = {
         "loss.train": [],
@@ -286,7 +316,7 @@ def run(cfg: Config, logger: ScriptLogger):
         metrics["loss.train"].append(loss)
         metrics["acc.train"].append(accu)
         train_results = (
-            f"Epoch [{epoch:3d}, {cfg.epochs:3d}] "
+            f"Epoch [{epoch:3d}/{cfg.epochs:3d}] "
             f"train loss: {loss:.3f} "
             f"train accu: {accu:.3%}"
         )
@@ -317,7 +347,7 @@ def run(cfg: Config, logger: ScriptLogger):
         metrics, index=pd.Index(range(1, cfg.epochs + 1), name="epoch")
     ).to_csv(result_dir / "metrics.csv")
 
-    loss, accu = fit(model, x_test, y_test, cfg.batch_size, criterion, mode="test")
+    loss, accu = fit(model, x_test, y_test, cfg.batch_size, criterion)
     logger.info(
         f"Test loss: {loss:.3f} "
         f"test accu: {accu:.3%}"
