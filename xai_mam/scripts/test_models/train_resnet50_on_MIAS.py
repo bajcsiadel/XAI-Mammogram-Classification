@@ -109,18 +109,22 @@ def select_elements(indices, *dicts) -> list:
 def patient_split_data(
         patient_ids, labels, *data, test_size=0.15, random_state=2021, shuffle=True
 ):
+    [unique_patients, unique_labels] = np.unique(np.vstack((patient_ids, labels)), axis=1)
     train_indices, test_indices = train_test_split(
-        patient_ids,
+        unique_patients,
         test_size=test_size,
         random_state=random_state,
         shuffle=shuffle,
-        stratify=labels
+        stratify=unique_labels,
     )
     return (
         *select_elements(train_indices, *data),
         *select_elements(test_indices, *data),
         train_indices,
-        test_indices
+        test_indices,
+        np.array(
+            [np.argwhere(patient_ids == patient_id) for patient_id in train_indices]
+        ).flatten(),
     )
 
 
@@ -251,24 +255,25 @@ def run(cfg: Config, logger: ScriptLogger):
         np.array([list(label_info[id].values()) for id in patient_ids]).flatten()
     )
 
+    X = []
+    Y = []
+    all_image_ids = []
+    for patient_id in patient_ids:
+        for angle in range(0, cfg.no_angles, 8):
+            X.append(image_info[patient_id][angle])
+            Y.append(label_info[patient_id][angle])
+            all_image_ids.append(patient_id)
+    X = np.array(X)
+    Y = np.array(Y)
+    all_image_ids = np.array(all_image_ids)
+
     if cfg.train_test:
-        x_train, y_train, x_test, y_test, train_ids, test_ids = patient_split_data(
-            patient_ids,
-            [label_info[id][0] for id in patient_ids],
+        x_train, y_train, x_test, y_test, train_ids, test_ids, train_indices = patient_split_data(
+            all_image_ids,
+            Y,
             image_info, label_info,
         )
     else:
-        X = []
-        Y = []
-        all_image_ids = []
-        for patient_id in patient_ids:
-            for angle in range(0, cfg.no_angles, 8):
-                X.append(image_info[patient_id][angle])
-                Y.append(label_info[patient_id][angle])
-                all_image_ids.append(patient_id)
-        X = np.array(X)
-        Y = np.array(Y)
-        all_image_ids = np.array(all_image_ids)
         x_train, y_train, x_test, y_test, train_ids, test_ids, train_indices = random_split_data(
             all_image_ids, range(len(X)), X, Y,
         )
@@ -286,7 +291,7 @@ def run(cfg: Config, logger: ScriptLogger):
     optimizer = Adam(model.parameters(), lr=0.001)
     criterion = nn.CrossEntropyLoss()
 
-    if cfg.train_test:
+    if cfg.train_validation:
         x_train, y_train, x_validation, y_validation, train_ids, validation_ids = patient_split_data(
             train_ids,
             [label_info[id][0] for id in train_ids],
