@@ -53,7 +53,7 @@ augmentations:
 #          - _target_: albumentations.VerticalFlip
 #            p: 1.0
 #        n: 1
-  push:
+  validation:
     transforms: []
 
 output_dir: "augmented"

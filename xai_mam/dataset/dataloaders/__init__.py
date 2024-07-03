@@ -437,13 +437,12 @@ class CustomDataModule:
         self.__validation_data = CustomVisionDataset(
             **dataset_params,
             transform=Augmentations(
-                transforms=self.__data.image_properties.augmentations.train
+                transforms=self.__data.image_properties.augmentations.validation
             ),
             subset="train",
         )
         self.__push_data = CustomVisionDataset(
             **dataset_params,
-            transform=Augmentations(self.__data.image_properties.augmentations.push),
             normalize=False,
             subset="train",
         )

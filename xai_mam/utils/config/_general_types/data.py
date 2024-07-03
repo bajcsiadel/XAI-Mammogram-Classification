@@ -116,7 +116,7 @@ class AugmentationsConfig:
 @dc.dataclass
 class AugmentationGroupsConfig:
     train: AugmentationsConfig = dc.field(default_factory=AugmentationsConfig)
-    push: AugmentationsConfig = dc.field(default_factory=AugmentationsConfig)
+    validation: AugmentationsConfig = dc.field(default_factory=AugmentationsConfig)
 
 
 @dc.dataclass
