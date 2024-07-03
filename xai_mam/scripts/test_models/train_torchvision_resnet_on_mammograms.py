@@ -32,6 +32,10 @@ from torchinfo import summary
 from torchvision.models import resnet50
 
 from xai_mam.dataset.dataloaders import CustomDataModule
+from xai_mam.scripts.test_models.helpers.log import print_set_information
+from xai_mam.scripts.test_models.helpers.split import patient_split_data, \
+    random_split_data
+from xai_mam.scripts.test_models.helpers.train import train_with_lists
 from xai_mam.utils.config._general_types import Gpu
 from xai_mam.utils.config._general_types.data import DataConfig, DatasetConfig
 from xai_mam.utils.config.resolvers import resolve_run_location, \
@@ -73,11 +77,10 @@ class Model(nn.Module):
         self.features.fc = nn.Identity()
 
         if use_dropouts:
-            self.features.avgpool = nn.Identity()
             self.classification = nn.Sequential(
                 nn.Dropout(0.5),
                 nn.Flatten(),
-                nn.Linear(resnet_feature_size * 7 * 7, 256),
+                nn.Linear(resnet_feature_size, 256),
                 nn.ReLU(),
                 nn.Dropout(0.5),
                 nn.BatchNorm1d(256),
@@ -94,12 +97,12 @@ class Model(nn.Module):
             )
         else:
             self.classification = nn.Sequential(
-                nn.Flatten(),
-                nn.Linear(resnet_feature_size * 7 * 7, n_classes)
+                nn.Linear(resnet_feature_size, n_classes)
             )
 
-        for param in self.features.parameters():
-            param.requires_grad = train_backbone
+        with torch.no_grad():
+            for param in self.features.parameters():
+                param.requires_grad = train_backbone
 
         self.train_backbone = train_backbone
         self.n_classes = n_classes
@@ -186,144 +189,6 @@ def read_label(data: DatasetConfig, target: str, n_angles: int) -> dict:
     return info
 
 
-def select_elements(indices: list | tuple, *arrays):
-    result = []
-    for arr in arrays:
-        for index in indices:
-            result.append(np.array(arr[index]))
-
-    return result
-
-
-def random_split(
-    indices: np.ndarray, *arrays, test_size: float, seed: int, shuffle: bool = True,
-):
-    train_indices, test_indices = train_test_split(
-        indices,
-        test_size=test_size,
-        random_state=seed,
-        shuffle=shuffle,
-    )
-
-    return select_elements(
-        (train_indices, test_indices), *arrays
-    ), train_indices, test_indices
-
-
-def stratified_split(
-    indices: np.ndarray,
-        *arrays,
-        test_size: float,
-        seed: int,
-        stratify: np.ndarray,
-        shuffle: bool = True,
-):
-    train_indices, test_indices = train_test_split(
-        indices,
-        test_size=test_size,
-        random_state=seed,
-        shuffle=shuffle,
-        stratify=stratify
-    )
-
-    multiplier = len(arrays[0]) // len(indices)
-
-    train_indices = np.array([
-        np.arange(i * multiplier, (i + 1) * multiplier) for i in train_indices
-    ]).flatten()
-    test_indices = np.array([
-        np.arange(i * multiplier, (i + 1) * multiplier) for i in test_indices
-    ]).flatten()
-
-    return select_elements(
-        (train_indices, test_indices), *arrays
-    ), train_indices, test_indices
-
-
-def split_data(
-    indices: np.ndarray,
-    *arrays,
-    test_size: float,
-    seed: int,
-    shuffle: bool = True,
-    stratify: np.ndarray = None,
-):
-    if stratify is None:
-        return random_split(
-            indices, *arrays, test_size=test_size, seed=seed, shuffle=shuffle,
-        )
-
-    return stratified_split(
-        indices, *arrays, test_size=test_size, seed=seed, shuffle=shuffle, stratify=stratify,
-    )
-
-
-def train_model(model: nn.Module, data_loader: DataLoader, criterion,
-                optimizer: Optimizer = None, mode: str = None, gpu: Gpu = None):
-    if mode is None:
-        mode = "train" if optimizer is not None else "eval"
-
-    if mode == "train":
-        model.train()
-    else:
-        model.eval()
-
-    total_loss = 0.0
-    total_predictions = 0.0
-    total_samples = 0
-    for images, targets in data_loader:
-        images = images.to(gpu.device_instance)
-        targets = targets.to(gpu.device_instance)
-
-        outputs = model(images)
-
-        loss = criterion(outputs, targets)
-
-        if optimizer is not None:
-            optimizer.zero_grad()
-            loss.backward()
-            optimizer.step()
-
-        total_predictions += (torch.max(outputs, dim=1)[1] == targets).sum().item()
-        total_samples += len(targets)
-        total_loss += loss.item()
-
-    return total_loss / total_samples, total_predictions / total_samples
-
-
-def train_model_2(model: nn.Module, images: np.ndarray, targets: np.ndarray, batch_size: int, criterion,
-                optimizer: Optimizer = None, mode: str = None, gpu: Gpu = None):
-    if mode is None:
-        mode = "train" if optimizer is not None else "eval"
-
-    if mode == "train":
-        model.train()
-    else:
-        model.eval()
-
-    total_loss = 0.0
-    total_predictions = 0.0
-    total_samples = 0
-    for i in range(0, len(images), batch_size):
-        inputs = torch.from_numpy(images[i:i+batch_size]).to(gpu.device_instance, torch.float32)
-        expected_outputs = torch.LongTensor(targets[i:i+batch_size]).to(gpu.device_instance)
-
-        predicted_outputs = model(inputs)
-
-        loss = criterion(predicted_outputs, expected_outputs)
-
-        if optimizer is not None:
-            optimizer.zero_grad()
-            loss.backward()
-            optimizer.step()
-
-        total_predictions += (torch.max(predicted_outputs, dim=1)[1] == expected_outputs).sum().item()
-        total_samples += len(expected_outputs)
-        total_loss += loss.item()
-
-    return total_loss / total_samples, total_predictions / total_samples
-
-
 def run(cfg: Config, logger: ScriptLogger):
     logger.info(cfg)
     logger.info(f"Use dataset: {cfg.data.set.name}")
@@ -341,58 +206,53 @@ def run(cfg: Config, logger: ScriptLogger):
     ids = label_information.keys()  # ids = acceptable labeled ids
     X = []
     Y = []
-    image_names = []
+    all_image_ids = []
     for id in ids:
         for angle in range(0, cfg.n_angles, 8):
             X.append(image_information[id][angle].transpose(2, 0, 1))
             Y.append(label_information[id][angle])
-            image_names.append(id)
+            all_image_ids.append(id)
     X = np.array(X)
     Y = np.array(Y)
-    image_names = np.array(image_names)
+    all_image_ids = np.array(all_image_ids)
 
-    [_, x_test, y_train, y_test], train_indices, test_indices = split_data(
-        np.arange(len(X)),
-        X, Y,
-        test_size=0.15,
-        seed=cfg.seed,
-        shuffle=True,
-        stratify=Y if cfg.train_test else None,
+    if cfg.train_test:
+        x_train, y_train, x_test, y_test, train_ids, test_ids, train_indices = patient_split_data(
+            all_image_ids,
+            Y,
+            image_information, label_information,
+        )
+    else:
+        x_train, y_train, x_test, y_test, train_ids, test_ids, train_indices = random_split_data(
+            all_image_ids, np.arange(len(X)), X, Y,
+        )
+
+    if cfg.train_validation:
+        x_train, y_train, x_validation, y_validation, train_ids, validation_ids, _ = patient_split_data(
+            train_ids,
+            np.array([label_information[id][0] for id in train_ids]),
+            image_information, label_information,
+        )
+    else:
+        x_train, y_train, x_validation, y_validation, train_ids, validation_ids, _ = random_split_data(
+            all_image_ids, train_indices, X, Y
+        )
+
+    print_set_information(
+        logger,
+        "all",
+        all_image_ids,
+        np.array(
+            [list(label_information[id].values()) for id in label_information]
+        ).flatten()
     )
+    print_set_information(logger, "train", np.unique(train_ids), y_train)
+    print_set_information(logger, "validation", np.unique(validation_ids), y_validation)
+    print_set_information(logger, "test", np.unique(test_ids), y_test)
 
-    [x_train, x_validation, y_train, y_validation], train_indices, validation_indices = split_data(
-        train_indices,
-        X, Y,
-        test_size=0.15,
-        seed=cfg.seed,
-        shuffle=True,
-        stratify=y_train if cfg.train_validation else None,
-    )
-
-    train_names = np.unique(image_names[train_indices])
-    logger.info(f"train images = {train_names}")
-    d = pd.DataFrame(np.unique(y_train, return_counts=True)).T
-    d.columns = pd.Index(["class", "count"])
-    d["perc"] = d["count"] / d["count"].sum()
-    logger.info(d.to_string(index=False, formatters={"perc": "{:3.2%}".format}))
-
-    validation_names = np.unique(image_names[validation_indices])
-    logger.info(f"validation images = {validation_names}")
-    d = pd.DataFrame(np.unique(y_validation, return_counts=True)).T
-    d.columns = pd.Index(["class", "count"])
-    d["perc"] = d["count"] / d["count"].sum()
-    logger.info(d.to_string(index=False, formatters={"perc": "{:3.2%}".format}))
-
-    test_names = np.unique(image_names[test_indices])
-    logger.info(f"test images = {test_names}")
-    d = pd.DataFrame(np.unique(y_test, return_counts=True)).T
-    d.columns = pd.Index(["class", "count"])
-    d["perc"] = d["count"] / d["count"].sum()
-    logger.info(d.to_string(index=False, formatters={"perc": "{:3.2%}".format}))
-
-    logger.info(f"train ∩ validation = {np.intersect1d(train_names, validation_names)}")
-    logger.info(f"train ∩ test = {np.intersect1d(train_names, test_names)}")
-    logger.info(f"validation ∩ test = {np.intersect1d(test_names, validation_names)}")
+    logger.info(f"train ∩ validation: {set(train_ids) & set(validation_ids)}")
+    logger.info(f"train ∩ test: {set(train_ids) & set(test_ids)}")
+    logger.info(f"test ∩ validation: {set(test_ids) & set(validation_ids)}")
 
     data_module = hydra.utils.instantiate(cfg.data.datamodule)
 
@@ -419,7 +279,7 @@ def run(cfg: Config, logger: ScriptLogger):
     model = Model(2, 3, cfg.use_dropouts, cfg.train_feature_extraction)
     model.to(cfg.gpu.device_instance)
 
-    logger.info("\n" + str(summary(
+    logger.info(summary(
         model,
         input_size=(
             3,
@@ -431,7 +291,7 @@ def run(cfg: Config, logger: ScriptLogger):
         batch_dim=0,
         device=cfg.gpu.device_instance,
         verbose=0,
-    )))
+    ))
 
     optimizer = Adam(model.parameters(), lr=0.001)
     criterion = nn.CrossEntropyLoss()
@@ -450,8 +310,8 @@ def run(cfg: Config, logger: ScriptLogger):
         # train_loss, train_accuracy = train_model(
         #     model, train_loader, criterion, optimizer, gpu=cfg.gpu
         # )
-        train_loss, train_accuracy = train_model_2(
-            model, x_train, y_train, cfg.batch_size, criterion, optimizer, gpu=cfg.gpu,
+        train_loss, train_accuracy = train_with_lists(
+            model, x_train, y_train, cfg.batch_size, criterion, cfg.gpu, optimizer,
         )
         train_result = (
             f"Epoch [{epoch:>2} / {cfg.epochs}] "
@@ -463,8 +323,8 @@ def run(cfg: Config, logger: ScriptLogger):
         # validation_loss, validation_accuracy = train_model(
         #     model, validation_loader, criterion, gpu=cfg.gpu
         # )
-        validation_loss, validation_accuracy = train_model_2(
-            model, x_validation, y_validation, cfg.batch_size, criterion, gpu=cfg.gpu,
+        validation_loss, validation_accuracy = train_with_lists(
+            model, x_validation, y_validation, cfg.batch_size, criterion, cfg.gpu,
         )
         logger.info(f"{train_result} valid loss = {validation_loss:.4f} "
                     f"valid accu = {validation_accuracy:3.2%}")
@@ -479,8 +339,8 @@ def run(cfg: Config, logger: ScriptLogger):
 
     # test_loader = data_module.test_dataloader(batch_size=cfg.batch_size)
     # test_loss, test_accuracy = train_model(model, test_loader, criterion, gpu=cfg.gpu)
-    test_loss, test_accuracy = train_model_2(
-        model, x_test, y_test, cfg.batch_size, criterion, gpu=cfg.gpu,
+    test_loss, test_accuracy = train_with_lists(
+        model, x_test, y_test, cfg.batch_size, criterion, cfg.gpu,
     )
     logger.info(f"Test loss = {test_loss} test accuracy = {test_accuracy}")
 

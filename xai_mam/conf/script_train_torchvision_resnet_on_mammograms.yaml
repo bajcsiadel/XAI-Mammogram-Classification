@@ -4,7 +4,7 @@ defaults:
   - _self_
   - data/set: MIAS
 
-batch_size: 256
+batch_size: 128
 epochs: 60
 n_angles: 360
 seed: 42

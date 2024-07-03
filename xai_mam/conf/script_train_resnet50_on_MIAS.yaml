@@ -10,6 +10,11 @@ train_test: false
 train_validation: false
 train_feature_extraction: false
 
+gpu:
+  disabled: false
+  device_ids:
+    - 0
+
 hydra:
   run:
     dir: ${run_location:}/${hydra.job.override_dirname}/${now:%Y-%m-%d-%H-%M-%S}
