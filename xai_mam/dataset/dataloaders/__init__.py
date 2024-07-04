@@ -455,7 +455,7 @@ class CustomDataModule:
         batch_size: conf_typ.BatchSize = None,
     ):
         if batch_size is None:
-            batch_size = conf_typ.BatchSize(32, 16)
+            batch_size = conf_typ.BatchSize(128, 128)
 
         self.__data = data
         dataset_params = {

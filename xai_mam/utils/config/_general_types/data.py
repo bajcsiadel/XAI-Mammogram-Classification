@@ -363,7 +363,7 @@ class DataModuleConfig:
     n_workers: int = 0
     seed: int = 1234
     debug: bool = False
-    batch_size: BatchSize = dc.field(default_factory=lambda: BatchSize(32, 16))
+    batch_size: BatchSize = dc.field(default_factory=lambda: BatchSize(128, 128))
     _convert_: str = "object"  # Structured Configs are converted to instances
     _recursive_: bool = False
 

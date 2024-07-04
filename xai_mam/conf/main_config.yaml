@@ -9,6 +9,40 @@ defaults:
   - data/augmentation@data.set.image_properties.augmentations.train: none
   - data/augmentation@data.set.image_properties.augmentations.validation: none
 
+data:
+  datamodule:
+    _target_: xai_mam.dataset.dataloaders.CustomDataModule
+    _convert_: object  # Structured Configs are converted to instances
+    data: ${data.set}
+    classification: ${data.set.target.name}
+    data_filters: ${data.filters}
+    cross_validation_folds: ${cross_validation.folds}
+    stratified: ${cross_validation.stratified}
+    balanced: ${cross_validation.balanced}
+    grouped: ${cross_validation.grouped}
+    n_workers: ${job.n_workers}
+    seed: ${seed}
+    debug: false
+    batch_size:
+      train: 128
+      validation: 128
+
+seed: 42
+
+job:
+  n_workers: 4
+
+outputs:
+  dirs:
+    checkpoints: checkpoints
+    image: img
+    metadata: metadata
+    tensorboard: tensorboard
+  file_prefixes:
+    prototype: prototype-img
+    self_activation: prototype-self-act
+    bounding_box: prototype-bb
+
 hydra:
   run:
     dir: "${run_location:}/${model.name}/${now:%Y-%m-%d}/\
@@ -43,34 +77,3 @@ hydra:
   job_logging:
     root:
       level: INFO
-
-data:
-  datamodule:
-    _target_: xai_mam.dataset.dataloaders.CustomDataModule
-    _convert_: object  # Structured Configs are converted to instances
-    data: ${data.set}
-    classification: ${data.set.target.name}
-    data_filters: ${data.filters}
-    cross_validation_folds: ${cross_validation.folds}
-    stratified: ${cross_validation.stratified}
-    balanced: ${cross_validation.balanced}
-    grouped: ${cross_validation.grouped}
-    n_workers: ${job.n_workers}
-    seed: ${seed}
-    debug: false
-
-seed: 42
-
-job:
-  n_workers: 4
-
-outputs:
-  dirs:
-    checkpoints: checkpoints
-    image: img
-    metadata: metadata
-    tensorboard: tensorboard
-  file_prefixes:
-    prototype: prototype-img
-    self_activation: prototype-self-act
-    bounding_box: prototype-bb
