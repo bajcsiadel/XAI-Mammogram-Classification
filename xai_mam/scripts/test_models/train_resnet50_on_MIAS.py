@@ -190,6 +190,17 @@ def run(cfg: Config, logger: ScriptLogger):
             all_image_ids, train_indices, X, Y
         )
 
+    if cfg.train_validation:
+        x_train, y_train, x_validation, y_validation, train_ids, validation_ids, _ = patient_split_data(
+            train_ids,
+            np.array([label_info[id][0] for id in train_ids]),
+            image_info, label_info,
+        )
+    else:
+        x_train, y_train, x_validation, y_validation, train_ids, validation_ids, _ = random_split_data(
+            all_image_ids, train_indices, X, Y
+        )
+
     logger.info(x_train[0].shape)
 
     model = Model(cfg.dropout, cfg.train_feature_extraction)
