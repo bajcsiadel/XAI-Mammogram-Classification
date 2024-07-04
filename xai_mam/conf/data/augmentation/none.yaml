@@ -1,2 +1,4 @@
 transforms:
   - _target_: albumentations.NoOp
+exclude_identity_transform: false
+online: false

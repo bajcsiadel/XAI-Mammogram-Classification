@@ -4,3 +4,5 @@ transforms:
     p: 1.0
   - _target_: albumentations.VerticalFlip
     p: 0.5
+exclude_identity_transform: false
+online: false

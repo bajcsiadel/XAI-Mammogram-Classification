@@ -15,10 +15,8 @@ from torchvision import datasets
 
 import xai_mam.utils.config.types as conf_typ
 from xai_mam.dataset.metadata import DataFilter
-from xai_mam.utils.config._general_types import DatasetConfig
-from xai_mam.utils.config._general_types._multifunctional import BatchSize
 from xai_mam.utils.config.script_main import Config
-from xai_mam.utils.helpers import Augmentations, RepeatedAugmentation
+from xai_mam.utils.helpers import RepeatedAugmentation
 from xai_mam.utils.split_data import stratified_grouped_train_test_split
 
 
@@ -55,17 +53,17 @@ class CustomVisionDataset(datasets.VisionDataset):
     """
     def __init__(
         self,
-        dataset_meta: DatasetConfig,
+        dataset_meta: conf_typ.DatasetConfig,
         classification: str,
         subset: str = "train",
         data_filters: list[DataFilter] | None = None,
         normalize: bool = True,
-        transform: Augmentations = None,
+        transform: conf_typ.Augmentations = None,
         target_transform: typing.Callable[[int], torch.Tensor] = _target_transform,
         debug: bool = False,
     ):
         if transform is None:
-            transform = Augmentations()
+            transform = conf_typ.Augmentations()
 
         if normalize:
             # normalize transform will be applied after ToFloat,
@@ -171,6 +169,22 @@ class CustomVisionDataset(datasets.VisionDataset):
         )
         self.reset_used_transforms()
 
+        # read the images
+        self.__images = [
+            self.get_original(i)[0]
+            for i in range(len(self.__meta_information))
+        ]
+        if self.__transform.offline:
+            for i in range(len(self.__meta_information)):
+                original_image = self.__images[i * self.__transform.multiplier].copy()
+                self.__images[i * self.__transform.multiplier] = self.__transform_image(
+                    i, original_image
+                )
+                for _ in range(self.__transform.multiplier - 1):
+                    self.__images.insert(i, self.__transform_image(i, original_image))
+            # we do not need to reset the transformations because they
+            # will not be called again
+
     def reset_used_transforms(self):
         """
         Reset the transforms as if none have been performed.
@@ -264,7 +278,7 @@ class CustomVisionDataset(datasets.VisionDataset):
         return self.__meta_information.copy()
 
     @property
-    def dataset_meta(self) -> DatasetConfig:
+    def dataset_meta(self) -> conf_typ.DatasetConfig:
         """
         Get the dataset information specified in the configuration.
 
@@ -313,12 +327,48 @@ class CustomVisionDataset(datasets.VisionDataset):
         )
 
         if len(image.shape) > 2:
-            # the channel should be the last dimension
-            image = image.transpose([1, 2, 0])
+            # the channel should be the last dimension as input for the augmentations
+            color_channel_index = np.argwhere(np.array(image.shape) <= 4)[0]
+            remaining_channels = np.delete(
+                np.arange(len(image.shape)), color_channel_index,
+            )
+            image = image.transpose(
+                np.hstack((remaining_channels, color_channel_index))
+            )
 
         target = self.__class_to_number[sample[self.__classification, "label"]]
 
         return image, target
+
+    def __transform_image(self, index: int, image: np.ndarray = None) -> torch.Tensor:
+        """
+        Apply the transformations to the image.
+
+        :param index: index of the image
+        :param image: image to apply the transformations to. Defauts to ``None``.
+        :return: transformed image
+        """
+        print("transforming image")
+        if image is None:
+            image = self.__images[index]
+
+        if self.__transform.multiplier > 1:
+            # apply transforms
+            remaining_transform_indices = np.where(
+                self.__remaining_transforms[index] > 0
+            )[0]
+            # convert the index to int, otherwise it will be np.int64
+            selected_transform_index = int(
+                np.random.choice(remaining_transform_indices)
+            )
+            self.__remaining_transforms[index][selected_transform_index] -= 1
+
+            current_transform = self.__transform.transforms[selected_transform_index]
+        else:
+            current_transform = self.__transform.transforms[0]
+        final_transform = self.__compose_transform(current_transform)
+
+        return final_transform(image=image)["image"]
 
     def __repr__(self) -> str:
         """
@@ -351,7 +401,7 @@ class CustomVisionDataset(datasets.VisionDataset):
         """
         return len(self.__meta_information) * self.__transform.multiplier
 
-    def __getitem__(self, index: int) -> [torch.Tensor, torch.Tensor]:
+    def __getitem__(self, index: int) -> tuple[torch.Tensor, torch.Tensor]:
         """
         Get sample at a specific index from the dataset.
 
@@ -360,26 +410,14 @@ class CustomVisionDataset(datasets.VisionDataset):
         """
         sample_index = index // self.__transform.multiplier
 
-        # Load the image
-        image, target = self.get_original(sample_index)
-
-        if self.__transform.multiplier > 1:
-            # apply transforms
-            remaining_transform_indices = np.where(
-                self.__remaining_transforms[sample_index] > 0
-            )[0]
-            # convert the index to int, otherwise it will be np.int64
-            selected_transform_index = int(
-                np.random.choice(remaining_transform_indices)
-            )
-            self.__remaining_transforms[sample_index][selected_transform_index] -= 1
-
-            current_transform = self.__transform.transforms[selected_transform_index]
+        if self.__transform.online:
+            # Load the image
+            image = self.__transform_image(sample_index)
         else:
-            current_transform = self.__transform.transforms[0]
-        final_transform = self.__compose_transform(current_transform)
+            image = self.__images[index]
 
-        image = final_transform(image=image)["image"]
+        target = self.__raw_targets[index]
+        target = self.__class_to_number[target]
         target = self.__target_transform(target)
 
         return image, target
@@ -404,7 +442,7 @@ class CustomDataModule:
     """
     def __init__(
         self,
-        data: DatasetConfig,
+        data: conf_typ.DatasetConfig,
         classification: str,
         data_filters: list[typing.Callable[[pd.DataFrame], pd.DataFrame]] | None = None,
         cross_validation_folds: int | None = None,
@@ -414,7 +452,7 @@ class CustomDataModule:
         n_workers: int = 0,
         seed: int = 0,
         debug: bool = False,
-        batch_size: BatchSize = None,
+        batch_size: conf_typ.BatchSize = None,
     ):
         if batch_size is None:
             batch_size = conf_typ.BatchSize(32, 16)
@@ -429,16 +467,12 @@ class CustomDataModule:
         # define datasets
         self.__train_data = CustomVisionDataset(
             **dataset_params,
-            transform=Augmentations(
-                transforms=self.__data.image_properties.augmentations.train
-            ),
+            transform=self.__data.image_properties.augmentations.train.to_instance(),
             subset="train",
         )
         self.__validation_data = CustomVisionDataset(
             **dataset_params,
-            transform=Augmentations(
-                transforms=self.__data.image_properties.augmentations.validation
-            ),
+            transform=self.__data.image_properties.augmentations.validation.to_instance(),  # noqa
             subset="train",
         )
         self.__push_data = CustomVisionDataset(
@@ -464,7 +498,7 @@ class CustomDataModule:
         stratified: bool,
         balanced: bool,
         groups: bool,
-        batch_size: BatchSize,
+        batch_size: conf_typ.BatchSize,
         seed: int,
     ):
         """
@@ -553,7 +587,7 @@ class CustomDataModule:
         return self.__debug
 
     @property
-    def dataset(self) -> DatasetConfig:
+    def dataset(self) -> conf_typ.DatasetConfig:
         return copy.deepcopy(self.__data)
 
     @property

@@ -3,14 +3,16 @@ import typing as typ
 from pathlib import Path
 
 import albumentations as A
+import hydra.utils
 import numpy as np
 from hydra.core.config_store import ConfigStore
 
 from xai_mam.utils import custom_pipe
 from xai_mam.utils.config._general_types._multifunctional import BatchSize
+from xai_mam.utils.helpers import RepeatedAugmentation
 
 __all__ = [
-    "Augmentation",
+    "Augmentations",
     "AugmentationsConfig",
     "AugmentationGroupsConfig",
     "ImagePropertiesConfig",
@@ -23,7 +25,86 @@ __all__ = [
     "DataModuleConfig",
 ]
 
+
 Augmentation = dict[str, typ.Any]
+
+
+@dc.dataclass
+class Augmentations:
+    transforms: list[A.BasicTransform | A.Compose | RepeatedAugmentation] = dc.field(
+        default_factory=lambda: [A.NoOp]
+    )
+    online: bool = False
+
+    def __init__(self, transforms: 'AugmentationsConfig' = None):
+        """
+        Transformations to apply to the images. Converted from the config.
+
+        :param transforms: transforms set in the configuration
+        """
+        if transforms is None:
+            transforms = AugmentationsConfig()
+        self.transforms = hydra.utils.instantiate(transforms.transforms)
+        self.online = transforms.online
+
+    @property
+    def multiplier(self) -> int:
+        """
+        Get the multiplier for the transformations (number of images generated from
+        a base image). If there are no transformations, return ``1``.
+
+        :return: multiplier for the transformations
+        """
+        multiplier = 1 if len(self.transforms) == 0 else 0
+        for transform in self.transforms:
+            match transform:
+                case RepeatedAugmentation():
+                    multiplier += transform.n_repeat
+                case A.Compose():
+                    multiplier += 1
+                case _:
+                    return 1
+        return multiplier
+
+    @property
+    def offline(self) -> bool:
+        """
+        Check if the transformations are offline.
+
+        :return: ``True`` if the transformations are offline, ``False`` otherwise
+        """
+        return not self.online
+
+    def get_transforms(self) -> typ.Generator[A.Compose | A.BasicTransform, None, None]:
+        """
+        Get the transformations to apply.
+
+        :return: generate the transformations to apply one-by-one
+        """
+        if len(self.transforms) > 0:
+            match self.transforms[0]:
+                case RepeatedAugmentation() | A.Compose():
+                    for transform in self.transforms:
+                        yield transform
+                case _:
+                    yield A.Compose(transforms=[A.Sequential(self.transforms)])
+        else:
+            yield A.NoOp()
+
+    def get_repetitions(self) -> np.ndarray:
+        """
+        Get the number of times each transformation is repeated.
+
+        :return: number of times each transformation is repeated
+        """
+        repetitions = []
+        for transform in self.transforms:
+            match transform:
+                case RepeatedAugmentation():
+                    repetitions.append(transform.n_repeat)
+                case _:
+                    repetitions.append(1)
+        return np.array(repetitions)
 
 
 @dc.dataclass
@@ -32,6 +113,7 @@ class AugmentationsConfig:
         default_factory=lambda: [{"_target_": "albumentations.NoOp"}]
     )
     exclude_identity_transform: bool = False
+    online: bool = False
     __identity_transform_present: bool = False
 
     def __setattr__(self, key, value):
@@ -111,6 +193,14 @@ class AugmentationsConfig:
             self.transforms
         )
         self._validate_augmentations()
+
+    def to_instance(self) -> Augmentations:
+        """
+        Converts the current augmentation configuration to an instance.
+
+        :return: instance of the augmentations
+        """
+        return Augmentations(self)
 
 
 @dc.dataclass
