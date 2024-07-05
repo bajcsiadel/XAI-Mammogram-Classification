@@ -348,7 +348,6 @@ class CustomVisionDataset(datasets.VisionDataset):
         :param image: image to apply the transformations to. Defauts to ``None``.
         :return: transformed image
         """
-        print("transforming image")
         if image is None:
             image = self.__images[index]
 
