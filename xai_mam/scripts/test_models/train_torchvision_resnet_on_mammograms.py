@@ -18,11 +18,9 @@ from time import time
 
 import cv2
 import hydra
-import matplotlib.pyplot as plt
 import numpy as np
 import omegaconf
 import pandas as pd
-import seaborn as sns
 from icecream import ic
 from sklearn.model_selection import train_test_split
 from torch import nn

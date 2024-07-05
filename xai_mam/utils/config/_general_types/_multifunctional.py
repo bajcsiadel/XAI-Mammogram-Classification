@@ -67,11 +67,10 @@ class Gpu:
             self.__device_instance = torch.device(self.device)
 
     @property
-    def device_instance(self):
+    def device_instance(self) -> torch.device:
         """
         Get the instance of the device.
 
         :return:
-        :rtype: list[torch.device]
         """
         return copy.deepcopy(self.__device_instance)
