@@ -1,11 +1,10 @@
 import copy
 import dataclasses as dc
-
-__all__ = ["BatchSize", "Gpu"]
-
 import platform
 
 import torch
+
+__all__ = ["BatchSize", "Gpu"]
 
 
 @dc.dataclass
