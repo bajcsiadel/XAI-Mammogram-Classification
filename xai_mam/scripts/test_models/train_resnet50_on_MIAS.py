@@ -16,21 +16,22 @@ from pathlib import Path
 import hydra
 import numpy as np
 import pandas as pd
-import torch
 from hydra.core import hydra_config
-from matplotlib import pyplot as plt
+from icecream import ic
 from omegaconf import OmegaConf
 from torch import nn
 from torch.optim import Adam
 from torchinfo import summary
-from torchvision.models import resnet50
 from tqdm import tqdm
 
-from xai_mam.scripts.test_models.helpers.log import print_set_information
+from xai_mam.scripts.test_models.helpers.log import print_set_information, \
+    print_set_overlap
+from xai_mam.scripts.test_models.helpers.model import Model
+from xai_mam.scripts.test_models.helpers.plot import create_plot_from_data_frame
 from xai_mam.scripts.test_models.helpers.split import patient_split_data, \
     random_split_data
 from xai_mam.scripts.test_models.helpers.train import train_with_lists
-from xai_mam.utils.config._general_types import Gpu
+from xai_mam.utils.config.types import Gpu
 from xai_mam.utils.config.resolvers import resolve_run_location, resolve_create
 from xai_mam.utils.environment import get_env
 from xai_mam.utils.log import ScriptLogger
@@ -41,7 +42,7 @@ class Config:
     epochs: int
     batch_size: int
     learning_rate: float
-    dropout: bool
+    use_dropout: bool
     train_test: bool
     train_validation: bool
     train_feature_extraction: bool
@@ -50,7 +51,7 @@ class Config:
     data_path: Path = Path(get_env("DATA_ROOT"), "MIAS")
 
 
-def read_image(data_path: Path, no_angles: int):
+def read_image(data_path: Path, no_angles: int) -> dict[str, dict[int, np.ndarray]]:
     import cv2
     info = {}
     for i in tqdm(range(322), desc="Reading images"):
@@ -77,7 +78,7 @@ def read_image(data_path: Path, no_angles: int):
     return info
 
 
-def read_label(data_path: Path, no_angles: int):
+def read_label(data_path: Path, no_angles: int) -> dict[str, dict[int, int]]:
     filename = data_path / "data.txt"
     with filename.open("r") as fd:
         text_all = fd.read()
@@ -95,51 +96,12 @@ def read_label(data_path: Path, no_angles: int):
                     info[words[0]] = {}
                     for angle in range(0, no_angles, 8):
                         info[words[0]][angle] = 1
-    return (info)
-
-
-class Model(nn.Module):
-    def __init__(self, dropout: bool = False, train_feature_extraction: bool = False):
-        super().__init__()
-        self.features = resnet50(
-            weights='ResNet50_Weights.IMAGENET1K_V2',
-        )
-        n_fc_filters = self.features.fc.in_features
-        if not train_feature_extraction:
-            with torch.no_grad():
-                for m in self.features.parameters():
-                    m.requires_grad = False
-        self.features.fc = nn.Identity()
-        if dropout:
-            self.classification = nn.Sequential(
-                nn.Dropout(0.5),
-                nn.Flatten(),
-                nn.Linear(n_fc_filters, 256),
-                nn.ReLU(),
-                nn.Dropout(0.5),
-                nn.BatchNorm1d(256),
-                nn.Linear(256, 256),
-                nn.ReLU(),
-                nn.Dropout(0.5),
-                nn.BatchNorm1d(256),
-                nn.Linear(256, 256),
-                nn.ReLU(),
-                nn.Dropout(0.5),
-                nn.BatchNorm1d(256),
-                nn.Linear(256, 2),
-                nn.Sigmoid(),
-            )
-        else:
-            self.classification = nn.Linear(n_fc_filters, 2)
-
-    def forward(self, x: torch.Tensor):
-        out = self.features(x)
-        out = self.classification(out)
-        return out
+    return info
 
 
 def run(cfg: Config, logger: ScriptLogger):
     result_dir = Path(hydra_config.HydraConfig.get().runtime.output_dir)
+    logger.info(ic.format(cfg))
 
     logger.info("Read label information")
     label_info = read_label(cfg.data_path, cfg.no_angles)
@@ -203,7 +165,7 @@ def run(cfg: Config, logger: ScriptLogger):
 
     logger.info(x_train[0].shape)
 
-    model = Model(cfg.dropout, cfg.train_feature_extraction)
+    model = Model(2, 3, cfg.use_dropout, cfg.train_feature_extraction)
     model.to(cfg.gpu.device_instance)
     logger.info(summary(
         model,
@@ -221,9 +183,12 @@ def run(cfg: Config, logger: ScriptLogger):
     print_set_information(logger, "validation", np.unique(validation_ids), y_validation)
     print_set_information(logger, "test", np.unique(test_ids), y_test)
 
-    logger.info(f"train ∩ validation: {set(train_ids) & set(validation_ids)}")
-    logger.info(f"train ∩ test: {set(train_ids) & set(test_ids)}")
-    logger.info(f"test ∩ validation: {set(test_ids) & set(validation_ids)}")
+    print_set_overlap(
+        logger,
+        ("train", train_ids),
+        ("validation", validation_ids),
+        ("test", test_ids),
+    )
 
     metrics = {
         "loss.train": [],
@@ -231,6 +196,7 @@ def run(cfg: Config, logger: ScriptLogger):
         "acc.train": [],
         "acc.validation": [],
     }
+    metrics_for_plot = pd.DataFrame(columns=["epoch", "set", "loss", "accuracy"])
     for epoch in range(1, cfg.epochs + 1):
         loss, accu = train_with_lists(
             model, x_train, y_train, cfg.batch_size, criterion, cfg.gpu, optimizer,
@@ -239,33 +205,35 @@ def run(cfg: Config, logger: ScriptLogger):
         metrics["acc.train"].append(accu)
         train_results = (
             f"Epoch [{epoch:3d}/{cfg.epochs:3d}] "
-            f"train loss: {loss:.3f} "
-            f"train accu: {accu:.3%}"
+            f"train loss: {loss:.4f} "
+            f"train accu: {accu:.2%}"
         )
+        metrics_for_plot.loc[2 * epoch - 1] = [epoch, "train", loss, accu]
 
         loss, accu = train_with_lists(
             model, x_validation, y_validation, cfg.batch_size, criterion, cfg.gpu,
         )
         metrics["loss.validation"].append(loss)
         metrics["acc.validation"].append(accu)
-        logger.info(f"{train_results} valid loss: {loss:.3f} valid accu: {accu:.3%}")
+        logger.info(f"{train_results} valid loss: {loss:.4f} valid accu: {accu:.2%}")
+        metrics_for_plot.loc[2 * epoch] = [epoch, "validation", loss, accu]
 
     # plot losses
-    plt.plot(metrics["loss.train"], label="train")
-    plt.plot(metrics["loss.validation"], label="validation")
-    plt.legend()
-    plt.xlabel("epoch")
-    plt.ylabel("loss")
-    plt.savefig(result_dir / "loss.png", dpi=300)
 
-    # plot accuracies
-    plt.clf()
-    plt.plot(metrics["acc.train"], label="train")
-    plt.plot(metrics["acc.validation"], label="validation")
-    plt.legend()
-    plt.xlabel("epoch")
-    plt.ylabel("acc")
-    plt.savefig(result_dir / "acc.png", dpi=300)
+    create_plot_from_data_frame(
+        metrics_for_plot,
+        "epoch", "loss",
+        "set",
+        save_path=logger.log_location / "loss.png",
+    )
+
+    create_plot_from_data_frame(
+        metrics_for_plot,
+        "epoch", "accuracy",
+        "set",
+        save_path=logger.log_location / "accuracy.png",
+    )
+
     # save metrics into a file
     pd.DataFrame(
         metrics, index=pd.Index(range(1, cfg.epochs + 1), name="epoch")
@@ -275,8 +243,8 @@ def run(cfg: Config, logger: ScriptLogger):
         model, x_test, y_test, cfg.batch_size, criterion, cfg.gpu,
     )
     logger.info(
-        f"Test loss: {loss:.3f} "
-        f"test accu: {accu:.3%}"
+        f"Test loss: {loss:.4f} "
+        f"test accu: {accu:.2%}"
     )
     logger.info("FINISHED")
 

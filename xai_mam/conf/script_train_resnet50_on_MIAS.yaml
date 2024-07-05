@@ -6,7 +6,7 @@ defaults:
 epochs: 60
 batch_size: 128
 learning_rate: 0.001
-dropout: false
+use_dropout: false
 train_test: false
 train_validation: false
 train_feature_extraction: false

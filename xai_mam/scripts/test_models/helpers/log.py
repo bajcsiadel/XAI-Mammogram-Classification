@@ -29,3 +29,16 @@ def print_set_information(
     )
 
     logger.decrease_indent()
+
+
+def print_set_overlap(logger: ScriptLogger, *arrays: tuple[str, np.ndarray]):
+    """
+    Print the intersection of each pair of sets in the given list of arrays.
+
+    :param logger: logger object
+    :param arrays: list of tuples with the first element as the name of
+        the set and the second element as the set
+    """
+    from itertools import combinations
+    for set_1, set_2 in combinations(arrays, 2):
+        logger.info(f"{set_1[0]} ∩ {set_2[0]}: {set(set_1[1]) & set(set_2[1])}")

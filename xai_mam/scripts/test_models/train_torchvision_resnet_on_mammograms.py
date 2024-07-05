@@ -23,21 +23,22 @@ import numpy as np
 import omegaconf
 import pandas as pd
 import seaborn as sns
-import torch
+from icecream import ic
 from sklearn.model_selection import train_test_split
 from torch import nn
-from torch.optim import Optimizer, Adam
-from torch.utils.data import DataLoader, SubsetRandomSampler
+from torch.optim import Adam
+from torch.utils.data import SubsetRandomSampler
 from torchinfo import summary
-from torchvision.models import resnet50
 
 from xai_mam.dataset.dataloaders import CustomDataModule
-from xai_mam.scripts.test_models.helpers.log import print_set_information
+from xai_mam.scripts.test_models.helpers.log import print_set_information, \
+    print_set_overlap
+from xai_mam.scripts.test_models.helpers.model import Model
+from xai_mam.scripts.test_models.helpers.plot import create_plot_from_data_frame
 from xai_mam.scripts.test_models.helpers.split import patient_split_data, \
     random_split_data
 from xai_mam.scripts.test_models.helpers.train import train_with_lists
-from xai_mam.utils.config._general_types import Gpu
-from xai_mam.utils.config._general_types.data import DataConfig, DatasetConfig
+from xai_mam.utils.config.types import DataConfig, DatasetConfig, Gpu
 from xai_mam.utils.config.resolvers import resolve_run_location, \
     resolve_override_dirname, resolve_create
 from xai_mam.utils.config.script_main import JobConfig
@@ -50,6 +51,7 @@ class Config:
     batch_size: int
     data: DataConfig
     epochs: int
+    learning_rate: float
     gpu: Gpu
     n_angles: int
     seed: int
@@ -58,63 +60,6 @@ class Config:
     train_validation: bool
     use_dropouts: bool
     job: JobConfig
-
-
-class Model(nn.Module):
-    def __init__(self, n_classes: int, n_channels: int, use_dropouts: bool,
-                 train_backbone: bool):
-        super().__init__()
-        self.features = resnet50(weights="IMAGENET1K_V2")
-
-        if n_channels != 3:
-            weights = self.features.conv1.weight.sum(dim=1).unsqueeze(1)
-            self.features.conv1 = nn.Conv2d(
-                n_channels, 64, 7, 2, 3, bias=False
-            )
-            self.features.conv1.weight = nn.Parameter(weights)
-
-        resnet_feature_size = self.features.fc.in_features
-        self.features.fc = nn.Identity()
-
-        if use_dropouts:
-            self.classification = nn.Sequential(
-                nn.Dropout(0.5),
-                nn.Flatten(),
-                nn.Linear(resnet_feature_size, 256),
-                nn.ReLU(),
-                nn.Dropout(0.5),
-                nn.BatchNorm1d(256),
-                nn.Linear(256, 256),
-                nn.ReLU(),
-                nn.Dropout(0.5),
-                nn.BatchNorm1d(256),
-                nn.Linear(256, 256),
-                nn.ReLU(),
-                nn.Dropout(0.5),
-                nn.BatchNorm1d(256),
-                nn.Linear(256, n_classes),
-                nn.Sigmoid(),
-            )
-        else:
-            self.classification = nn.Sequential(
-                nn.Linear(resnet_feature_size, n_classes)
-            )
-
-        with torch.no_grad():
-            for param in self.features.parameters():
-                param.requires_grad = train_backbone
-
-        self.train_backbone = train_backbone
-        self.n_classes = n_classes
-        self.in_channels = n_channels
-
-    @property
-    def out_channels(self):
-        return self.n_classes
-
-    def forward(self, x: torch.Tensor) -> torch.Tensor:
-        x = self.features(x)
-        return self.classification(x)
 
 
 def get_samplers(
@@ -140,14 +85,14 @@ def read_image(data: DatasetConfig, target: str, n_angles: int) -> dict:
     info = {}
     metadata = pd.read_csv(data.metadata.file, **data.metadata.parameters.to_dict())
     metadata = metadata[~metadata[(target, "label")].isna()]
-    data.image_dir = data.image_dir.parent.parent / "pngs"
+    # data.image_dir = data.image_dir.parent.parent / "pngs"
     for image_index, image_information in metadata.iterrows():
-        # suffix = (
-        #     f"-{image_information[('mammogram_properties', 'image_number')]}"
-        #     if target == "benign_vs_malignant"
-        #     else ""
-        # )
-        suffix = ""
+        suffix = (
+            f"-{image_information[('mammogram_properties', 'image_number')]}"
+            if target == "benign_vs_malignant"
+            else ""
+        )
+        # suffix = ""
         image_name = f"{image_index[1]}{suffix}"
         image_path = data.image_dir / f"{image_name}{data.image_properties.extension}"
 
@@ -176,12 +121,12 @@ def read_label(data: DatasetConfig, target: str, n_angles: int) -> dict:
     metadata = metadata[~metadata[(target, "label")].isna()]
     info = {}
     for image_index, image_information in metadata.iterrows():
-        # suffix = (
-        #     f"-{image_information[('mammogram_properties', 'image_number')]}"
-        #     if target == "benign_vs_malignant"
-        #     else ""
-        # )
-        suffix = ""
+        suffix = (
+            f"-{image_information[('mammogram_properties', 'image_number')]}"
+            if target == "benign_vs_malignant"
+            else ""
+        )
+        # suffix = ""
         image_name = f"{image_index[1]}{suffix}"
         info[image_name] = {}
         for angle in range(0, n_angles, 8):
@@ -190,7 +135,7 @@ def read_label(data: DatasetConfig, target: str, n_angles: int) -> dict:
 
 
 def run(cfg: Config, logger: ScriptLogger):
-    logger.info(cfg)
+    logger.info(ic.format(cfg))
     logger.info(f"Use dataset: {cfg.data.set.name}")
 
     image_information = read_image(cfg.data.set, cfg.data.set.target.name, cfg.n_angles)
@@ -250,9 +195,12 @@ def run(cfg: Config, logger: ScriptLogger):
     print_set_information(logger, "validation", np.unique(validation_ids), y_validation)
     print_set_information(logger, "test", np.unique(test_ids), y_test)
 
-    logger.info(f"train ∩ validation: {set(train_ids) & set(validation_ids)}")
-    logger.info(f"train ∩ test: {set(train_ids) & set(test_ids)}")
-    logger.info(f"test ∩ validation: {set(test_ids) & set(validation_ids)}")
+    print_set_overlap(
+        logger,
+        ("train", train_ids),
+        ("validation", validation_ids),
+        ("test", test_ids),
+    )
 
     data_module = hydra.utils.instantiate(cfg.data.datamodule)
 
@@ -293,7 +241,10 @@ def run(cfg: Config, logger: ScriptLogger):
         verbose=0,
     ))
 
-    optimizer = Adam(model.parameters(), lr=0.001)
+    for param_name, param in model.named_parameters():
+        logger.debug(f"{param_name}: {param.requires_grad}")
+
+    optimizer = Adam(model.parameters(), lr=cfg.learning_rate)
     criterion = nn.CrossEntropyLoss()
 
     metrics = pd.DataFrame(
@@ -342,24 +293,24 @@ def run(cfg: Config, logger: ScriptLogger):
     test_loss, test_accuracy = train_with_lists(
         model, x_test, y_test, cfg.batch_size, criterion, cfg.gpu,
     )
-    logger.info(f"Test loss = {test_loss} test accuracy = {test_accuracy}")
+    logger.info(f"Test loss = {test_loss} test accuracy = {test_accuracy:.2%}")
 
-    sns.lineplot(
+    create_plot_from_data_frame(
         metrics_for_plot,
-        x="epoch",
-        y="loss",
-        hue="set",
+        "epoch", "loss",
+        "set",
+        save_path=logger.log_location / "loss.png",
     )
-    plt.savefig(logger.log_location / "loss.png", dpi=300)
 
-    plt.clf()
-    sns.lineplot(
+    create_plot_from_data_frame(
         metrics_for_plot,
-        x="epoch",
-        y="accuracy",
-        hue="set",
+        "epoch", "accuracy",
+        "set",
+        save_path=logger.log_location / "accuracy.png",
     )
-    plt.savefig(logger.log_location / "accuracy.png", dpi=300)
+
+    # save metrics into a file
+    metrics.to_csv(logger.log_location / "metrics.csv")
 
     logger.info(
         f"FINISHED TRAINING in {datetime.timedelta(seconds=int(time() - train_start))}"
