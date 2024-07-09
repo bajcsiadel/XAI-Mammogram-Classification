@@ -249,6 +249,8 @@ class BagNetTrainer(BaseTrainer):
             )
             self.logger.decrease_indent()
 
+        self.test()
+
     def log_image_examples(self, dataloader):
         """
         Log some images to the Tensorboard.

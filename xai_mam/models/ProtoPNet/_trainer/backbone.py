@@ -231,3 +231,12 @@ class BackboneTrainer(ProtoPNetTrainer):
                 model_name=self.model_name(f"{self._epoch}-backbone"),
                 accu=accu,
             )
+
+    def execute(self, **kwargs):
+        """
+        Perform the specified phases to train the model.
+
+        :param kwargs: keyword arguments
+        """
+        self.joint()
+        self.test()

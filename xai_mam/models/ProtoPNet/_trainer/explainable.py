@@ -734,3 +734,5 @@ class ExplainableTrainer(ProtoPNetTrainer):
                 f"{phase.__name__} phase finished in: "
                 f"{datetime.timedelta(seconds=int(time.time() - start_phase))}"
             )
+
+        self.test()
