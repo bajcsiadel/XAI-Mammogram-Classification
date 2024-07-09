@@ -1,15 +1,9 @@
 from abc import ABC, abstractmethod
 from typing import final
 
-import albumentations as A
-import numpy as np
 import torch
-import torchvision
-from albumentations.pytorch import ToTensorV2
 from torch import nn
 from torchinfo import summary
-
-from xai_mam.dataset.dataloaders import CustomSubset
 
 
 class Model(ABC, nn.Module):
@@ -77,7 +71,6 @@ class BaseTrainer(ABC):
         logger,
     ):
         if not gpu.disabled:
-            model = model.to(gpu.device)
             self._parallel_model = torch.nn.DataParallel(
                 model,
                 device_ids=gpu.device_ids,
@@ -107,18 +100,15 @@ class BaseTrainer(ABC):
                 summary(
                     model,
                     input_size=(
-                        data_module.dataset.image_properties.color_channels,
+                        data_module.dataset.image_properties.n_color_channels,
                         data_module.dataset.image_properties.height,
                         data_module.dataset.image_properties.width,
                     ),
-                    depth=5,
-                    batch_dim=1,
-                    device=torch.device(gpu.device),
+                    depth=6,
+                    batch_dim=0,
                     verbose=0,
                 )
             )
-
-        data_module.log_data_information(logger)
 
     @property
     def model(self):
@@ -252,44 +242,3 @@ class BaseTrainer(ABC):
             self.logger.info("eval")
             self.parallel_model.eval()
             return self._train_and_eval(dataloader, epoch)
-
-    def log_image_examples(self, dataset, set_name="", n_images=8):
-        """
-        Log some images to the Tensorboard.
-
-        :param dataset:
-        :type dataset: xai_mam.dataset.dataloaders.CustomVisionDataset |
-        xai_mam.dataset.dataloaders.CustomSubset
-        :param set_name: name of the subset
-        :type set_name: str
-        :param n_images: number of images to log. Defaults to ``8``.
-        :type n_images: int
-        """
-        if type(dataset) is CustomSubset:
-            dataset = dataset.dataset
-        originals = [dataset.get_original(i)[0] for i in range(n_images)]
-        transform = A.Compose([
-            A.Resize(
-                height=dataset.dataset_meta.image_properties.height,
-                width=dataset.dataset_meta.image_properties.width,
-            ),
-            ToTensorV2(),
-        ])
-        originals = [
-            transform(image=image)["image"] for image in originals]
-        self.logger.tensorboard.add_image(
-            f"{self._data_module.dataset.name} original examples",
-            torchvision.utils.make_grid(originals),
-        )
-        first_batch_input = torch.stack(
-            [dataset[i][0] for i in range(n_images * dataset.multiplier)], dim=0
-        )
-        first_batch_un_normalized = first_batch_input * np.array(dataset.dataset_meta.image_properties.std)[:, None, None] + np.array(dataset.dataset_meta.image_properties.mean)[:, None, None]
-        self.logger.tensorboard.add_image(
-            f"{self._data_module.dataset.name} {set_name} examples (un-normalized)",
-            torchvision.utils.make_grid(first_batch_un_normalized, nrow=dataset.multiplier),
-        )
-        self.logger.tensorboard.add_graph(
-            self.model, first_batch_input.to(self._gpu.device)
-        )
-        dataset.reset_used_transforms()

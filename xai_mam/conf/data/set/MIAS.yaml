@@ -6,7 +6,7 @@ name: MIAS
 root: ${oc.env:DATA_ROOT}/MIAS/
 
 image_properties:
-  color_channels: 1
+  n_color_channels: 1
   max_value: 255
 
 metadata:

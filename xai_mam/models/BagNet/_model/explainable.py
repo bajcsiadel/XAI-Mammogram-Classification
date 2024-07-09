@@ -37,7 +37,7 @@ class BagNet(BagNetBase, Explainable):
     :param layers: number of layers in a residual block
     :param n_classes: number of classes in the data
     :param logger:
-    :param color_channels: number of color channels in the data. Defaults to ``3``.
+    :param n_color_channels: number of color channels in the data. Defaults to ``3``.
     :param channels: number of output channels of the stem. Defaults to ``64``.
     :param channels_per_layer: number of output channels of each residual block.
         Defaults to ``None`` ==> ``[64,128,256,512]``.
@@ -58,7 +58,7 @@ class BagNet(BagNetBase, Explainable):
         layers: list[int],
         n_classes: int,
         logger: TrainLogger,
-        color_channels: int = 3,
+        n_color_channels: int = 3,
         channels: int = 64,
         channels_per_layer: list[int] | None = None,
         kernels: list[int] | None = None,
@@ -67,9 +67,9 @@ class BagNet(BagNetBase, Explainable):
         avg_pool: bool = True,
         n_kernel_3x3: int = 3,
     ):
-        super(BagNet, self).__init__(n_classes, logger, color_channels)
+        super(BagNet, self).__init__(n_classes, logger, n_color_channels)
         self.conv1 = nn.Conv2d(
-            color_channels,
+            n_color_channels,
             channels,
             kernel_size=1,
             stride=1,
@@ -115,7 +115,7 @@ class BagNet(BagNetBase, Explainable):
                 m.weight.data.fill_(1)
                 m.bias.data.zero_()
 
-    def _forward_stem(self, x: torch.Tensor):
+    def _forward_stem(self, x: torch.Tensor) -> torch.Tensor:
         """
         Push the `x` input forward on the stem of the module.
 
@@ -129,7 +129,7 @@ class BagNet(BagNetBase, Explainable):
 
         return x
 
-    def _forward_features(self, x):
+    def _forward_features(self, x: torch.Tensor) -> torch.Tensor:
         """
         Push the `x` input forward on the residual block (feature extraction).
 
@@ -138,7 +138,7 @@ class BagNet(BagNetBase, Explainable):
         """
         return self.residual_blocks(x)
 
-    def forward(self, x):
+    def forward(self, x: torch.Tensor) -> torch.Tensor:
         """
         Push the `x` input forward on the module.
 
@@ -189,7 +189,7 @@ def _load_pretrained_model_wights(
 def bagnet33(
     n_classes: int,
     logger: TrainLogger,
-    color_channels: int = 3,
+    n_color_channels: int = 3,
     pretrained: bool = False,
     strides: list[int] | None = None,
     **kwargs,
@@ -199,7 +199,7 @@ def bagnet33(
 
     :param n_classes: number of classes.
     :param logger:
-    :param color_channels: number of color channels. Defaults to ``3``.
+    :param n_color_channels: number of color channels. Defaults to ``3``.
     :param pretrained: If ``True``, returns a model pre-trained on ImageNet.
         Defaults to ``False``.
     :param strides: Strides of the first layer of each residual block.
@@ -211,14 +211,14 @@ def bagnet33(
         [3, 4, 6, 3],
         n_classes=n_classes,
         logger=logger,
-        color_channels=color_channels,
+        n_color_channels=n_color_channels,
         strides=strides,
         n_kernel_3x3=4,
         **kwargs,
     )
     if pretrained:
         model = _load_pretrained_model_wights(
-            model, "bagnet33", color_channels, n_classes
+            model, "bagnet33", n_color_channels, n_classes
         )
     return model
 
@@ -226,7 +226,7 @@ def bagnet33(
 def bagnet17(
     n_classes: int,
     logger: TrainLogger,
-    color_channels: int = 3,
+    n_color_channels: int = 3,
     pretrained: bool = False,
     strides: list[int] | None = None,
     **kwargs,
@@ -236,7 +236,7 @@ def bagnet17(
 
     :param n_classes: number of classes.
     :param logger:
-    :param color_channels: number of color channels. Defaults to ``3``.
+    :param n_color_channels: number of color channels. Defaults to ``3``.
     :param pretrained: If ``True``, returns a model pre-trained on ImageNet.
         Defaults to ``False``.
     :param strides: Strides of the first layer of each residual block.
@@ -248,14 +248,14 @@ def bagnet17(
         [3, 4, 6, 3],
         n_classes=n_classes,
         logger=logger,
-        color_channels=color_channels,
+        n_color_channels=n_color_channels,
         strides=strides,
         n_kernel_3x3=3,
         **kwargs,
     )
     if pretrained:
         model = _load_pretrained_model_wights(
-            model, "bagnet17", color_channels, n_classes
+            model, "bagnet17", n_color_channels, n_classes
         )
     return model
 
@@ -263,7 +263,7 @@ def bagnet17(
 def bagnet9(
     n_classes: int,
     logger: TrainLogger,
-    color_channels: int = 3,
+    n_color_channels: int = 3,
     pretrained: bool = False,
     strides: list[int] | None = None,
     **kwargs,
@@ -273,7 +273,7 @@ def bagnet9(
 
     :param n_classes: number of classes.
     :param logger:
-    :param color_channels: number of color channels. Defaults to ``3``.
+    :param n_color_channels: number of color channels. Defaults to ``3``.
     :param pretrained: If ``True``, returns a model pre-trained on ImageNet.
         Defaults to ``False``.
     :param strides: Strides of the first layer of each residual block.
@@ -285,14 +285,14 @@ def bagnet9(
         [3, 4, 6, 3],
         n_classes=n_classes,
         logger=logger,
-        color_channels=color_channels,
+        n_color_channels=n_color_channels,
         strides=strides,
         n_kernel_3x3=2,
         **kwargs,
     )
     if pretrained:
         model = _load_pretrained_model_wights(
-            model, "bagnet9", color_channels, n_classes
+            model, "bagnet9", n_color_channels, n_classes
         )
     return model
 
@@ -307,7 +307,7 @@ if __name__ == "__main__":
     from icecream import ic
     from torchinfo import summary
 
-    bagnet = bagnet17(3, color_channels=3, pretrained=True)
+    bagnet = bagnet17(3, n_color_channels=3, pretrained=True)
 
     ic(
         summary(

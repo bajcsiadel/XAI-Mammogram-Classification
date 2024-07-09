@@ -15,7 +15,7 @@ def construct_model(
     logger,
     base_architecture="resnet18",
     pretrained=True,
-    color_channels=3,
+    n_color_channels=3,
     img_shape=(224, 224),
     prototype_shape=(2000, 512, 1, 1),
     n_classes=200,
@@ -36,8 +36,8 @@ def construct_model(
     :param pretrained: defines if the backbone is pretrained on ImageNet.
         Defaults to ``True``.
     :type pretrained: bool
-    :param color_channels: number of color channels in the image. Defaults to ``3``.
-    :type color_channels: int
+    :param n_color_channels: number of color channels in the image. Defaults to ``3``.
+    :type n_color_channels: int
     :param img_shape: shape of the input image. Defaults to ``(224, 224)``.
     :type img_shape: tuple[int, int]
     :param prototype_shape: shape of the prototype features.
@@ -61,7 +61,7 @@ def construct_model(
     """
     features = all_features[base_architecture].construct(
         pretrained=pretrained,
-        color_channels=color_channels,
+        n_color_channels=n_color_channels,
     )
     if backbone_only:
         return ProtoPNetBackbone(
@@ -70,7 +70,7 @@ def construct_model(
             prototype_shape=prototype_shape,
             n_classes=n_classes,
             logger=logger,
-            color_channels=color_channels,
+            n_color_channels=n_color_channels,
             add_on_layers_type=add_on_layers_type,
             add_on_layers_activation=add_on_layers_activation,
         )
@@ -153,7 +153,7 @@ def construct_trainer(
             logger=logger,
             base_architecture=model_config.network.name,
             pretrained=model_config.network.pretrained,
-            color_channels=data_module.dataset.image_properties.color_channels,
+            n_color_channels=data_module.dataset.image_properties.n_color_channels,
             img_shape=image_shape,
             prototype_shape=model_config.params.prototypes.shape,
             n_classes=n_classes,

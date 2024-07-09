@@ -86,8 +86,8 @@ class BackboneTrainer(ProtoPNetTrainer):
         grad_req = torch.enable_grad() if is_train else torch.no_grad()
 
         for image, label in dataloader:
-            input_ = image.to(self._gpu.device)
-            target_ = label.to(self._gpu.device)
+            input_ = image.to(self._gpu.device_instance)
+            target_ = label.to(self._gpu.device_instance)
             true_labels = np.append(true_labels, label.numpy())
             with grad_req:
                 # nn.Module has implemented __call__() function
@@ -178,12 +178,17 @@ class BackboneTrainer(ProtoPNetTrainer):
         )
 
         if self._fold == 1:
-            self.log_image_examples(train_loader.dataset, "train")
+            self.logger.log_image_examples(
+                self.model,
+                train_loader.dataset,
+                "train",
+                device=self._gpu.device_instance,
+            )
 
-        self.logger.info("batch size:")
-        with self.logger.increase_indent_context():
-            self.logger.info(f"train: {train_loader.batch_size}")
-            self.logger.info(f"validation: {validation_loader.batch_size}")
+        self.logger.log_dataloader(
+            ("train", train_loader),
+            ("validation", validation_loader)
+        )
 
         joint_optimizer, joint_lr_scheduler = self._get_joint_optimizer()
 

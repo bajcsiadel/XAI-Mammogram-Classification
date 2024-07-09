@@ -80,7 +80,8 @@ def stratified_grouped_train_test_split(
     cases_distribution.drop(index=single_classes.index, inplace=True)
 
     train_ratio = train_size / (train_size + test_size)
-    test_ratio = 1 - train_ratio
+    # removing extra decimals. Sometimes 1.0 - 0.7 = 0.30000000000000004
+    test_ratio = np.floor((1 - train_ratio) * 100) / 100
 
     label_count = np.vstack(np.unique(y, return_counts=True)).T
     original_ratio = label_count[:, 1] / np.sum(label_count[:, 1])
@@ -300,9 +301,9 @@ if __name__ == "__main__":
     from omegaconf import omegaconf
 
     from xai_mam.dataset.dataloaders import CustomDataModule
-    from xai_mam.utils.config.script_main import Config, init_config_store
+    from xai_mam.utils.config.script_main import Config
 
-    init_config_store()
+    Config.init_store()
 
     @hydra.main(version_base=None, config_path="../../conf", config_name="main_config")
     def test_split(cfg: Config):

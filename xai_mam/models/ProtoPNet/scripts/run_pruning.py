@@ -134,8 +134,8 @@ def main(cfg: ScriptConfig):
 
             accuracy = trainer.eval(dataloader=push_loader)
             logger.save_model_w_condition(
-                model=trainer.model,
                 model_name=cfg.model_name.split("push")[0] + "prune",
+                state=trainer.model.state_dict(),
                 accu=accuracy,
                 target_accu=0.70,
             )

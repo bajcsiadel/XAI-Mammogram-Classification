@@ -2,6 +2,7 @@ import dataclasses as dc
 import typing as typ
 
 import hydra
+from hydra.core.config_store import ConfigStore
 
 from xai_mam.utils.config._general_types._multifunctional import BatchSize
 
@@ -43,6 +44,39 @@ class CrossValidationParameters:
                 "Cross validation cannot be both " "stratified and balanced."
             )
 
+    @staticmethod
+    def init_store(
+        config_store_: ConfigStore = None, group: str = "cross_validation"
+    ) -> ConfigStore:
+        if config_store_ is None:
+            from xai_mam.utils.config import config_store_
+
+        config_store_.store(
+            name="_cross_validation_validation",
+            group=group,
+            node=CrossValidationParameters,
+        )
+
+        return config_store_
+
+
+@dc.dataclass
+class Optimizer:
+    _target_: str = "torch.optim.Adam"
+    _args_: list = dc.field(default_factory=list)
+
+    __target_values = ["torch.optim.Adam", "torch.optim.SGD"]
+
+    def __setattr__(self, key, value):
+        match key:
+            case "_target_":
+                if value not in self.__target_values:
+                    raise ValueError(
+                        f"Optimizer does not support {value!r}. Must be one "
+                        f"of the following: {', '.join(self.__target_values)}"
+                    )
+        super().__setattr__(key, value)
+
 
 @dc.dataclass
 class Phase:
@@ -51,6 +85,7 @@ class Phase:
     learning_rates: dict[str, float] = dc.field(default_factory=dict)
     weight_decay: float = 0.0
     scheduler: dict[str, typ.Any] = dc.field(default_factory=dict)
+    optimizer: Optimizer = dc.field(default_factory=Optimizer)
 
     def __setattr__(self, key, value):
         match key:
@@ -83,3 +118,14 @@ class ModelConfig:
 
         if "_target_" in self.validate_fn:
             hydra.utils.instantiate(self.validate_fn)(cfg=self)
+
+    @staticmethod
+    def init_store(
+        config_store_: ConfigStore = None, group: str = "model"
+    ) -> ConfigStore:
+        if config_store_ is None:
+            from xai_mam.utils.config import config_store_
+
+        config_store_.store(name="_model_validation", group=group, node=ModelConfig)
+
+        return config_store_

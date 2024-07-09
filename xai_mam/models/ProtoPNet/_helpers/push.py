@@ -236,8 +236,8 @@ def update_prototypes_on_batch(
             original_img_w = original_img_j.shape[1]
             # crop out the receptive field
             rf_img_j = original_img_j[
-                rf_prototype_j[1] : rf_prototype_j[2],
-                rf_prototype_j[3] : rf_prototype_j[4],
+                rf_prototype_j[1]:rf_prototype_j[2],
+                rf_prototype_j[3]:rf_prototype_j[4],
                 :,
             ]
 
@@ -274,8 +274,8 @@ def update_prototypes_on_batch(
             proto_bound_j = find_high_activation_crop(upsampled_act_img_j)
             # crop out the image patch with high activation as prototype image
             proto_img_j = original_img_j[
-                proto_bound_j[0] : proto_bound_j[1],
-                proto_bound_j[2] : proto_bound_j[3],
+                proto_bound_j[0]:proto_bound_j[1],
+                proto_bound_j[2]:proto_bound_j[3],
                 :,
             ]
 
@@ -313,7 +313,8 @@ def update_prototypes_on_batch(
             overlayed_original_img_j = 0.5 * original_img_j + 0.3 * heatmap
             logger.save_image(
                 image=overlayed_original_img_j,
-                image_name=f"{logger.file_prefixes.prototype}-original_with_self_act-{j}.png",
+                image_name=f"{logger.file_prefixes.prototype}-"
+                           f"original_with_self_act-{j}.png",
                 image_location=dir_for_saving_prototypes,
             )
 
@@ -326,16 +327,18 @@ def update_prototypes_on_batch(
             ):
                 logger.save_image(
                     image=rf_img_j,
-                    image_name=f"{logger.file_prefixes.prototype}-receptive_field-{j}.png",
+                    image_name=f"{logger.file_prefixes.prototype}-"
+                               f"receptive_field-{j}.png",
                     image_location=dir_for_saving_prototypes,
                 )
                 overlayed_rf_img_j = overlayed_original_img_j[
-                    rf_prototype_j[1] : rf_prototype_j[2],
-                    rf_prototype_j[3] : rf_prototype_j[4],
+                    rf_prototype_j[1]:rf_prototype_j[2],
+                    rf_prototype_j[3]:rf_prototype_j[4],
                 ]
                 logger.save_image(
                     image=overlayed_rf_img_j,
-                    image_name=f"{logger.file_prefixes.prototype}-receptive_field_with_self_act-{j}.png",
+                    image_name=f"{logger.file_prefixes.prototype}-"
+                               f"receptive_field_with_self_act-{j}.png",
                     image_location=dir_for_saving_prototypes,
                 )
 

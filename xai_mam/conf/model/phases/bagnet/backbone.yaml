@@ -6,6 +6,8 @@ phases:
     epochs: 90
     learning_rates:
       params: 0.1
+    optimizer:
+      _target_: torch.optim.Adam
     scheduler:
       _target_: torch.optim.lr_scheduler.StepLR
       step_size: 30

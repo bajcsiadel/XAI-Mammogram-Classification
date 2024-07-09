@@ -1,7 +1,9 @@
+import copy
 import datetime
 import time
 from functools import partial
 
+import hydra.utils
 import numpy as np
 import torch
 from sklearn.metrics import f1_score
@@ -66,9 +68,14 @@ class ExplainableTrainer(ProtoPNetTrainer):
         preprocess_parameters = {
             "mean": data_module.dataset.image_properties.mean,
             "std": data_module.dataset.image_properties.std,
-            "number_of_channels": data_module.dataset.image_properties.color_channels,
+            "number_of_channels": data_module.dataset.image_properties.n_color_channels,
         }
         self.__preprocess_prototype_fn = partial(preprocess, **preprocess_parameters)
+        if train_sampler is not None:
+            self.__push_sampler = copy.deepcopy(train_sampler.indices) // data_module.train_data.multiplier
+            self.__push_sampler = np.unique(self.__push_sampler)
+        else:
+            self.__push_sampler = None
 
     def compute_loss(self, **kwargs):
         """
@@ -127,7 +134,7 @@ class ExplainableTrainer(ProtoPNetTrainer):
         """
         if self.model.class_specific and use_l1_mask:
             l1_mask = 1 - torch.t(self.model.prototype_class_identity).to(
-                self._gpu.device
+                self._gpu.device_instance
             )
             return (self.model.last_layer.weight * l1_mask).norm(p=1)
 
@@ -146,7 +153,7 @@ class ExplainableTrainer(ProtoPNetTrainer):
                     self.model.prototype_vectors[:, :, 0, 0],
                     self.model.prototype_vectors[:, :, 0, 0].t(),
                 )
-                - torch.eye(self.model.n_prototypes).to(self._gpu.device)
+                - torch.eye(self.model.n_prototypes).to(self._gpu.device_instance)
             ).norm(p=2)
 
         return 0.0
@@ -172,7 +179,7 @@ class ExplainableTrainer(ProtoPNetTrainer):
             expected = expected.to(self.model.prototype_class_identity.device)
             prototypes_of_correct_class = torch.t(
                 self.model.prototype_class_identity[:, expected]
-            ).to(self._gpu.device)
+            ).to(self._gpu.device_instance)
             inverted_distances, target_proto_index = torch.max(
                 (max_dist - min_distances) * prototypes_of_correct_class,
                 dim=1,
@@ -199,7 +206,7 @@ class ExplainableTrainer(ProtoPNetTrainer):
             expected = expected.to(self.model.prototype_class_identity.device)
             prototypes_of_correct_class = torch.t(
                 self.model.prototype_class_identity[:, expected]
-            ).to(self._gpu.device)
+            ).to(self._gpu.device_instance)
 
             prototypes_of_wrong_class = 1 - prototypes_of_correct_class
 
@@ -305,8 +312,8 @@ class ExplainableTrainer(ProtoPNetTrainer):
         grad_req = torch.enable_grad() if is_train else torch.no_grad()
 
         for image, label in dataloader:
-            input_ = image.to(self._gpu.device)
-            target_ = label.to(self._gpu.device)
+            input_ = image.to(self._gpu.device_instance)
+            target_ = label.to(self._gpu.device_instance)
             true_labels = np.append(true_labels, label.numpy())
             with grad_req:
                 # nn.Module has implemented __call__() function
@@ -426,7 +433,10 @@ class ExplainableTrainer(ProtoPNetTrainer):
                     "lr": self._phases["warm"].learning_rates["prototype_vectors"],
                 },
             ]
-        return torch.optim.Adam(warm_optimizer_specs)
+        return hydra.utils.instantiate(
+            self._phases["warm"].optimizer,
+            warm_optimizer_specs,
+        )
 
     def _get_last_layer_optimizer(self):
         """
@@ -441,7 +451,10 @@ class ExplainableTrainer(ProtoPNetTrainer):
                 "lr": self._phases["finetune"].learning_rates["features"],
             }
         ]
-        return torch.optim.Adam(last_layer_optimizer_specs)
+        return hydra.utils.instantiate(
+            self._phases["finetune"].optimizer,
+            last_layer_optimizer_specs,
+        )
 
     def _warm_only(self):
         """
@@ -495,16 +508,22 @@ class ExplainableTrainer(ProtoPNetTrainer):
         )
 
         if self._fold == 1:
-            self.log_image_examples(train_loader.dataset, "train")
+            self.logger.log_image_examples(
+                self.model,
+                train_loader.dataset,
+                "train",
+                device=self._gpu.device_instance,
+            )
 
-        self.logger.info("batch size:")
-        with self.logger.increase_indent_context():
-            self.logger.info(f"train: {train_loader.batch_size}")
-            self.logger.info(f"validation: {validation_loader.batch_size}")
+        self.logger.log_dataloader(
+            ("train", train_loader),
+            ("validation", validation_loader)
+        )
 
         warm_optimizer = self._get_warm_optimizer()
 
         for epoch in np.arange(self._phases["warm"].epochs) + 1:
+            self._epoch += 1
             self.logger.info(f"warm epoch: \t{epoch}")
             self.logger.increase_indent()
 
@@ -559,7 +578,7 @@ class ExplainableTrainer(ProtoPNetTrainer):
             batch_size=self._phases["joint"].batch_size.validation,
         )
         push_loader = self._data_module.push_dataloader(
-            sampler=self._train_sampler,
+            sampler=self.__push_sampler,
             batch_size=self._params.push.batch_size,
         )
 
@@ -567,11 +586,11 @@ class ExplainableTrainer(ProtoPNetTrainer):
             self._params.push.define_push_epochs(self._phases["joint"].epochs)
             self.logger.info(f"push epochs: {self._params.push.push_epochs}")
 
-        self.logger.info("batch size:")
-        with self.logger.increase_indent_context():
-            self.logger.info(f"train: {train_loader.batch_size}")
-            self.logger.info(f"validation: {validation_loader.batch_size}")
-            self.logger.info(f"push: {push_loader.batch_size}")
+        self.logger.log_dataloader(
+            ("train", train_loader),
+            ("validation", validation_loader),
+            ("push", push_loader)
+        )
 
         joint_optimizer, joint_lr_scheduler = self._get_joint_optimizer()
 
@@ -631,7 +650,7 @@ class ExplainableTrainer(ProtoPNetTrainer):
                     # if not provided, prototypes saved previously will be overwritten
                     save_prototype_class_identity=True,
                     logger=self.logger,
-                    device=self._gpu.device,
+                    device=self._gpu.device_instance,
                 )
 
                 self.logger.csv_log_index(

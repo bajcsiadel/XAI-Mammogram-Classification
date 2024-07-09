@@ -1,20 +1,29 @@
 import contextlib
+import copy
 import logging
 import os
 import sys
 import traceback
+import typing as typ
 from datetime import datetime
 from enum import StrEnum
 from pathlib import Path
 from textwrap import indent
 
+import albumentations as A
 import numpy as np
 import omegaconf
+import pandas as pd
 import torch
+import torchvision
+from albumentations.pytorch import ToTensorV2
 from hydra.core.hydra_config import HydraConfig
 from matplotlib import pyplot as plt
+from torch import nn
+from torch.utils.data import DataLoader, SubsetRandomSampler
 from torch.utils.tensorboard import SummaryWriter
 
+from xai_mam.dataset.dataloaders import CustomVisionDataset, CustomDataModule
 from xai_mam.utils import errors
 from xai_mam.utils.config._general_types import Outputs
 from xai_mam.utils.config._general_types.log import FilePrefixes
@@ -167,6 +176,84 @@ class ScriptLogger(logging.Logger):
                 self.error(msg)
             case _:
                 self.log(logging.INFO, message)
+
+    def log_dataset(
+        self,
+        dataset: CustomVisionDataset,
+        name: str = "",
+        sampler: SubsetRandomSampler | np.ndarray | None = None
+    ):
+        """
+        Log information about a dataset.
+
+        :param dataset:
+        :param name: name of the dataset
+        :param sampler: sampler to be applied on the dataset if any.
+            Defaults to ``None``.
+        """
+        if sampler is not None:
+            if isinstance(sampler, SubsetRandomSampler):
+                indices = sampler.indices
+            else:
+                indices = copy.deepcopy(sampler)
+        else:
+            indices = np.arange(len(dataset))
+
+        original_indices = np.unique(indices // dataset.multiplier)
+        self.info(f"{name}")
+        self.increase_indent()
+        self.info(f"size: {len(indices)} ({len(original_indices)} x {dataset.multiplier})")
+        self.info(f"classes to numbers: {dataset.class_to_number}")
+        self.info("distribution:")
+        self.increase_indent()
+        distribution = pd.DataFrame(columns=["count", "perc"])
+        classes = np.unique(dataset.targets)
+        for cls in classes:
+            count = np.sum(dataset.targets[indices] == cls)
+            distribution.loc[cls] = [count, count / len(indices)]
+        distribution["count"] = distribution["count"].astype("int")
+        self.info(
+            f"{distribution.to_string(formatters={'perc': '{:3.2%}'.format})}")
+        self.decrease_indent(times=2)
+
+    def log_dataloader(self, *dataloaders: tuple[str, DataLoader]):
+        """
+        Log information about the dataloaders. Each dataloader should be represented
+        by a tuple where the first element is the name of the dataloader and the
+        second is the dataloader itself.
+
+        :param dataloaders:
+        """
+        if len(dataloaders) == 0:
+            self.info("No dataloaders to log.")
+            return
+
+        for name, dataloader in dataloaders:
+            self.log_dataset(dataloader.dataset, name, dataloader.sampler)  # noqa
+
+        self.info("batch size:")
+        with self.increase_indent_context():
+            for name, dataloader in dataloaders:
+                self.info(f"{name}: {dataloader.batch_size}")
+
+        self.info("number of batches (dataset length):")
+        with self.increase_indent_context():
+            for name, dataloader in dataloaders:
+                self.info(
+                    f"{name}: {len(dataloader)} ({len(dataloader.sampler)})"  # noqa
+                )
+
+    def log_data_module(self, datamodule: CustomDataModule):
+        """
+        Log information about the data module
+
+        :param datamodule:
+        """
+        self.log_dataset(datamodule.train_data, "train")
+        if datamodule.validation_data is not None:
+            self.log_dataset(datamodule.validation_data, "validation")
+        self.log_dataset(datamodule.push_data, "push")
+        self.log_dataset(datamodule.test_data, "test")
 
 
 class TrainLogger(ScriptLogger):
@@ -439,6 +526,57 @@ class TrainLogger(ScriptLogger):
                 fname=image_name,
                 arr=image,
             )
+
+    def log_image_examples(
+        self,
+        model: nn.Module,
+        dataset: CustomVisionDataset,
+        set_name: str = "",
+        n_images: int = 8,
+        device: str | torch.device = "cpu",
+    ):
+        """
+        Log some images to the Tensorboard.
+
+        :param model: model to be trained
+        :param dataset: used dataset
+        :param set_name: name of the subset
+        :param n_images: number of images to log. Defaults to ``8``.
+        :param device: device to which the model is compiled
+        """
+        originals = [dataset.get_original(i)[0] for i in range(n_images)]
+        transform = A.Compose([
+            A.Resize(
+                height=dataset.dataset_meta.image_properties.height,
+                width=dataset.dataset_meta.image_properties.width,
+            ),
+            ToTensorV2(),
+        ])
+        originals = [
+            transform(image=image)["image"] for image in originals
+        ]
+        self.tensorboard.add_image(
+            f"{dataset.dataset_meta.name} original examples",
+            torchvision.utils.make_grid(originals),
+        )
+        first_batch_input = torch.stack(
+            [dataset[i][0] for i in range(n_images * dataset.multiplier)], dim=0
+        )
+        first_batch_un_normalized = first_batch_input * np.array(
+            dataset.dataset_meta.image_properties.std
+        )[:, None, None] + np.array(
+            dataset.dataset_meta.image_properties.mean
+        )[:, None, None]
+        self.tensorboard.add_image(
+            f"{dataset.dataset_meta.name} {set_name} examples (un-normalized)",
+            torchvision.utils.make_grid(
+                first_batch_un_normalized, nrow=dataset.multiplier
+            ),
+        )
+        self.tensorboard.add_graph(
+            model, first_batch_input.to(device)
+        )
+        dataset.reset_used_transforms()
 
     def __enter__(self):
         """

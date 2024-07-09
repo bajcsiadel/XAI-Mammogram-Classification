@@ -3,13 +3,16 @@ import typing as typ
 from pathlib import Path
 
 import albumentations as A
+import hydra.utils
 import numpy as np
+from hydra.core.config_store import ConfigStore
 
 from xai_mam.utils import custom_pipe
 from xai_mam.utils.config._general_types._multifunctional import BatchSize
+from xai_mam.utils.helpers import RepeatedAugmentation
 
 __all__ = [
-    "Augmentation",
+    "Augmentations",
     "AugmentationsConfig",
     "AugmentationGroupsConfig",
     "ImagePropertiesConfig",
@@ -22,7 +25,86 @@ __all__ = [
     "DataModuleConfig",
 ]
 
+
 Augmentation = dict[str, typ.Any]
+
+
+@dc.dataclass
+class Augmentations:
+    transforms: list[A.BasicTransform | A.Compose | RepeatedAugmentation] = dc.field(
+        default_factory=lambda: [A.NoOp]
+    )
+    online: bool = False
+
+    def __init__(self, transforms: 'AugmentationsConfig' = None):
+        """
+        Transformations to apply to the images. Converted from the config.
+
+        :param transforms: transforms set in the configuration
+        """
+        if transforms is None:
+            transforms = AugmentationsConfig()
+        self.transforms = hydra.utils.instantiate(transforms.transforms)
+        self.online = transforms.online
+
+    @property
+    def multiplier(self) -> int:
+        """
+        Get the multiplier for the transformations (number of images generated from
+        a base image). If there are no transformations, return ``1``.
+
+        :return: multiplier for the transformations
+        """
+        multiplier = 1 if len(self.transforms) == 0 else 0
+        for transform in self.transforms:
+            match transform:
+                case RepeatedAugmentation():
+                    multiplier += transform.n_repeat
+                case A.Compose():
+                    multiplier += 1
+                case _:
+                    return 1
+        return multiplier
+
+    @property
+    def offline(self) -> bool:
+        """
+        Check if the transformations are offline.
+
+        :return: ``True`` if the transformations are offline, ``False`` otherwise
+        """
+        return not self.online
+
+    def get_transforms(self) -> typ.Generator[A.Compose | A.BasicTransform, None, None]:
+        """
+        Get the transformations to apply.
+
+        :return: generate the transformations to apply one-by-one
+        """
+        if len(self.transforms) > 0:
+            match self.transforms[0]:
+                case RepeatedAugmentation() | A.Compose():
+                    for transform in self.transforms:
+                        yield transform
+                case _:
+                    yield A.Compose(transforms=[A.Sequential(self.transforms)])
+        else:
+            yield A.NoOp()
+
+    def get_repetitions(self) -> np.ndarray:
+        """
+        Get the number of times each transformation is repeated.
+
+        :return: number of times each transformation is repeated
+        """
+        repetitions = []
+        for transform in self.transforms:
+            match transform:
+                case RepeatedAugmentation():
+                    repetitions.append(transform.n_repeat)
+                case _:
+                    repetitions.append(1)
+        return np.array(repetitions)
 
 
 @dc.dataclass
@@ -31,6 +113,7 @@ class AugmentationsConfig:
         default_factory=lambda: [{"_target_": "albumentations.NoOp"}]
     )
     exclude_identity_transform: bool = False
+    online: bool = False
     __identity_transform_present: bool = False
 
     def __setattr__(self, key, value):
@@ -111,11 +194,19 @@ class AugmentationsConfig:
         )
         self._validate_augmentations()
 
+    def to_instance(self) -> Augmentations:
+        """
+        Converts the current augmentation configuration to an instance.
+
+        :return: instance of the augmentations
+        """
+        return Augmentations(self)
+
 
 @dc.dataclass
 class AugmentationGroupsConfig:
     train: AugmentationsConfig = dc.field(default_factory=AugmentationsConfig)
-    push: AugmentationsConfig = dc.field(default_factory=AugmentationsConfig)
+    validation: AugmentationsConfig = dc.field(default_factory=AugmentationsConfig)
 
 
 @dc.dataclass
@@ -123,7 +214,7 @@ class ImagePropertiesConfig:
     extension: str
     width: int
     height: int
-    color_channels: int
+    n_color_channels: int
     max_value: float
     mean: list[float]
     std: list[float]
@@ -139,7 +230,7 @@ class ImagePropertiesConfig:
             case "width" | "height":
                 if value <= 0:
                     raise ValueError(f"Image {key} must be positive. {key} = {value}")
-            case "color_channels":
+            case "n_color_channels":
                 if value not in [1, 3]:
                     raise ValueError(
                         f"Number of color channels must be 1 or 3. {key} = {value}"
@@ -150,11 +241,11 @@ class ImagePropertiesConfig:
                         f"Maximum pixel value must be at least 1.0. {key} = {value}"
                     )
             case "mean" | "std":
-                if len(value) != self.color_channels:
+                if len(value) != self.n_color_channels:
                     raise ValueError(
                         f"{key} must have the same number of elements "
                         f"as the number of color channels.\n"
-                        f"{self.color_channels = }\n"
+                        f"{self.n_color_channels = }\n"
                         f"{len(self.mean) = }\n"
                         f"{len(self.std) = }\n"
                     )
@@ -238,6 +329,19 @@ class DatasetConfig:
 
         super().__setattr__(key, value)
 
+    @staticmethod
+    def init_store(
+        config_store_: ConfigStore = None, group: str = "data/set"
+    ) -> ConfigStore:
+        if config_store_ is None:
+            from xai_mam.utils.config import config_store_
+
+        config_store_.store(
+            name="_data_set_validation", group=group, node=DatasetConfig
+        )
+
+        return config_store_
+
 
 @dc.dataclass
 class FilterConfig:
@@ -256,10 +360,10 @@ class DataModuleConfig:
     stratified: bool = False
     balanced: bool = False
     grouped: bool = False
-    num_workers: int = 0
+    n_workers: int = 0
     seed: int = 1234
     debug: bool = False
-    batch_size: BatchSize = dc.field(default_factory=lambda: BatchSize(32, 16))
+    batch_size: BatchSize = dc.field(default_factory=lambda: BatchSize(128, 128))
     _convert_: str = "object"  # Structured Configs are converted to instances
     _recursive_: bool = False
 
@@ -270,11 +374,14 @@ class DataConfig:
     datamodule: DataModuleConfig
     filters: list[FilterConfig] = dc.field(default_factory=list)
 
+    @staticmethod
+    def init_store(
+        config_store_: ConfigStore = None, group: str = "data"
+    ) -> ConfigStore:
+        if config_store_ is None:
+            from xai_mam.utils.config import config_store_
 
-def init_data_config_store():
-    from xai_mam.utils.config import config_store_
+        config_store_.store(name="_data_validation", group=group, node=DataConfig)
+        DatasetConfig.init_store(config_store_)
 
-    config_store_.store(name="_data_validation", group="data", node=DataConfig)
-    config_store_.store(
-        name="_data_set_validation", group="data/set", node=DatasetConfig
-    )
+        return config_store_

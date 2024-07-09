@@ -1,10 +1,10 @@
+import copy
 import dataclasses as dc
-
-__all__ = ["BatchSize", "Gpu"]
-
 import platform
 
 import torch
+
+__all__ = ["BatchSize", "Gpu"]
 
 
 @dc.dataclass
@@ -24,6 +24,7 @@ class Gpu:
     disabled: bool = False
     device: str = "cuda" if platform.system() != "Darwin" else "mps"
     device_ids: list[int] = dc.field(default_factory=list)
+    __device_instance = None
 
     def __setattr__(self, key, value):
         match key:
@@ -58,3 +59,17 @@ class Gpu:
             case "mps":
                 if not torch.backends.mps.is_available():
                     raise ValueError("MPS is not available.")
+
+        if len(self.device_ids) > 0:
+            self.__device_instance = torch.device(self.device_ids[0])
+        else:
+            self.__device_instance = torch.device(self.device)
+
+    @property
+    def device_instance(self) -> torch.device:
+        """
+        Get the instance of the device.
+
+        :return:
+        """
+        return copy.deepcopy(self.__device_instance)

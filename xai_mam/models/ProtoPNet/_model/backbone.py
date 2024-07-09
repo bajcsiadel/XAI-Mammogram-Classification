@@ -20,8 +20,8 @@ class ProtoPNetBackbone(ProtoPNetBase, Backbone):
     :type n_classes: int
     :param logger:
     :type logger: ProtoPNet.utils.log.Log
-    :param color_channels: number of color channels in the input. Defaults to ``3``.
-    :type color_channels: int
+    :param n_color_channels: number of color channels in the input. Defaults to ``3``.
+    :type n_color_channels: int
     :param add_on_layers_type: type of the add-on layers.
         Defaults to ``"bottleneck"``.
     :type add_on_layers_type: str
@@ -37,7 +37,7 @@ class ProtoPNetBackbone(ProtoPNetBase, Backbone):
         prototype_shape,
         n_classes,
         logger,
-        color_channels=3,
+        n_color_channels=3,
         add_on_layers_type="bottleneck",
         add_on_layers_activation="A",
     ):
@@ -51,11 +51,11 @@ class ProtoPNetBackbone(ProtoPNetBase, Backbone):
             add_on_layers_activation,
         )
 
-        x = torch.randn(1, color_channels, *img_shape)
+        x = torch.randn(8, n_color_channels, *img_shape)
 
         x = self.features(x)
         x = self.add_on_layers(x)
-        n, d, w, h = x.size()
+        _, d, w, h = x.size()
         self.last_layer = nn.Linear(
             d * w * h, self._n_classes, bias=False
         )  # do not use bias
@@ -94,8 +94,7 @@ class ProtoPNetBackbone(ProtoPNetBase, Backbone):
         :rtype: str
         """
         return (
-            f"BBNet(\n"
-            f"\tfeatures: {self.features},\n"
+            f"{self.__class__.__name__}(\n"
             f"\timg_shape: {self._image_shape},\n"
             f"\tnum_classes: {self._n_classes},\n"
             f"\tepsilon: {self._epsilon}\n)\n"

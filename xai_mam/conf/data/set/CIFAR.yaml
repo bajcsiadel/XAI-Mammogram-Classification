@@ -9,7 +9,7 @@ image_dir: ${data.set.root}/images
 image_properties:
   width: 32
   height: 32
-  color_channels: 3
+  n_color_channels: 3
   max_value: 255
   mean:
     - 0.4919
