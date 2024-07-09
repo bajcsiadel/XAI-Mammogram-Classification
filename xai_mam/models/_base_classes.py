@@ -142,6 +142,12 @@ class BaseTrainer(ABC):
         """
         ...
 
+    def test(self):
+        test_loader = self._data_module.test_dataloader(128)
+
+        self.logger.info("start testing")
+        self.eval(test_loader)
+
     @abstractmethod
     def compute_loss(self, **kwargs):
         """

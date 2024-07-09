@@ -159,11 +159,3 @@ class ProtoPNetTrainer(BaseTrainer):
         Perform joint phase of the training.
         """
         ...
-
-    def execute(self, **kwargs):
-        """
-        Perform the specified phases to train the model.
-
-        :param kwargs: keyword arguments
-        """
-        self.joint()
