@@ -71,10 +71,10 @@ def train_with_lists(
     Train the given model using the provided input and output data.
 
     :param model: model to be trained
-    :param criterion: loss function
     :param input_: input data
     :param output_: output data
     :param batch_size: number of samples per batch
+    :param criterion: loss function
     :param gpu: gpu configuration
     :param optimizer: optimizer to be used during training. Defaults to ``None``
         (in case of validation and testing).

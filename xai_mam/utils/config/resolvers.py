@@ -88,6 +88,10 @@ def resolve_override_dirname():
         override_dirname = override_dirname.replace("learning_rate", "LR")
         override_dirname = override_dirname.replace("epochs", "E")
         override_dirname = override_dirname.replace("batch_size", "BC")
+        # shorten data augmentation keyword
+        override_dirname = override_dirname.replace(
+            "data-augmentation@data.set.image_properties", ""
+        )
         override_dirname = override_dirname.replace("+", "")
         return override_dirname.replace("/", "-")
 

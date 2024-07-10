@@ -7,9 +7,16 @@ import hydra.utils
 import numpy as np
 import torch
 from sklearn.metrics import f1_score
+from torch import nn
+from torch.optim import Optimizer
+from torch.utils.data import SubsetRandomSampler, DataLoader
 
+from xai_mam.dataset.dataloaders import CustomDataModule
 from xai_mam.models.ProtoPNet._helpers import list_of_distances, push
 from xai_mam.models.ProtoPNet._trainer import ProtoPNetTrainer
+from xai_mam.models.ProtoPNet.config.explainable import ProtoPNetExplainableLoss
+from xai_mam.utils.config.types import Gpu, ModelParameters, Phase
+from xai_mam.utils.log import TrainLogger
 from xai_mam.utils.preprocess import preprocess
 
 
@@ -18,39 +25,29 @@ class ExplainableTrainer(ProtoPNetTrainer):
     Trainer class to train an explainable ProtoPNet model.
 
     :param fold: current fold number
-    :type fold: int
     :param data_module:
-    :type data_module: ProtoPNet.dataset.dataloaders.CustomDataModule
     :param train_sampler:
-    :type train_sampler: torch.utils.data.SubsetRandomSampler | None
     :param validation_sampler:
-    :type validation_sampler: torch.utils.data.SubsetRandomSampler | None
     :param model: model to train
-    :type model: ProtoPNet.models.ProtoPNet._model.ProtoPNetBase
     :param phases: phases of the train process
-    :type phases: dict[str, ProtoPNet.utils.config._general_types.network.Phase]
     :param params: parameters of the model
-    :type params: ProtoPNet.utils.config._general_types.ModelParameters
     :param loss: loss parameters
-    :type loss: ProtoPNet.models.ProtoPNet.config.ProtoPNetLoss
     :param gpu: gpu properties
-    :type gpu: ProtoPNet.utils.config.types.Gpu
     :param logger:
-    :type logger: ProtoPNet.utils.log.Log
     """
 
     def __init__(
         self,
-        fold,
-        data_module,
-        train_sampler,
-        validation_sampler,
-        model,
-        phases,
-        params,
-        loss,
-        gpu,
-        logger,
+        fold: int | None,
+        data_module: CustomDataModule,
+        train_sampler: SubsetRandomSampler | None,
+        validation_sampler: SubsetRandomSampler | None,
+        model: nn.Module,
+        phases: dict[str, Phase],
+        params: ModelParameters,
+        loss: ProtoPNetExplainableLoss,
+        gpu: Gpu,
+        logger: TrainLogger,
     ):
         super().__init__(
             fold,
@@ -60,11 +57,11 @@ class ExplainableTrainer(ProtoPNetTrainer):
             model,
             phases,
             params,
-            loss,
             gpu,
             logger,
         )
 
+        self._loss = loss
         preprocess_parameters = {
             "mean": data_module.dataset.image_properties.mean,
             "std": data_module.dataset.image_properties.std,
@@ -72,18 +69,19 @@ class ExplainableTrainer(ProtoPNetTrainer):
         }
         self.__preprocess_prototype_fn = partial(preprocess, **preprocess_parameters)
         if train_sampler is not None:
-            self.__push_sampler = copy.deepcopy(train_sampler.indices) // data_module.train_data.multiplier
+            self.__push_sampler = copy.deepcopy(
+                np.array(train_sampler.indices)
+            ) // data_module.train_data.multiplier
             self.__push_sampler = np.unique(self.__push_sampler)
         else:
-            self.__push_sampler = None
+            self.__push_sampler = data_module.train_data.indices
 
-    def compute_loss(self, **kwargs):
+    def compute_loss(self, **kwargs) -> dict[str, torch.Tensor]:
         """
         Compute the total loss of the model.
 
         :param kwargs: parameters needed to compute the loss components
         :return:
-        :rtype: dict[str, torch.Tensor]
         """
         # compute losses
         cross_entropy = self._compute_cross_entropy(**kwargs)
@@ -122,15 +120,13 @@ class ExplainableTrainer(ProtoPNetTrainer):
             "total": loss,
         }
 
-    def _compute_l1_loss(self, use_l1_mask=True, **kwargs):
+    def _compute_l1_loss(self, use_l1_mask: bool = True, **kwargs) -> torch.Tensor:
         """
         Compute the L1 loss for the explainable model.
 
         :param use_l1_mask: Defaults to ``True``.
-        :type use_l1_mask: bool
         :param kwargs:
         :return: l1 loss
-        :rtype: torch.Tensor
         """
         if self.model.class_specific and use_l1_mask:
             l1_mask = 1 - torch.t(self.model.prototype_class_identity).to(
@@ -140,12 +136,11 @@ class ExplainableTrainer(ProtoPNetTrainer):
 
         return self.model.last_layer.weight.norm(p=1)
 
-    def _compute_l2_loss(self):
+    def _compute_l2_loss(self) -> torch.Tensor:
         """
         Compute the L2 loss for the explainable model.
 
         :return: L2 loss
-        :rtype: torch.Tensor
         """
         if self._loss.separation_type == "avg" and self.model.class_specific:
             return (
@@ -156,19 +151,18 @@ class ExplainableTrainer(ProtoPNetTrainer):
                 - torch.eye(self.model.n_prototypes).to(self._gpu.device_instance)
             ).norm(p=2)
 
-        return 0.0
+        return torch.Tensor(0.0)
 
-    def _compute_clustering_cost(self, expected, min_distances, **kwargs):
+    def _compute_clustering_cost(
+        self, expected: torch.Tensor, min_distances: torch.Tensor, **kwargs
+    ) -> torch.Tensor:
         """
         Compute the clustering cost.
 
         :param expected: the expected label (ground truth)
-        :type expected: torch.Tensor
         :param min_distances:
-        :type min_distances: torch.Tensor
         :param kwargs:
         :return: clustering cost
-        :rtype: torch.Tensor
         """
         if self.model.class_specific:
             max_dist = np.prod(self.model.prototype_shape[1:])
@@ -189,17 +183,16 @@ class ExplainableTrainer(ProtoPNetTrainer):
         min_distance = torch.min(min_distances, dim=1)
         return torch.mean(min_distance)
 
-    def _compute_separation_cost(self, expected, min_distances, **kwargs):
+    def _compute_separation_cost(
+        self, expected: torch.Tensor, min_distances: torch.Tensor, **kwargs
+    ) -> torch.Tensor:
         """
         Compute the separation cost for the explainable model.
 
         :param expected: the expected label (ground truth)
-        :type expected: torch.Tensor
         :param min_distances:
-        :type min_distances: torch.Tensor
         :param kwargs:
         :return:
-        :rtype: torch.Tensor
         """
         if self.model.class_specific:
             max_dist = np.prod(self.model.prototype_shape[1:])
@@ -285,16 +278,25 @@ class ExplainableTrainer(ProtoPNetTrainer):
                         f"{self._loss.separation_type}"
                     )
 
-        return 0.0
+        return torch.Tensor(0.0)
 
     def _train_and_eval(
         self,
-        dataloader,
-        epoch=None,
-        optimizer=None,
-        use_l1_mask=True,
+        dataloader: DataLoader,
+        optimizer: Optimizer = None,
+        epoch: int = None,
+        use_l1_mask: bool = True,
         **kwargs,
-    ):
+    ) -> float:
+        """
+        Execute train/eval steps of the model.
+
+        :param dataloader:
+        :param optimizer: Defaults to ``None``.
+        :param epoch: current step needed for Tensorboard logging. Defaults to ``None``.
+        :param kwargs: other parameters
+        :return: accuracy achieved in the current step
+        """
         is_train = optimizer is not None
         start = time.time()
         n_examples = 0
@@ -412,12 +414,11 @@ class ExplainableTrainer(ProtoPNetTrainer):
 
         return accuracy
 
-    def _get_warm_optimizer(self):
+    def _get_warm_optimizer(self) -> Optimizer:
         """
         Get the optimizer used in the warm-up phase.
 
         :return: optimizer
-        :rtype: torch.optim.Optimizer
         """
         warm_optimizer_specs = [
             {
@@ -438,12 +439,11 @@ class ExplainableTrainer(ProtoPNetTrainer):
             warm_optimizer_specs,
         )
 
-    def _get_last_layer_optimizer(self):
+    def _get_last_layer_optimizer(self) -> Optimizer:
         """
         Get the optimizer used in fine-tuning phase.
 
         :return: optimizer
-        :rtype: torch.optim.Optimizer
         """
         last_layer_optimizer_specs = [
             {
@@ -675,14 +675,12 @@ class ExplainableTrainer(ProtoPNetTrainer):
             self.logger.decrease_indent()
         self.logger.info(f"finished training fold {self._fold}")
 
-    def last_layer(self, train_loader, validation_loader):
+    def last_layer(self, train_loader: DataLoader, validation_loader: DataLoader):
         """
         Perform fine-tuning.
 
         :param train_loader:
-        :type train_loader: torch.utils.data.dataloader.DataLoader
         :param validation_loader:
-        :type validation_loader: torch.utils.data.dataloader.DataLoader
         """
         last_layer_optimizer = self._get_last_layer_optimizer()
 
@@ -734,3 +732,5 @@ class ExplainableTrainer(ProtoPNetTrainer):
                 f"{phase.__name__} phase finished in: "
                 f"{datetime.timedelta(seconds=int(time.time() - start_phase))}"
             )
+
+        self.test()
