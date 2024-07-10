@@ -187,8 +187,6 @@ def generate_heatmap_pytorch(
 
     with torch.no_grad():
         _, c, x, y = image.shape
-        print("Image size:")
-        print(c, x, y)
 
         if padding == "zero":  # original code
             padded_image = np.zeros((c, x + patchsize - 1, y + patchsize - 1))
@@ -207,9 +205,9 @@ def generate_heatmap_pytorch(
         # extract patches
         patches = input.permute(0, 2, 3, 1)
         patches = patches.unfold(1, patchsize, 1).unfold(2, patchsize, 1)
-        # TODO: get number of channels (1) from config file!
+
         patches = patches.contiguous().view(
-            (-1, 1, patchsize, patchsize)
+            (-1, config.data.set.image_properties.color_channels, patchsize, patchsize)
         )
 
         # compute logits for each patch
@@ -218,7 +216,6 @@ def generate_heatmap_pytorch(
         for batch_patches in torch.split(patches, 10000):
             print(f"Batch: {batch_patches.shape}")
             logits = model(batch_patches.to(next(model.parameters()).device))
-            print("SIZE OF TARGET: ", type(target))
             logits = logits[:, target]
             logits_list.append(logits.data.cpu().numpy().copy())
 
@@ -227,9 +224,8 @@ def generate_heatmap_pytorch(
 
         delta = (patchsize - 1) if padding is None else 0
 
-        # TODO: get image size (224) from config file!
         return logits.reshape(
-            (224 - delta, 224 - delta)
+            (config.data.set.image_properties.width - delta, config.data.set.image_properties.height - delta)
         )
 
 
