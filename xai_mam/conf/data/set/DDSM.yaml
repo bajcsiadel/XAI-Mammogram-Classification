@@ -8,7 +8,7 @@ root: ${oc.env:DATA_ROOT}/DDSM/
 image_properties:
   width: 1024
   height: 1024
-  color_channels: 1
+  n_color_channels: 1
   max_value: 255
 
 metadata:

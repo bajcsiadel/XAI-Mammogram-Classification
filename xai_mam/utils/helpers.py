@@ -8,10 +8,7 @@ from pathlib import Path
 from typing import Any, Sequence
 
 import albumentations as A
-import hydra.utils
 import numpy as np
-
-import xai_mam.utils.config._general_types.data as config
 
 
 def get_current_commit_hash():
@@ -200,7 +197,7 @@ class Shear(A.Affine):
             if len(row_values) != 2 or len(col_values) != 2:
                 return img_out
             img_out = img_out[
-                row_values[0] : row_values[1], col_values[0] : col_values[1]
+                row_values[0]:row_values[1], col_values[0]:col_values[1]
             ]
         return img_out
 
@@ -212,61 +209,3 @@ class Shear(A.Affine):
         result = super().__call__(*args, **kwargs)
         self.shear = deepcopy(self.original)
         return result
-
-
-@dc.dataclass
-class Augmentations:
-    transforms: list[A.BasicTransform | A.Compose | RepeatedAugmentation] = dc.field(
-        default_factory=lambda: [A.NoOp]
-    )
-
-    def __init__(self, transforms=None):
-        """
-        Transformations to apply to the images. Converted from the config.
-
-        :param transforms: transforms set in the configuration
-        :type transforms: xai_mam.utils.config._general_types.data.AugmentationsConfig
-        """
-        if transforms is None:
-            transforms = config.AugmentationsConfig()
-        self.transforms = hydra.utils.instantiate(transforms.transforms)
-
-    @property
-    def multiplier(self):
-        multiplier = 1 if len(self.transforms) == 0 else 0
-        for transform in self.transforms:
-            match transform:
-                case RepeatedAugmentation():
-                    multiplier += transform.n_repeat
-                case A.Compose():
-                    multiplier += 1
-                case _:
-                    return 1
-        return multiplier
-
-    def get_transforms(self):
-        if len(self.transforms) > 0:
-            match self.transforms[0]:
-                case RepeatedAugmentation() | A.Compose():
-                    for transform in self.transforms:
-                        yield transform
-                case _:
-                    yield A.Compose(transforms=[A.Sequential(self.transforms)])
-        else:
-            yield A.NoOp()
-
-    def get_repetitions(self):
-        """
-        Get the number of times each transformation is repeated.
-
-        :return: number of times each transformation is repeated
-        :rtype: numpy.ndarray
-        """
-        repetitions = []
-        for transform in self.transforms:
-            match transform:
-                case RepeatedAugmentation():
-                    repetitions.append(transform.n_repeat)
-                case _:
-                    repetitions.append(1)
-        return np.array(repetitions)

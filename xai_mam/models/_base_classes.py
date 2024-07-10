@@ -1,15 +1,17 @@
+import datetime
+import time
 from abc import ABC, abstractmethod
 from typing import final
 
-import albumentations as A
-import numpy as np
 import torch
-import torchvision
-from albumentations.pytorch import ToTensorV2
 from torch import nn
+from torch.optim import Optimizer
+from torch.utils.data import DataLoader, SubsetRandomSampler
 from torchinfo import summary
 
-from xai_mam.dataset.dataloaders import CustomSubset
+from xai_mam.dataset.dataloaders import CustomDataModule
+from xai_mam.utils.config.types import Gpu, ModelParameters, Phase
+from xai_mam.utils.log import TrainLogger
 
 
 class Model(ABC, nn.Module):
@@ -42,42 +44,29 @@ class BaseTrainer(ABC):
     Abstract class for all trainers.
 
     :param fold: current fold number
-    :type fold: int
     :param data_module:
-    :type data_module: ProtoPNet.dataset.dataloaders.CustomDataModule
-    :param train_sampler:
-    :type train_sampler: torch.utils.data.SubsetRandomSampler | None
-    :param validation_sampler:
-    :type validation_sampler: torch.utils.data.SubsetRandomSampler | None
+    :param train_sampler: sampler of the training set
+    :param validation_sampler: sampler of the validation set
     :param model: model to train
-    :type model: ProtoPNet.models.ProtoPNet._model.ProtoPNetBase
     :param phases: phases of the train process
-    :type phases: dict[str, ProtoPNet.utils.config._general_types.network.Phase]
     :param params: parameters of the model
-    :type params: ProtoPNet.utils.config._general_types.ModelParameters
-    :param loss: loss parameters
-    :type loss: ProtoPNet.models.ProtoPNet.config.ProtoPNetLoss
     :param gpu: gpu properties
-    :type gpu: ProtoPNet.utils.config.types.Gpu
-    :param logger:
-    :type logger: ProtoPNet.utils.log.Log
+    :param logger: logging object
     """
 
     def __init__(
         self,
-        fold,
-        data_module,
-        train_sampler,
-        validation_sampler,
+        fold: int | None,
+        data_module: CustomDataModule,
+        train_sampler: SubsetRandomSampler | None,
+        validation_sampler: SubsetRandomSampler | None,
         model: nn.Module,
-        phases,
-        params,
-        loss,
-        gpu,
-        logger,
+        phases: dict[str, Phase],
+        params: ModelParameters,
+        gpu: Gpu,
+        logger: TrainLogger,
     ):
         if not gpu.disabled:
-            model = model.to(gpu.device)
             self._parallel_model = torch.nn.DataParallel(
                 model,
                 device_ids=gpu.device_ids,
@@ -87,7 +76,6 @@ class BaseTrainer(ABC):
         self._gpu = gpu
         self._phases = phases
         self._params = params
-        self._loss = loss
 
         self._data_module = data_module
         self._train_sampler = train_sampler
@@ -107,26 +95,22 @@ class BaseTrainer(ABC):
                 summary(
                     model,
                     input_size=(
-                        data_module.dataset.image_properties.color_channels,
+                        data_module.dataset.image_properties.n_color_channels,
                         data_module.dataset.image_properties.height,
                         data_module.dataset.image_properties.width,
                     ),
-                    depth=5,
-                    batch_dim=1,
-                    device=torch.device(gpu.device),
+                    depth=6,
+                    batch_dim=0,
                     verbose=0,
                 )
             )
 
-        data_module.log_data_information(logger)
-
     @property
-    def model(self):
+    def model(self) -> torch.nn.Module:
         """
         Returns the core model of the parallel model.
 
         :return: the core model of the parallel model
-        :rtype: torch.nn.Module
         """
         if isinstance(self._parallel_model, torch.nn.DataParallel):
             return self._parallel_model.module
@@ -134,14 +118,24 @@ class BaseTrainer(ABC):
         return self._parallel_model
 
     @property
-    def parallel_model(self):
+    def parallel_model(self) -> torch.nn.DataParallel | torch.nn.Module:
         """
         Returns the parallel model (could be simple model if gpu is disabled).
 
         :return: model to train
-        :rtype: torch.nn.DataParallel | torch.nn.Module
         """
         return self._parallel_model
+
+    def model_name(self, name: str) -> str:
+        """
+        Concatenate fold number to the output model name.
+
+        :param name: name of the file
+        :return: name containing the fold number
+        """
+        if self._fold is not None:
+            name = f"{self._fold}-{name}"
+        return name
 
     @abstractmethod
     def execute(self, **kwargs):
@@ -153,26 +147,25 @@ class BaseTrainer(ABC):
         ...
 
     @abstractmethod
-    def compute_loss(self, **kwargs):
+    def compute_loss(self, **kwargs) -> dict[str, torch.Tensor]:
         """
         Compute the total loss of the model.
 
         :param kwargs: parameters needed to compute the loss components
         :return:
-        :rtype: dict[str, torch.Tensor]
         """
         ...
 
-    def _backpropagation(self, optimizer, **kwargs):
+    def _backpropagation(
+        self, optimizer: Optimizer | None, **kwargs
+    ) -> dict[str, torch.Tensor]:
         """
         Perform the backpropagation: computing the loss and if the
         optimizer is specified then push the gradients back to the optimizer.
 
         :param optimizer:
-        :type optimizer: torch.optim.Optimizer
         :param kwargs: other parameters needed to compute the loss
         :return: components of the loss term
-        :rtype: dict[str, torch.Tensor]
         """
         loss_values = self.compute_loss(**kwargs)
 
@@ -186,110 +179,75 @@ class BaseTrainer(ABC):
     @abstractmethod
     def _train_and_eval(
         self,
-        dataloader,
-        epoch=None,
-        optimizer=None,
+        dataloader: DataLoader,
+        optimizer: Optimizer = None,
+        epoch: int = None,
         **kwargs,
     ):
         """
         Execute train/eval steps of the model.
 
         :param dataloader:
-        :type dataloader: torch.utils.data.dataloader.DataLoader
-        :param epoch: current step needed for Tensorboard logging. Defaults to ``None``.
-        :type epoch: int | None
         :param optimizer: Defaults to ``None``.
-        :type optimizer: torch.optim.Optimizer
+        :param epoch: current step needed for Tensorboard logging. Defaults to ``None``.
         :param kwargs: other parameters
         :return: accuracy achieved in the current step
-        :rtype: float
         """
         ...
 
     def train(
         self,
-        dataloader,
-        epoch=None,
-        optimizer=None,
+        dataloader: DataLoader,
+        optimizer: Optimizer,
+        epoch: int = None,
         **kwargs,
-    ):
+    ) -> float:
         """
         Execute train step of the model.
 
         :param dataloader:
-        :type dataloader: torch.utils.data.dataloader.DataLoader
         :param epoch: current step needed for Tensorboard logging. Defaults to ``None``.
-        :type epoch: int | None
         :param optimizer: Defaults to ``None``.
-        :type optimizer: torch.optim.Optimizer
         :param kwargs: other parameters
         :return: accuracy achieved in the current step
-        :rtype: float
         """
         with self.logger.increase_indent_context():
             self.logger.info("train")
             self.parallel_model.train()
-            return self._train_and_eval(dataloader, epoch, optimizer, **kwargs)
+            return self._train_and_eval(dataloader, optimizer, epoch, **kwargs)
 
     def eval(
         self,
-        dataloader,
-        epoch=None,
+        dataloader: DataLoader,
+        epoch: int = None,
         **kwargs,
-    ):
+    ) -> float:
         """
         Execute eval step of the model.
 
         :param dataloader:
-        :type dataloader: torch.utils.data.dataloader.DataLoader
         :param epoch: current step needed for Tensorboard logging. Defaults to ``None``.
-        :type epoch: int | None
         :param kwargs: other parameters
         :return: accuracy achieved in the current step
-        :rtype: float
         """
         with self.logger.increase_indent_context():
             self.logger.info("eval")
             self.parallel_model.eval()
-            return self._train_and_eval(dataloader, epoch)
+            return self._train_and_eval(dataloader, epoch=epoch)
 
-    def log_image_examples(self, dataset, set_name="", n_images=8):
+    def test(self) -> float:
         """
-        Log some images to the Tensorboard.
+        Evaluate the trained model on the test set.
 
-        :param dataset:
-        :type dataset: xai_mam.dataset.dataloaders.CustomVisionDataset |
-        xai_mam.dataset.dataloaders.CustomSubset
-        :param set_name: name of the subset
-        :type set_name: str
-        :param n_images: number of images to log. Defaults to ``8``.
-        :type n_images: int
+        :return: accuracy of the model on the test set
         """
-        if type(dataset) is CustomSubset:
-            dataset = dataset.dataset
-        originals = [dataset.get_original(i)[0] for i in range(n_images)]
-        transform = A.Compose([
-            A.Resize(
-                height=dataset.dataset_meta.image_properties.height,
-                width=dataset.dataset_meta.image_properties.width,
-            ),
-            ToTensorV2(),
-        ])
-        originals = [
-            transform(image=image)["image"] for image in originals]
-        self.logger.tensorboard.add_image(
-            f"{self._data_module.dataset.name} original examples",
-            torchvision.utils.make_grid(originals),
+        test_loader = self._data_module.test_dataloader(128)
+
+        self.logger.info("start testing")
+        start = time.time()
+        test_accuracy = self.eval(test_loader)
+        self.logger.info(f"test accuracy: {test_accuracy:.2%}")
+        self.logger.info(
+            f"test ended in {datetime.timedelta(seconds=int(time.time() - start))}"
         )
-        first_batch_input = torch.stack(
-            [dataset[i][0] for i in range(n_images * dataset.multiplier)], dim=0
-        )
-        first_batch_un_normalized = first_batch_input * np.array(dataset.dataset_meta.image_properties.std)[:, None, None] + np.array(dataset.dataset_meta.image_properties.mean)[:, None, None]
-        self.logger.tensorboard.add_image(
-            f"{self._data_module.dataset.name} {set_name} examples (un-normalized)",
-            torchvision.utils.make_grid(first_batch_un_normalized, nrow=dataset.multiplier),
-        )
-        self.logger.tensorboard.add_graph(
-            self.model, first_batch_input.to(self._gpu.device)
-        )
-        dataset.reset_used_transforms()
+        return test_accuracy

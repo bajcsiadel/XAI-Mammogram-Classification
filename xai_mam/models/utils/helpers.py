@@ -8,16 +8,16 @@ from xai_mam.utils.environment import get_env
 
 def get_state_dict(
     model_url: str,
-    color_channels: int = 3,
+    n_color_channels: int = 3,
     prefixes: dict[str, str] | None = None,
     include_fc: bool = False,
     n_classes: int | None = None,
-):
+) -> dict:
     """
     Load the model state dict from a pretrained model of ImageNet.
 
     :param model_url: url to the pretrained model
-    :param color_channels: number of color channels. Defaults to ``3``.
+    :param n_color_channels: number of color channels. Defaults to ``3``.
     :param prefixes: prefix of the layer names. Defaults to ``None``.
     :param include_fc: marks the inclusion or exclusion of fully connected layer
     wights. Defaults to ``False``.
@@ -50,7 +50,7 @@ def get_state_dict(
                 f"Number of classes {n_classes} higher than the number of classes"
                 f" used in the pretraining. Solution switch off the `include_fc`."
             )
-    if color_channels == 1:
+    if n_color_channels == 1:
         conv1_w = pretrained_state_dict.pop("conv1.weight")
         conv1_w = torch.sum(conv1_w, dim=1, keepdim=True)
         pretrained_state_dict["conv1.weight"] = conv1_w

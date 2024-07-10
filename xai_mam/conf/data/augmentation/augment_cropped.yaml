@@ -1,24 +1,23 @@
-# @package data.set.image_properties.augmentations
-train:
-  transforms:
-    - _target_: albumentations.Compose
-      transforms:
-        - _target_: albumentations.Rotate
-          limit: 10
-          border_mode: 0
-          crop_border: true
-          p: 0.75
-        - _target_: xai_mam.utils.helpers.Shear
-          limit: 10
-          crop_border: true
-          p: 0.75
-        - _target_: albumentations.Perspective
-          scale:
-            - 0.2
-            - 0.2
-          p: 0.75
-        - _target_: albumentations.HorizontalFlip
-          p: 0.5
-        - _target_: albumentations.VerticalFlip
-          p: 0.5
-  exclude_identity_transform: true
+transforms:
+  - _target_: albumentations.Compose
+    transforms:
+      - _target_: albumentations.Rotate
+        limit: 10
+        border_mode: 0
+        crop_border: true
+        p: 0.75
+      - _target_: xai_mam.utils.helpers.Shear
+        limit: 10
+        crop_border: true
+        p: 0.75
+      - _target_: albumentations.Perspective
+        scale:
+          - 0.2
+          - 0.2
+        p: 0.75
+      - _target_: albumentations.HorizontalFlip
+        p: 0.5
+      - _target_: albumentations.VerticalFlip
+        p: 0.5
+exclude_identity_transform: true
+online: true

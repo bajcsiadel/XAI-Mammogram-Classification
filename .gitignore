@@ -5,7 +5,8 @@ runs/
 runs
 pretrained_models/
 
-.env
+.env*
+!.env.example
 
 poetry.lock
 

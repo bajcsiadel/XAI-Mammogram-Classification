@@ -126,7 +126,7 @@ def run_experiment(cfg: main_cfg.Config, logger: TrainLogger):
     logger.info(f"{cfg.data.set.target.size}")
     logger.info(f"{cfg.data.set.target.name}")
     logger.info(f"{' x '.join(map(str, image_shape))} image shape")
-    logger.info(f"{cfg.data.set.image_properties.color_channels} color channels")
+    logger.info(f"{cfg.data.set.image_properties.n_color_channels} color channels")
     logger.info(f"{cfg.data.set.image_properties.std} std")
     logger.info(f"{cfg.data.set.image_properties.mean} mean")
     logger.info(f"{data_module.dataset.number_of_classes} classes")
@@ -148,12 +148,21 @@ def run_experiment(cfg: main_cfg.Config, logger: TrainLogger):
     logger.info("start training")
     start_training = time.time()
 
-    for fold, (train_sampler, validation_sampler) in enumerate(
-        data_module.folds, start=1
-    ):
+    for fold, (train_sampler, validation_sampler) in data_module.folds:
         if cfg.cross_validation.folds > 1:
+            logger.info(f"fold #{fold}")
             logger.increase_indent()
         start_fold = time.time()
+        logger.info(
+            f"train sampler: {len(train_sampler)} "
+            f"({len(train_sampler) // data_module.train_data.multiplier})"
+        )
+        logger.info(f"validation sampler: {len(validation_sampler)}")
+        np.savez(
+            logger.metadata_location / f"indices_fold_{fold}.npy",
+            train_idx=train_sampler.indices,
+            validation_idx=validation_sampler.indices
+        )
         trainer = cfg.model.params.construct_trainer(
             data_module=data_module,
             model_config=cfg.model,
@@ -183,6 +192,6 @@ def run_experiment(cfg: main_cfg.Config, logger: TrainLogger):
 
 
 if __name__ == "__main__":
-    main_cfg.init_config_store()
+    main_cfg.Config.init_store()
 
     main()

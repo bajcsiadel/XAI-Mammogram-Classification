@@ -11,18 +11,17 @@ from xai_mam.utils.config._general_types import (
     ModelConfig,
     Outputs,
 )
-from xai_mam.utils.config._general_types.data import init_data_config_store
 from xai_mam.utils.config.resolvers import add_all_custom_resolvers
 from xai_mam.utils.environment import get_env
 
 
 @dc.dataclass
-class JobProperties:
-    number_of_workers: int
+class JobConfig:
+    n_workers: int
 
     def __setattr__(self, key, value):
         match key:
-            case "number_of_workers":
+            case "n_workers":
                 if value < 0:
                     raise ValueError(
                         f"Number of workers must be greater than 0.\n{key} = {value}"
@@ -30,13 +29,24 @@ class JobProperties:
 
         super().__setattr__(key, value)
 
+    @staticmethod
+    def init_store(
+        config_store_: ConfigStore = None, group: str = "job"
+    ) -> ConfigStore:
+        if config_store_ is None:
+            from xai_mam.utils.config import config_store_
+
+        config_store_.store(name="_job_config_validation", group=group, node=JobConfig)
+
+        return config_store_
+
 
 @dc.dataclass
 class Config:
     data: DataConfig
     cross_validation: CrossValidationParameters
     seed: int
-    job: JobProperties
+    job: JobConfig
     outputs: Outputs
     model: ModelConfig
     gpu: Gpu = dc.field(default_factory=Gpu)
@@ -44,22 +54,18 @@ class Config:
     def __setattr__(self, key, value):
         super().__setattr__(key, value)
 
+    @staticmethod
+    def init_store():
+        from xai_mam.utils.config import config_store_
 
-def init_config_store():
-    from xai_mam.utils.config import config_store_
+        add_all_custom_resolvers()
 
-    add_all_custom_resolvers()
+        config_store_.store(name="_config_validation", node=Config)
+        DataConfig.init_store(config_store_)
+        ModelConfig.init_store(config_store_)
+        CrossValidationParameters.init_store(config_store_)
 
-    config_store_.store(name="_config_validation", node=Config)
-    init_data_config_store()
-    config_store_.store(name="_model_validation", group="model", node=ModelConfig)
-    config_store_.store(
-        name="_cross_validation_validation",
-        group="cross_validation",
-        node=CrossValidationParameters,
-    )
-
-    return config_store_
+        return config_store_
 
 
 @hydra.main(
@@ -87,6 +93,6 @@ def process_config(cfg):
 
 
 if __name__ == "__main__":
-    init_config_store()
+    Config.init_store()
 
     process_config()
