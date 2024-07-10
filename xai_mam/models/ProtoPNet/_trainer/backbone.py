@@ -1,24 +1,69 @@
+import datetime
 import time
 
 import numpy as np
 import torch
 from sklearn.metrics import f1_score
+from torch import nn
+from torch.optim import Optimizer
+from torch.utils.data import SubsetRandomSampler, DataLoader
 
+from xai_mam.dataset.dataloaders import CustomDataModule
 from xai_mam.models.ProtoPNet._trainer import ProtoPNetTrainer
+from xai_mam.models.ProtoPNet.config import ProtoPNetLoss
+from xai_mam.utils.config.types import Gpu, ModelParameters, Phase
+from xai_mam.utils.log import TrainLogger
 
 
 class BackboneTrainer(ProtoPNetTrainer):
     """
     Trainer class to train a ProtoPNet backbone model.
+
+    :param fold: current fold number
+    :param data_module:
+    :param train_sampler:
+    :param validation_sampler:
+    :param model: model to train
+    :param phases: phases of the train process
+    :param params: parameters of the model
+    :param loss: loss parameters
+    :param gpu: gpu properties
+    :param logger:
     """
 
-    def compute_loss(self, **kwargs):
+    def __init__(
+        self,
+        fold: int | None,
+        data_module: CustomDataModule,
+        train_sampler: SubsetRandomSampler | None,
+        validation_sampler: SubsetRandomSampler | None,
+        model: nn.Module,
+        phases: dict[str, Phase],
+        params: ModelParameters,
+        loss: ProtoPNetLoss,
+        gpu: Gpu,
+        logger: TrainLogger,
+    ):
+        super().__init__(
+            fold,
+            data_module,
+            train_sampler,
+            validation_sampler,
+            model,
+            phases,
+            params,
+            gpu,
+            logger,
+        )
+
+        self._loss = loss
+
+    def compute_loss(self, **kwargs) -> dict[str, torch.Tensor]:
         """
         Compute the total loss of the model.
 
         :param kwargs: parameters needed to compute the loss components
         :return:
-        :rtype: dict[str, torch.Tensor]
         """
         # compute losses
         cross_entropy = self._compute_cross_entropy(**kwargs)
@@ -39,38 +84,32 @@ class BackboneTrainer(ProtoPNetTrainer):
             "total": loss,
         }
 
-    def _compute_l1_loss(self, **kwargs):
+    def _compute_l1_loss(self, **kwargs) -> torch.Tensor:
         """
         Compute the L1 loss for the backbone model.
 
         :param kwargs:
         :return: l1 loss
-        :rtype: torch.Tensor
         """
         return self.model.last_layer.weight.norm(p=1)
 
     def _train_and_eval(
         self,
-        dataloader,
-        epoch=None,
-        optimizer=None,
-        use_l1_mask=True,
+        dataloader: DataLoader,
+        optimizer: Optimizer = None,
+        epoch: int = None,
+        use_l1_mask: bool = True,
         **kwargs,
-    ):
+    ) -> float:
         """
         Execute train/test steps of the model.
 
         :param dataloader:
-        :type dataloader: torch.utils.data.dataloader.DataLoader
-        :param epoch: current step needed for Tensorboard logging. Defaults to ``None``.
-        :type epoch: int | None
         :param optimizer: Defaults to ``None``.
-        :type optimizer: torch.optim.Optimizer
+        :param epoch: current step needed for Tensorboard logging. Defaults to ``None``.
         :param use_l1_mask: Defaults to ``True``.
-        :type use_l1_mask: bool
         :param kwargs: other parameters
         :return: accuracy achieved in the current step
-        :rtype: float
         """
         is_train = optimizer is not None
         start = time.time()
@@ -165,6 +204,9 @@ class BackboneTrainer(ProtoPNetTrainer):
         return accuracy
 
     def joint(self):
+        """
+        Perform joint phases of training.
+        """
         self._joint()
         self.logger.increase_indent()
 
