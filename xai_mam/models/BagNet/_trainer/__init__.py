@@ -6,8 +6,15 @@ import hydra
 import numpy as np
 import torch
 import torchvision
+from torch.optim import Optimizer
+from torch.utils.data import SubsetRandomSampler, DataLoader
 
+from xai_mam.dataset.dataloaders import CustomDataModule
+from xai_mam.models.BagNet._model import BagNetBase
+from xai_mam.models.BagNet.config import BagNetLoss
 from xai_mam.models._base_classes import BaseTrainer
+from xai_mam.utils.config._general_types import Phase, ModelParameters, Gpu
+from xai_mam.utils.log import TrainLogger
 
 
 class BagNetTrainer(BaseTrainer):
@@ -15,39 +22,29 @@ class BagNetTrainer(BaseTrainer):
     Abstract base class for BagNet trainer.
 
     :param fold: current fold number
-    :type fold: int
     :param data_module:
-    :type data_module: ProtoPNet.dataset.dataloaders.CustomDataModule
     :param train_sampler:
-    :type train_sampler: torch.utils.data.SubsetRandomSampler | None
     :param validation_sampler:
-    :type validation_sampler: torch.utils.data.SubsetRandomSampler | None
     :param model: model to train
-    :type model: ProtoPNet.models.BagNet._model.BagNetBase
     :param phases: phases of the train process
-    :type phases: dict[str, ProtoPNet.utils.config._general_types.network.Phase]
     :param params: parameters of the model
-    :type params: ProtoPNet.utils.config._general_types.ModelParameters
     :param loss: loss parameters
-    :type loss: ProtoPNet.models.ProtoPNet.config.ProtoPNetLoss
     :param gpu: gpu properties
-    :type gpu: ProtoPNet.utils.config.types.Gpu
     :param logger:
-    :type logger: ProtoPNet.utils.log.Log
     """
 
     def __init__(
         self,
-        fold,
-        data_module,
-        train_sampler,
-        validation_sampler,
-        model,
-        phases,
-        params,
-        loss,
-        gpu,
-        logger,
+        fold: int | None,
+        data_module: CustomDataModule,
+        train_sampler: SubsetRandomSampler | None,
+        validation_sampler: SubsetRandomSampler | None,
+        model: BagNetBase,
+        phases: dict[str, Phase],
+        params: ModelParameters,
+        loss: BagNetLoss,
+        gpu: Gpu,
+        logger: TrainLogger,
     ):
         super().__init__(
             fold,
@@ -57,10 +54,11 @@ class BagNetTrainer(BaseTrainer):
             model,
             phases,
             params,
-            loss,
             gpu,
             logger,
         )
+
+        self._loss = loss
 
         self.__criterion = torch.nn.CrossEntropyLoss().to(gpu.device_instance)
 
@@ -71,31 +69,17 @@ class BagNetTrainer(BaseTrainer):
                 f"validation: {self._phases['main'].batch_size.validation}"
             )
 
-    def model_name(self, name):
-        """
-        Concatenate fold number to the output model name.
-
-        :param name: name of the file
-        :type name: str
-        :return: name containing the fold number
-        :rtype: str
-        """
-        if self._fold is not None:
-            name = f"{self._fold}-{name}"
-        return name
-
-    def _compute_cross_entropy(self, predicted, expected, **kwargs):
+    def _compute_cross_entropy(
+        self, predicted: torch.Tensor, expected: torch.Tensor, **kwargs
+    ) -> torch.Tensor:
         """
         Compute the cross entropy loss for the model.
 
         :param predicted: the predicted labels
-        :type predicted: torch.Tensor
         :param expected: the expected labels (ground truth)
-        :type expected: torch.Tensor
         :param kwargs: other parameters. If binary cross entropy is needed,
             then ``n_classes`` should be specified.
         :return: cross entropy loss
-        :rtype: torch.Tensor
         """
         if self._loss.binary_cross_entropy:
             one_hot_target = torch.nn.functional.one_hot(expected, kwargs["n_classes"])
@@ -105,23 +89,31 @@ class BagNetTrainer(BaseTrainer):
 
         return torch.nn.functional.cross_entropy(predicted, expected)
 
-    def compute_loss(self, **kwargs):
+    def compute_loss(self, **kwargs) -> dict[str, torch.Tensor]:
+        """
+        Compute the total loss of the model.
+
+        :param kwargs: parameters needed to compute the loss components
+        :return:
+        """
         cross_entropy = self.__criterion(kwargs["predicted"], kwargs["target"])
         return {"cross_entropy": cross_entropy, "total": cross_entropy}
 
-    def _train_and_eval(self, dataloader, epoch=None, optimizer=None, **kwargs):
+    def _train_and_eval(
+        self,
+        dataloader: DataLoader,
+        optimizer: Optimizer = None,
+        epoch: int = None,
+        **kwargs,
+    ):
         """
-        Execute train/test steps of the model.
+        Execute train/eval steps of the model.
 
         :param dataloader:
-        :type dataloader: torch.utils.data.dataloader.DataLoader
-        :param epoch: current step needed for Tensorboard logging. Defaults to ``None``.
-        :type epoch: int | None
         :param optimizer: Defaults to ``None``.
-        :type optimizer: torch.optim.Optimizer
+        :param epoch: current step needed for Tensorboard logging. Defaults to ``None``.
         :param kwargs: other parameters
         :return: accuracy achieved in the current step
-        :rtype: float
         """
         batch_time = AverageMeter("Time", ":6.3f", Summary.NONE)
         data_time = AverageMeter("Data", ":6.3f", Summary.NONE)
@@ -192,12 +184,13 @@ class BagNetTrainer(BaseTrainer):
                 )
         return top1.avg
 
-    def _get_train_optimizer(self):
+    def _get_train_optimizer(self) -> tuple[
+        Optimizer, torch.optim.lr_scheduler.LRScheduler
+    ]:
         """
         Get the optimizer and learning rate scheduler used in the main phase.
 
         :return: the optimizer along with the learning scheduler
-        :rtype: tuple[torch.optim.Optimizer, torch.optim.lr_scheduler.LRScheduler]
         """
         optimizer = torch.optim.SGD(
             self.model.parameters(),
@@ -212,6 +205,11 @@ class BagNetTrainer(BaseTrainer):
         return optimizer, lr_scheduler
 
     def execute(self, **kwargs):
+        """
+        Perform the specified phases to train the model.
+
+        :param kwargs: keyword arguments
+        """
         train_loader = self._data_module.train_dataloader(
             sampler=self._train_sampler,
             batch_size=self._phases["main"].batch_size.train,
@@ -231,7 +229,7 @@ class BagNetTrainer(BaseTrainer):
             self.logger.info(f"epoch: \t{epoch}")
             self.logger.increase_indent()
 
-            self.train(train_loader, epoch, optimizer)
+            self.train(train_loader, optimizer, epoch)
             accu = self.eval(validation_loader, epoch)
 
             lr_scheduler.step()
