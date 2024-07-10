@@ -197,7 +197,7 @@ class ScriptLogger(logging.Logger):
             else:
                 indices = copy.deepcopy(sampler)
         else:
-            indices = np.arange(len(dataset))
+            indices = dataset.indices
 
         original_indices = np.unique(indices // dataset.multiplier)
         self.info(f"{name}")
