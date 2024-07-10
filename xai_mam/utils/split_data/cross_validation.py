@@ -1,6 +1,6 @@
 import numpy as np
 from icecream import ic
-from sklearn.model_selection import GroupKFold
+from sklearn.model_selection import GroupKFold, KFold
 
 
 class BalancedGroupKFold(GroupKFold):
@@ -251,6 +251,61 @@ class BalancedGroupKFold(GroupKFold):
         return np.concatenate([result_idx, idx]), np.concatenate(
             [current_set_groups, current_groups]
         )
+
+
+class BalancedKFold(KFold):
+    def __init__(self, n_splits=5, shuffle=False, random_state=None):
+        super().__init__(n_splits=n_splits, shuffle=shuffle, random_state=random_state)
+
+        self.__k_fold = KFold(
+            n_splits=n_splits, shuffle=shuffle, random_state=random_state
+        )
+
+        if self.random_state:
+            np.random.seed(self.random_state)
+
+    def split(self, X, y=None, groups=None):
+        if y is None:
+            raise ValueError("y cannot be None")
+        else:
+            y = np.array(y)
+
+        unique_classes, sample_counts = np.unique(y, return_counts=True)
+        smallest_class_index = np.argmin(sample_counts)
+
+        test_size = sample_counts[smallest_class_index] // self.n_splits
+
+        per_class_information = {}
+        for current_class in unique_classes:
+            current_class_indices = np.argwhere(y == current_class).flatten()
+            if self.shuffle:
+                np.random.shuffle(current_class_indices)
+            per_class_information[current_class] = {}
+            per_class_information[current_class][
+                "indices"
+            ] = current_class_indices
+            per_class_information[current_class][
+                "splitter"
+            ] = self.__k_fold.split(current_class_indices)
+
+        for fold in range(self.n_splits):
+            train_idx = []
+            test_idx = []
+
+            for class_information in per_class_information.values():
+                current_train_idx, current_test_idx = next(
+                    class_information["splitter"]
+                )
+                train_idx.extend(
+                    class_information["indices"][
+                        current_train_idx[:(self.n_splits - 1) * test_size]
+                    ]
+                )
+                test_idx.extend(
+                    class_information["indices"][current_test_idx[:test_size]]
+                )
+
+            yield np.array(train_idx), np.array(test_idx)
 
 
 if __name__ == "__main__":

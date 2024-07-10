@@ -10,6 +10,7 @@ import torch
 import typing
 from albumentations.pytorch import ToTensorV2
 from icecream import ic
+from sklearn.model_selection import train_test_split
 from torch.utils.data import DataLoader, SubsetRandomSampler
 from torchvision import datasets
 
@@ -50,6 +51,7 @@ class CustomVisionDataset(datasets.VisionDataset):
         Should return a tensor representing the target.
         Defaults to ``_target_transform``.
     :param debug: flag to mark debug mode, defaults to ``False``
+    :param indices: indices of the dataset to use. Defaults to ``None``.
     """
     def __init__(
         self,
@@ -61,6 +63,7 @@ class CustomVisionDataset(datasets.VisionDataset):
         transform: conf_typ.Augmentations = None,
         target_transform: typing.Callable[[int], torch.Tensor] = _target_transform,
         debug: bool = False,
+        indices: typing.Sequence[int] | None = None,
     ):
         if transform is None:
             transform = conf_typ.Augmentations()
@@ -170,12 +173,15 @@ class CustomVisionDataset(datasets.VisionDataset):
         self.reset_used_transforms()
 
         # read the images
-        self.__images = [
+        self.__images: list[np.ndarray | torch.Tensor] = [
             self.get_original(i)[0]
             for i in range(len(self.__meta_information))
         ]
         if self.__transform.offline:
             for i in range(len(self.__meta_information)):
+                # for every image we insert the results of augmentation
+                # therefore the original images shift every time by
+                # self.__transform.multiplier
                 original_image = self.__images[i * self.__transform.multiplier].copy()
                 self.__images[i * self.__transform.multiplier] = self.__transform_image(
                     i, original_image
@@ -184,6 +190,11 @@ class CustomVisionDataset(datasets.VisionDataset):
                     self.__images.insert(i, self.__transform_image(i, original_image))
             # we do not need to reset the transformations because they
             # will not be called again
+
+        if indices is None:
+            self.__indices = np.arange(len(self.__images))
+        else:
+            self.__indices = copy.deepcopy(indices)
 
     def reset_used_transforms(self):
         """
@@ -228,7 +239,7 @@ class CustomVisionDataset(datasets.VisionDataset):
 
         :return: targets of the dataset after transformations
         """
-        return self.__raw_targets.copy()
+        return self.__raw_targets[self.__indices]
 
     @property
     def original_targets(self) -> np.ndarray:
@@ -266,7 +277,7 @@ class CustomVisionDataset(datasets.VisionDataset):
 
         :return: number of repetition of an image
         """
-        return self.__transform.multiplier
+        return self.__transform.multiplier if self.__transform.online else 1
 
     @property
     def metadata(self) -> pd.DataFrame:
@@ -285,6 +296,14 @@ class CustomVisionDataset(datasets.VisionDataset):
         :return: dataset configuration
         """
         return copy.deepcopy(self.__dataset_meta)
+
+    @property
+    def indices(self) -> typing.Sequence[int]:
+        return copy.deepcopy(self.__indices)
+
+    @indices.setter
+    def indices(self, indices: typing.Sequence[int]):
+        self.__indices = copy.deepcopy(indices)
 
     def debug(self, state: str = "on") -> bool:
         """
@@ -398,7 +417,7 @@ class CustomVisionDataset(datasets.VisionDataset):
 
         :return: number of images
         """
-        return len(self.__meta_information) * self.__transform.multiplier
+        return len(self.__indices)
 
     def __getitem__(self, index: int) -> tuple[torch.Tensor, torch.Tensor]:
         """
@@ -407,6 +426,7 @@ class CustomVisionDataset(datasets.VisionDataset):
         :param index: index of the sample
         :return: the image and its label at a given index
         """
+        index = self.__indices[index]
         sample_index = index // self.__transform.multiplier
 
         if self.__transform.online:
@@ -467,22 +487,36 @@ class CustomDataModule:
         self.__train_data = CustomVisionDataset(
             **dataset_params,
             transform=self.__data.image_properties.augmentations.train.to_instance(),
-            subset="train",
+            subset="all",
         )
-        self.__validation_data = CustomVisionDataset(
-            **dataset_params,
-            transform=self.__data.image_properties.augmentations.validation.to_instance(),  # noqa
-            subset="train",
-        )
+        # self.__validation_data = CustomVisionDataset(
+        #     **dataset_params,
+        #     transform=self.__data.image_properties.augmentations.validation.to_instance(),  # noqa
+        #     subset="train",
+        # )
         self.__push_data = CustomVisionDataset(
             **dataset_params,
             normalize=False,
             subset="train",
         )
-        self.__test_data = CustomVisionDataset(
-            **dataset_params,
-            subset="test",
+        # self.__test_data = CustomVisionDataset(
+        #     **dataset_params,
+        #     subset="test",
+        # )
+
+        train_indices, test_indices = train_test_split(
+            np.arange(len(self.__train_data)),
+            test_size=0.2,
+            random_state=seed,
+            shuffle=True,
         )
+
+        self.__test_data = copy.deepcopy(self.__train_data)
+        self.__test_data.indices = test_indices
+
+        self.__validation_data = None
+
+        self.__train_data.indices = train_indices
 
         self.__n_workers = n_workers
         self.__debug = debug
@@ -511,45 +545,66 @@ class CustomDataModule:
         :param seed:
         """
         if self.__debug or cross_validation_folds in [None, 0, 1]:
-            debug_specific_params = {}
-            if self.__debug:
-                debug_specific_params = {
-                    "test_size": batch_size.validation,
-                    "train_size": batch_size.train,
-                }
-            # else:
+            # debug_specific_params = {}
+            # if self.__debug:
             #     debug_specific_params = {
-            #         "test_size": 0.4,
+            #         "test_size": batch_size.validation,
+            #         "train_size": batch_size.train,
             #     }
-            train_idx, validation_idx = stratified_grouped_train_test_split(
-                self.__train_data.metadata,
-                self.__train_data.original_targets,
-                self.__train_data.original_groups,
-                **debug_specific_params,
-                random_state=seed,
-            )
+            # # else:
+            # #     debug_specific_params = {
+            # #         "test_size": 0.4,
+            # #     }
+            # train_idx, validation_idx = stratified_grouped_train_test_split(
+            #     self.__train_data.metadata,
+            #     self.__train_data.original_targets,
+            #     self.__train_data.original_groups,
+            #     **debug_specific_params,
+            #     random_state=seed,
+            # )
 
             # if not self.__debug:
             #     train_idx, validation_idx = validation_idx, train_idx
             # train_idx = np.array([0, 1, 4, 5, 6, 8, 9, 10, 12, 13, 14, 15, 16, 19, 20, 21, 22, 23, 24, 25, 26, 27, 30, 31, 32, 33, 34, 35, 36, 37, 38, 40, 41, 42, 44, 45, 46, 47, 48, 49, 50, 52, 54, 55, 56, 57, 58, 59, 61, 62, 63, 65, 66, 67, 69, 70, 71, 73, 74, 75, 76, 77, 78, 79])
             # validation_idx = np.array([2, 3, 7, 11, 17, 18, 28, 29, 39, 43, 51, 53, 60, 64, 68, 72, 80])
 
-            self.__fold_generator = [(train_idx, validation_idx)]
+            # self.__fold_generator = [(train_idx, validation_idx)]
+            train_indices, validation_indices = train_test_split(
+                self.__train_data.indices,
+                test_size=0.2,
+                random_state=seed,
+                shuffle=True,
+            )
+
+            self.__validation_data = copy.deepcopy(self.__train_data)
+            self.__validation_data.indices = validation_indices
+            self.__fold_generator = [
+                (np.arange(len(train_indices)), np.arange(len(validation_indices)))
+            ]
             return
 
         targets = self.__train_data.targets
         sample_groups = self.__train_data.groups
 
-        cv_kwargs = {}
+        cv_split_kwargs = {}
+        cv_kwargs = {
+            "n_splits": cross_validation_folds,
+            "shuffle": True,
+            "random_state": seed,
+        }
         if groups or balanced:
-            cv_kwargs["groups"] = sample_groups
+            cv_split_kwargs["groups"] = sample_groups
         if stratified or balanced:
-            cv_kwargs["y"] = targets
+            cv_split_kwargs["y"] = targets
 
-        if balanced:
+        if balanced and groups:
             from xai_mam.utils.split_data.cross_validation import BalancedGroupKFold
 
             cross_validator_class = BalancedGroupKFold
+        elif balanced:
+            from xai_mam.utils.split_data.cross_validation import BalancedKFold
+
+            cross_validator_class = BalancedKFold
         elif stratified and groups:
             from sklearn.model_selection import StratifiedGroupKFold
 
@@ -562,6 +617,7 @@ class CustomDataModule:
             from sklearn.model_selection import GroupKFold
 
             cross_validator_class = GroupKFold
+            del cv_kwargs["shuffle"]  # GroupKFold does not support shuffle
         else:
             # not stratified and not groups
             from sklearn.model_selection import KFold
@@ -569,11 +625,11 @@ class CustomDataModule:
             cross_validator_class = KFold
 
         cross_validator = cross_validator_class(
-            n_splits=cross_validation_folds, shuffle=True, random_state=seed
+            **cv_kwargs,
         )
 
         self.__fold_generator = cross_validator.split(
-            self.__train_data.metadata, **cv_kwargs
+            self.__train_data.indices, **cv_split_kwargs
         )
 
     @property
@@ -617,26 +673,26 @@ class CustomDataModule:
         for fold, (train_idx, validation_idx) in enumerate(
             self.__fold_generator, start=1
         ):
-            if self.__train_data.multiplier > 1:
-                train_idx = np.array(
-                    [
-                        range(
-                            index * self.__train_data.multiplier,
-                            (index + 1) * self.__train_data.multiplier,
-                        )
-                        for index in train_idx
-                    ]
-                ).flatten()
-            if self.__validation_data.multiplier > 1:
-                validation_idx = np.array(
-                    [
-                        range(
-                            index * self.__validation_data.multiplier,
-                            (index + 1) * self.__validation_data.multiplier,
-                        )
-                        for index in validation_idx
-                    ]
-                ).flatten()
+            # if self.__train_data.multiplier > 1:
+            #     train_idx = np.array(
+            #         [
+            #             range(
+            #                 index * self.__train_data.multiplier,
+            #                 (index + 1) * self.__train_data.multiplier,
+            #             )
+            #             for index in train_idx
+            #         ]
+            #     ).flatten()
+            # if self.validation_data.multiplier > 1:
+            #     validation_idx = np.array(
+            #         [
+            #             range(
+            #                 index * self.validation_data.multiplier,
+            #                 (index + 1) * self.validation_data.multiplier,
+            #             )
+            #             for index in validation_idx
+            #         ]
+            #     ).flatten()
             yield fold, (
                 SubsetRandomSampler(train_idx),
                 SubsetRandomSampler(validation_idx),
@@ -708,12 +764,12 @@ class CustomDataModule:
             }
 
         if self.__debug:
-            batch_size = len(self.__validation_data)
+            batch_size = len(self.validation_data)
 
         kwargs = kwargs | param | {"batch_size": batch_size}
 
         return self.__get_data_loader(
-            self.__validation_data or self.__train_data,
+            self.validation_data,
             **kwargs,
         )
 
