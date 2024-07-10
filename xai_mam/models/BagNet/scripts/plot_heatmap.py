@@ -164,7 +164,7 @@ def plot_heatmap_protopnet_style(
 
 
 def generate_heatmap_pytorch(
-    model, image, target, patchsize, padding="replication"
+    config, model, image, target, patchsize, padding="replication"
 ):
     """
     Generates high-resolution heatmap for a BagNet by decomposing the
@@ -207,8 +207,9 @@ def generate_heatmap_pytorch(
         # extract patches
         patches = input.permute(0, 2, 3, 1)
         patches = patches.unfold(1, patchsize, 1).unfold(2, patchsize, 1)
+        # TODO: get number of channels (1) from config file!
         patches = patches.contiguous().view(
-            (-1, config["color_channels"], patchsize, patchsize)
+            (-1, 1, patchsize, patchsize)
         )
 
         # compute logits for each patch
@@ -217,6 +218,7 @@ def generate_heatmap_pytorch(
         for batch_patches in torch.split(patches, 10000):
             print(f"Batch: {batch_patches.shape}")
             logits = model(batch_patches.to(next(model.parameters()).device))
+            print("SIZE OF TARGET: ", type(target))
             logits = logits[:, target]
             logits_list.append(logits.data.cpu().numpy().copy())
 
@@ -225,8 +227,9 @@ def generate_heatmap_pytorch(
 
         delta = (patchsize - 1) if padding is None else 0
 
+        # TODO: get image size (224) from config file!
         return logits.reshape(
-            (config["img_shape"][0] - delta, config["img_shape"][1] - delta)
+            (224 - delta, 224 - delta)
         )
 
 
@@ -238,10 +241,12 @@ patch_size = 17
     config_path=os.getenv("CONFIG_PATH"),
     config_name="script_define_mean_config",
 )
-
 def main_plot(cfg: Config):
+
+
+    print(cfg)
         
-    device = torch.device("cuda:1" if torch.cuda.is_available() else "cpu")
+    device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
     model = expl.bagnet17(
         2, None, color_channels=1, pretrained=True
     )
@@ -255,6 +260,7 @@ def main_plot(cfg: Config):
         "/home/annamari/tankstorage/ProtoPNet-Mammogram/runs/main/bagnet/2024-06-27/MIAS-bagnet17-preprocessed-benign_vs_malignant/150-150-data-augmentation=repeated_32/16-24-49/checkpoints/1-29-58.3333.pth",
         map_location=device,
     )
+
 
     model.load_state_dict(checkpoint["state_dict"])
 
@@ -286,39 +292,25 @@ def main_plot(cfg: Config):
 
         # list of tensors -> tensor of tensors of [B x C x W x H]
         images = torch.stack(images, dim=0)
-        print(target.shape)
 
+        image = images.numpy()
 
-        target_num = target[0].detach().cpu().numpy()
-        print(target_num)
+        target_num = target.detach().cpu().numpy()[0]
 
         images = images.to(device, non_blocking=True)
         output = model(images)
-    # print("Predicted:")
+
         pr = output.detach().cpu().numpy()[0].argmax()
         pred = np.append([], int(pr))
-    # print(pred)
-    # print(torch.from_numpy(np.array(pred)))
-
-    # heatmap_pred = generate_heatmap_pytorch(model,
-    #   image,
-    #   pred,
-    #   patch_size,
-    #   padding='replication')
-    # heatmap_target = generate_heatmap_pytorch(model,
-    #   image,
-    #   target,
-    #   patch_size,
-    #   padding='replication')
 
         heatmap_0 = generate_heatmap_pytorch(
-        model, image, [target_num], patch_size, padding="replication"
+        cfg, model, image, [target_num], patch_size, padding="replication"
     )
         heatmap_1 = generate_heatmap_pytorch(
-        model, image, [pr], patch_size, padding="replication"
+        cfg, model, image, [pr], patch_size, padding="replication"
     )
         heatmap_2 = generate_heatmap_pytorch(
-        model, image, [pr], patch_size, padding="replication"
+        cfg, model, image, [pr], patch_size, padding="replication"
     )
 
     # plot heatmap
@@ -327,9 +319,7 @@ def main_plot(cfg: Config):
         original_image = image[0].transpose([1, 2, 0])
 
         ax = plt.subplot(311)
-    # ax.set_title('original')
-    # plt.imshow(original_image / 255.)
-    # plt.imshow(original_image, cmap='Greys_r')
+
         plot_heatmap_protopnet_style(
         heatmap_0,
         original_image,
@@ -344,12 +334,7 @@ def main_plot(cfg: Config):
         plt.axis("off")
 
         ax = plt.subplot(312)
-    # ax.set_title(pr, fontsize=12)
-    # plot_heatmap(
-    #     heatmap, original_image, ax, dilation=0.5, percentile=99, alpha=0.25
-    #     # heatmap, None, ax, dilation=0.5, percentile=99, alpha=0.25
-    # )
-    # plot_heatmap_protopnet_style(heatmap_pred, original_image, ax, 98, False)
+
         plot_heatmap_protopnet_style(
         heatmap_1,
         original_image,
@@ -364,12 +349,7 @@ def main_plot(cfg: Config):
         plt.axis("off")
 
         ax = plt.subplot(313)
-    # ax.set_title(target.detach().cpu().numpy()[0], fontsize=12)
-    # plot_heatmap(
-    #     heatmap, original_image, ax, dilation=0.5, percentile=99, alpha=0.25
-    #     # heatmap, None, ax, dilation=0.5, percentile=99, alpha=0.25
-    # )
-    # plot_heatmap_protopnet_style(heatmap_target, original_image, ax, 98, False)
+
         plot_heatmap_protopnet_style(
         heatmap_2,
         original_image,
@@ -386,7 +366,7 @@ def main_plot(cfg: Config):
     # plt.show()
     # plt.savefig(f'{i}.png')
         plt.savefig(
-        f"./heatmaps/pascalvoc-inv/{filenumber}_plot_{target_num}_{pr}.png"
+        f"./heatmaps/mias/{filenumber}_plot_{target_num}_{pr}.png"
     )
 
         filenumber = filenumber + 1
