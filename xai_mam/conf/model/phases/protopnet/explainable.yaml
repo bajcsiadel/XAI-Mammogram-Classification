@@ -31,7 +31,7 @@ phases:
       validation: 16
     epochs: 4
     learning_rates:
-      features: 1e-4
+      classification: 1e-4
     optimizer:
       _target_: torch.optim.Adam
 

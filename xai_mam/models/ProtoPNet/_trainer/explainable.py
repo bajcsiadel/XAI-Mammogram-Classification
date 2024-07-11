@@ -447,7 +447,7 @@ class ExplainableTrainer(ProtoPNetTrainer):
         last_layer_optimizer_specs = [
             {
                 "params": self.model.last_layer.parameters(),
-                "lr": self._phases["finetune"].learning_rates["features"],
+                "lr": self._phases["finetune"].learning_rates["classification"],
             }
         ]
         return hydra.utils.instantiate(
