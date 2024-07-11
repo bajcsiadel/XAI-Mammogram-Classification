@@ -316,6 +316,8 @@ class ExplainableTrainer(ProtoPNetTrainer):
         for image, label in dataloader:
             input_ = image.to(self._gpu.device_instance)
             target_ = label.to(self._gpu.device_instance)
+            a, b = np.unique(target_.cpu().numpy(), return_counts=True)
+            self.logger.debug(f"batch sample distribution\n\t{a}\n\t{b}")
             true_labels = np.append(true_labels, label.numpy())
             with grad_req:
                 # nn.Module has implemented __call__() function
@@ -393,7 +395,7 @@ class ExplainableTrainer(ProtoPNetTrainer):
             phase = "train" if is_train else "eval"
             self.logger.tensorboard.add_scalar(f"accuracy/{phase}", accuracy, epoch)
             self.logger.tensorboard.add_scalars(
-                "accuracy", {f"accuracy/{phase}": accuracy}
+                "accuracy", {f"accuracy/{phase}": accuracy}, epoch
             )
             write_loss = {
                 "cross_entropy": cross_entropy,
@@ -426,14 +428,11 @@ class ExplainableTrainer(ProtoPNetTrainer):
                 "lr": self._phases["warm"].learning_rates["add_on_layers"],
                 "weight_decay": self._phases["warm"].weight_decay,
             },
+            {
+                "params": self.model.prototype_vectors,
+                "lr": self._phases["warm"].learning_rates["prototype_vectors"],
+            },
         ]
-        if not self.model.backbone_only:
-            warm_optimizer_specs += [
-                {
-                    "params": self.model.prototype_vectors,
-                    "lr": self._phases["warm"].learning_rates["prototype_vectors"],
-                },
-            ]
         return hydra.utils.instantiate(
             self._phases["warm"].optimizer,
             warm_optimizer_specs,
@@ -524,7 +523,7 @@ class ExplainableTrainer(ProtoPNetTrainer):
 
         for epoch in np.arange(self._phases["warm"].epochs) + 1:
             self._epoch += 1
-            self.logger.info(f"warm epoch: \t{epoch}")
+            self.logger.info(f"warm epoch: \t{epoch} / {self._phases['warm'].epochs}")
             self.logger.increase_indent()
 
             self.logger.csv_log_index("train_model", (self._fold, epoch, "warm train"))
@@ -596,7 +595,9 @@ class ExplainableTrainer(ProtoPNetTrainer):
 
         for epoch in np.arange(self._phases["joint"].epochs) + 1:
             self._epoch += 1
-            self.logger.info(f"epoch: \t{epoch} ({self._epoch})")
+            self.logger.info(
+                f"epoch: \t{epoch} / {self._phases['joint'].epochs} ({self._epoch})"
+            )
             self.logger.increase_indent()
             if epoch > 1:
                 joint_lr_scheduler.step()
@@ -688,7 +689,9 @@ class ExplainableTrainer(ProtoPNetTrainer):
             self._last_only()
             with self.logger.increase_indent_context():
                 for i in np.arange(self._phases["finetune"].epochs) + 1:
-                    self.logger.info(f"iteration:\t{i}")
+                    self.logger.info(
+                        f"iteration:\t{i} / {self._phases['finetune'].epochs}"
+                    )
 
                     self.logger.csv_log_index(
                         "train_model",
