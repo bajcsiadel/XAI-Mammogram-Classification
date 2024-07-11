@@ -13,7 +13,7 @@ from xai_mam.dataset.dataloaders import CustomDataModule
 from xai_mam.models.BagNet._model import BagNetBase
 from xai_mam.models.BagNet.config import BagNetLoss
 from xai_mam.models._base_classes import BaseTrainer
-from xai_mam.utils.config._general_types import Phase, ModelParameters, Gpu
+from xai_mam.utils.config.types import Gpu, ModelParameters, Phase
 from xai_mam.utils.log import TrainLogger
 
 

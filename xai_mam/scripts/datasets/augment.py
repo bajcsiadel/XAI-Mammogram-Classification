@@ -13,7 +13,6 @@ configuration of the script.
 import dataclasses as dc
 import os
 import shutil
-import sys
 import typing as typ
 from pathlib import Path
 
@@ -26,7 +25,7 @@ from omegaconf import OmegaConf
 from omegaconf import errors as conf_errors
 from tqdm import tqdm
 
-from xai_mam.utils.config._general_types.data import (
+from xai_mam.utils.config.types.data import (
     AugmentationGroupsConfig,
     DatasetConfig,
 )

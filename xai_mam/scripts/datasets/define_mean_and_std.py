@@ -30,8 +30,8 @@ from torch.utils.data import DataLoader
 
 from xai_mam.dataset.dataloaders import my_collate_function
 from xai_mam.utils import custom_pipe
-from xai_mam.utils.config._general_types.data import DatasetConfig
 from xai_mam.utils.config.resolvers import add_all_custom_resolvers
+from xai_mam.utils.config.types.data import DatasetConfig
 from xai_mam.utils.log import ScriptLogger
 
 

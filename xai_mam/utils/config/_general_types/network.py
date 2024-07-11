@@ -4,7 +4,7 @@ import typing as typ
 import hydra
 from hydra.core.config_store import ConfigStore
 
-from xai_mam.utils.config._general_types._multifunctional import BatchSize
+from xai_mam.utils.config._general_types import BatchSize
 
 __all__ = [
     "Network",

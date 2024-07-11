@@ -4,7 +4,7 @@ from torch import nn
 from torch.optim import Optimizer
 from torch.utils.data import DataLoader
 
-from xai_mam.utils.config._general_types import Gpu
+from xai_mam.utils.config.types import Gpu
 
 
 def train_with_dataloader(

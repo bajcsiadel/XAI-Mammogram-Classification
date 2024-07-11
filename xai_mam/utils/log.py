@@ -1,5 +1,4 @@
 import contextlib
-import copy
 import logging
 import os
 import sys
@@ -25,8 +24,7 @@ from torch.utils.tensorboard import SummaryWriter
 
 from xai_mam.dataset.dataloaders import CustomVisionDataset, CustomDataModule
 from xai_mam.utils import errors
-from xai_mam.utils.config._general_types import Outputs
-from xai_mam.utils.config._general_types.log import FilePrefixes
+from xai_mam.utils.config.types import FilePrefixes, Outputs
 
 
 # fmt off
