@@ -2,6 +2,7 @@ import copy
 
 import albumentations as A
 import cv2
+import hydra
 import numpy as np
 import omegaconf
 import pandas as pd
@@ -116,7 +117,9 @@ class CustomVisionDataset(datasets.VisionDataset):
             for data_filter in data_filters:
                 if isinstance(data_filter, omegaconf.DictConfig):
                     data_filter = omegaconf.OmegaConf.to_object(data_filter)
-                self.__meta_information = data_filter(self.__meta_information)
+                self.__meta_information = hydra.utils.instantiate(data_filter)(
+                    self.__meta_information
+                )
 
             assert len(self.__meta_information) > 0, "no data left after filtering"
 
