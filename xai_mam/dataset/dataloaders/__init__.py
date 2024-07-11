@@ -20,6 +20,7 @@ from xai_mam.dataset.metadata import DataFilter
 from xai_mam.utils.config.script_main import Config
 from xai_mam.utils.helpers import RepeatedAugmentation
 from xai_mam.utils.split_data import stratified_grouped_train_test_split
+from xai_mam.utils.split_data.cross_validation import BalancedKFold
 
 
 def _target_transform(target: int) -> torch.Tensor:
@@ -500,7 +501,7 @@ class CustomDataModule:
         self.__push_data = CustomVisionDataset(
             **dataset_params,
             normalize=False,
-            subset="train",
+            subset="all",
         )
         # self.__test_data = CustomVisionDataset(
         #     **dataset_params,
@@ -520,6 +521,13 @@ class CustomDataModule:
         self.__validation_data = None
 
         self.__train_data.indices = train_indices
+
+        # generate a balanced subset of the push data
+        self.__push_data.indices = next(
+            BalancedKFold(
+                n_splits=10, shuffle=True, random_state=seed
+            ).split(self.__push_data.indices, y=self.__push_data.targets)
+        )[0]
 
         self.__n_workers = n_workers
         self.__debug = debug

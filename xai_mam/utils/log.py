@@ -193,7 +193,7 @@ class ScriptLogger(logging.Logger):
             if isinstance(sampler, SubsetRandomSampler):
                 indices = sampler.indices
             else:
-                indices = copy.deepcopy(sampler)
+                indices = np.array([i for i in sampler])
         else:
             indices = dataset.indices
 

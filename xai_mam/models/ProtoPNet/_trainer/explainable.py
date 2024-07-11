@@ -14,7 +14,8 @@ from torch.utils.data import SubsetRandomSampler, DataLoader
 from xai_mam.dataset.dataloaders import CustomDataModule
 from xai_mam.models.ProtoPNet._helpers import list_of_distances, push
 from xai_mam.models.ProtoPNet._trainer import ProtoPNetTrainer
-from xai_mam.models.ProtoPNet.config.explainable import ProtoPNetExplainableLoss
+from xai_mam.models.ProtoPNet.config.explainable import ProtoPNetExplainableLoss, \
+    ProtoPNetExplainableParameters
 from xai_mam.utils.config.types import Gpu, ModelParameters, Phase
 from xai_mam.utils.log import TrainLogger
 from xai_mam.utils.preprocess import preprocess
@@ -44,7 +45,7 @@ class ExplainableTrainer(ProtoPNetTrainer):
         validation_sampler: SubsetRandomSampler | None,
         model: nn.Module,
         phases: dict[str, Phase],
-        params: ModelParameters,
+        params: ProtoPNetExplainableParameters,
         loss: ProtoPNetExplainableLoss,
         gpu: Gpu,
         logger: TrainLogger,
@@ -68,13 +69,16 @@ class ExplainableTrainer(ProtoPNetTrainer):
             "number_of_channels": data_module.dataset.image_properties.n_color_channels,
         }
         self.__preprocess_prototype_fn = partial(preprocess, **preprocess_parameters)
-        if train_sampler is not None:
-            self.__push_sampler = copy.deepcopy(
-                np.array(train_sampler.indices)
-            ) // data_module.train_data.multiplier
-            self.__push_sampler = np.unique(self.__push_sampler)
-        else:
-            self.__push_sampler = data_module.train_data.indices
+        # if train_sampler is not None:
+        #     self.__push_sampler = copy.deepcopy(
+        #         np.array(train_sampler.indices)
+        #     ) // data_module.train_data.multiplier
+        #     self.__push_sampler = np.unique(self.__push_sampler)
+        # else:
+        #     self.__push_sampler = data_module.train_data.indices
+        self.__push_sampler = None
+
+        self.__last_layer_optimizer = self._get_last_layer_optimizer()
 
     def compute_loss(self, **kwargs) -> dict[str, torch.Tensor]:
         """
@@ -92,8 +96,8 @@ class ExplainableTrainer(ProtoPNetTrainer):
             separation_cost = self._compute_separation_cost(**kwargs)
             l2 = self._compute_l2_loss()
         else:
-            separation_cost = torch.Tensor([0.0])
-            l2 = torch.Tensor([0.0])
+            separation_cost = torch.Tensor([0.0]).to(self._gpu.device_instance)
+            l2 = torch.Tensor([0.0]).to(self._gpu.device_instance)
 
         # multiply with coefficient
         cross_entropy = (
@@ -106,7 +110,7 @@ class ExplainableTrainer(ProtoPNetTrainer):
         loss = (
             cross_entropy
             + self._loss.coefficients.get("clustering", 8e-1) * cluster_cost
-            - self._loss.coefficients.get("separation", 8e-2) * separation_cost
+            + self._loss.coefficients.get("separation", -8e-2) * separation_cost
             + l1
             + l2
         )
@@ -151,7 +155,7 @@ class ExplainableTrainer(ProtoPNetTrainer):
                 - torch.eye(self.model.n_prototypes).to(self._gpu.device_instance)
             ).norm(p=2)
 
-        return torch.Tensor(0.0)
+        return torch.Tensor([0.0]).to(self._gpu.device_instance)
 
     def _compute_clustering_cost(
         self, expected: torch.Tensor, min_distances: torch.Tensor, **kwargs
@@ -222,7 +226,7 @@ class ExplainableTrainer(ProtoPNetTrainer):
                             input_, detach_prototypes=True
                         )[0]
                     )
-                    # calculate avg cluster cost
+                    # calculate avg separation cost
                     avg_separation_cost = torch.sum(
                         min_distances_detached_prototype_vectors
                         * prototypes_of_wrong_class,
@@ -278,7 +282,7 @@ class ExplainableTrainer(ProtoPNetTrainer):
                         f"{self._loss.separation_type}"
                     )
 
-        return torch.Tensor(0.0)
+        return torch.Tensor([0.0])
 
     def _train_and_eval(
         self,
@@ -306,6 +310,7 @@ class ExplainableTrainer(ProtoPNetTrainer):
         total_cluster_cost = 0
         # separation cost is meaningful only for class_specific
         total_separation_cost = 0
+        total_loss = 0
 
         true_labels = np.array([])
         predicted_labels = np.array([])
@@ -341,6 +346,7 @@ class ExplainableTrainer(ProtoPNetTrainer):
                 total_cross_entropy += loss_values["cross_entropy"].item()
                 total_cluster_cost += loss_values["cluster_cost"].item()
                 total_separation_cost += loss_values["separation_cost"].item()
+                total_loss += loss_values["total"].item()
 
             predicted_labels = np.append(predicted_labels, predicted.cpu().numpy())
 
@@ -366,16 +372,41 @@ class ExplainableTrainer(ProtoPNetTrainer):
         with torch.no_grad():
             p_avg_pair_dist = torch.mean(list_of_distances(p, p)).item()
 
+        loss_coefficients = [
+            self._loss.coefficients.get("cross_entropy", 1),
+            self._loss.coefficients.get("clustering", 8e-1),
+            self._loss.coefficients.get("separation", -8e-2),
+            self._loss.coefficients.get("l1", 1e-4),
+        ]
+        loss_parts = np.multiply([
+            cross_entropy,
+            cluster_cost,
+            separation_cost,
+            l1_norm,
+        ], loss_coefficients)
+
         with self.logger.increase_indent_context():
             self.logger.info(f"{'time: ':<13}{total_time}")
-            self.logger.info(f"{'cross ent: ':<13}{cross_entropy}")
-            self.logger.info(f"{'cluster: ':<13}{cluster_cost}")
+            self.logger.info(
+                f"{'cross ent: ':<13}{cross_entropy} "
+                f"(x {loss_coefficients[0]} = {loss_parts[0]})"
+            )
+            self.logger.info(
+                f"{'cluster: ':<13}{cluster_cost}"
+                f"(x {loss_coefficients[1]} = {loss_parts[1]})"
+            )
             if self.model.class_specific:
-                self.logger.info(f"{'separation: ':<13}{separation_cost}")
+                self.logger.info(
+                    f"{'separation: ':<13}{separation_cost}"
+                    f"(x {loss_coefficients[2]} = {loss_parts[2]})"
+                )
             self.logger.info(f"{'accu: ':<13}{accuracy:.2%}")
             self.logger.info(f"{'micro f1: ':<13}{micro_f1:.2%}")
             self.logger.info(f"{'macro f1: ':<13}{macro_f1:.2%}")
-            self.logger.info(f"{'l1: ':<13}{l1_norm}")
+            self.logger.info(
+                f"{'l1: ':<13}{l1_norm} "
+                f"(x {loss_coefficients[3]} = {loss_parts[3]})"
+            )
             self.logger.info(f"{'p dist pair: ':<13}{p_avg_pair_dist}")
 
         self.logger.csv_log_values(
@@ -398,14 +429,16 @@ class ExplainableTrainer(ProtoPNetTrainer):
                 "accuracy", {f"accuracy/{phase}": accuracy}, epoch
             )
             write_loss = {
-                "cross_entropy": cross_entropy,
-                "l1": l1_norm,
-                "cluster_cost": cluster_cost,
-                "loss": loss_values["total"].item(),
+                "cross_entropy":
+                    loss_parts[0],
+                "cluster_cost":
+                    loss_parts[1],
+                "l1": loss_parts[3],
+                "loss": total_loss / n_batches,
             }
 
             if self.model.class_specific:
-                write_loss["separation_cost"] = separation_cost
+                write_loss["separation_cost"] = loss_parts[2]
             self.logger.tensorboard.add_scalars(f"loss/{phase}", write_loss, epoch)
             self.logger.tensorboard.add_scalars(
                 "loss", {f"loss/{phase}": write_loss["loss"]}, epoch
@@ -659,7 +692,6 @@ class ExplainableTrainer(ProtoPNetTrainer):
                 )
                 accu = self.eval(
                     dataloader=validation_loader,
-                    epoch=self._epoch,
                 )
                 self.logger.save_model_w_condition(
                     model_name=self.model_name(f"{self._epoch}-push"),
@@ -683,8 +715,6 @@ class ExplainableTrainer(ProtoPNetTrainer):
         :param train_loader:
         :param validation_loader:
         """
-        last_layer_optimizer = self._get_last_layer_optimizer()
-
         if self._params.prototypes.activation_fn != "linear":
             self._last_only()
             with self.logger.increase_indent_context():
@@ -699,7 +729,7 @@ class ExplainableTrainer(ProtoPNetTrainer):
                     )
                     _ = self.train(
                         dataloader=train_loader,
-                        optimizer=last_layer_optimizer,
+                        optimizer=self.__last_layer_optimizer,
                     )
 
                     self.logger.csv_log_index(
@@ -713,7 +743,7 @@ class ExplainableTrainer(ProtoPNetTrainer):
                         model_name=self.model_name(f"{self._epoch}-{i}-push"),
                         state={
                             "state_dict": self.model.state_dict(),
-                            "optimizer": last_layer_optimizer.state_dict(),
+                            "optimizer": self.__last_layer_optimizer.state_dict(),
                             "accu": accu,
                         },
                         accu=accu,

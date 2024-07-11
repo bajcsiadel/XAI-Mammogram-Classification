@@ -1,8 +1,8 @@
 phases:
   warm:
     batch_size:
-      train: 32
-      validation: 16
+      train: 256
+      validation: 128
     epochs: 4
     learning_rates:
       add_on_layers: 3e-3
@@ -12,8 +12,8 @@ phases:
     weight_decay: 1e-3
   joint:
     batch_size:
-      train: 16
-      validation: 8
+      train: 256
+      validation: 128
     epochs: 10
     learning_rates:
       features: 1e-4
@@ -27,8 +27,8 @@ phases:
       gamma: 0.1
   finetune:
     batch_size:
-      train: 32
-      validation: 16
+      train: 256
+      validation: 128
     epochs: 4
     learning_rates:
       classification: 1e-4
@@ -39,7 +39,7 @@ params:
   _target_: xai_mam.models.ProtoPNet.config.explainable.ProtoPNetExplainableParameters
   push:
     _target_: xai_mam.models.ProtoPNet.config.explainable.PushSettings
-    batch_size: 16
+    batch_size: 128
     start: 2
     interval: 5
   class_specific: true
@@ -50,7 +50,7 @@ params:
     coefficients:
       cross_entropy: 1.0
       clustering: 8e-1
-      separation: 6e-1
+      separation: -8e-2
       separation_margin: 0
       l1: 1e-4
       l2: 1e-2
