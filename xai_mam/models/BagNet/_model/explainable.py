@@ -162,7 +162,7 @@ class BagNet(BagNetBase, Explainable):
 def _load_pretrained_model_wights(
     model: BagNet,
     model_name: str,
-    color_channels: int = 3,
+    n_color_channels: int = 3,
     n_classes: int | None = None,
 ) -> BagNet:
     """
@@ -170,13 +170,13 @@ def _load_pretrained_model_wights(
 
     :param model:
     :param model_name:
-    :param color_channels:
+    :param n_color_channels:
     :param n_classes: number of classes to train
     :return:
     """
     pretrained_state_dict = get_state_dict(
         __model_urls[model_name],
-        color_channels=color_channels,
+        n_color_channels=n_color_channels,
         prefixes={r"layer[0-9]\.*": "residual_blocks"},
         include_fc=True,
         n_classes=n_classes,
