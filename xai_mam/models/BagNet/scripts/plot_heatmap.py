@@ -4,6 +4,7 @@ import matplotlib.pyplot as plt
 import numpy as np
 import torch
 from skimage import feature, transform
+from PIL import Image
 
 import dataclasses as dc
 import os
@@ -154,11 +155,13 @@ def plot_heatmap_protopnet_style(
     # ]  # inverting last dimension??? - inverts colors
     overlayed_img = 0.5 * original + 0.3 * heatmap
 
-    cv2.imwrite
-    (
-        f"./heatmaps/pascalvoc-inv/{filename}_{pred}_{true}_{actual}.png",
-        overlayed_img * 255,
-    )
+    print(type(overlayed_img))
+    print(overlayed_img[1,:].shape)
+
+    # overlayed_img_transposed = np.transpose(overlayed_img, (2,0,1))
+ 
+    im = Image.fromarray((overlayed_img * 255).astype(np.uint8))
+    im.save(f"/home/annamari/tankstorage/ProtoPNet-Mammogram/xai_mam/models/BagNet/scripts/heatmaps/mias/heatmap_{filename}_{pred}_{true}_{actual}.png")
 
     ax.imshow(overlayed_img)
 
@@ -242,7 +245,7 @@ def main_plot(cfg: Config):
 
     print(cfg)
         
-    device = torch.device("cuda:1" if torch.cuda.is_available() else "cpu")
+    device = torch.device("cuda:2" if torch.cuda.is_available() else "cpu")
     model = expl.bagnet17(
         2, None, n_color_channels=1, pretrained=True
     )
@@ -253,7 +256,7 @@ def main_plot(cfg: Config):
     #   "/home/miafranc/bosch/bagnet/model_best_bagnet17-bosch.pth.tar",
     #   map_location=device)
     checkpoint = torch.load(
-        "/home/annamari/tankstorage/ProtoPNet-Mammogram/runs/main/bagnet/2024-06-27/MIAS-bagnet17-preprocessed-benign_vs_malignant/150-150-data-augmentation=repeated_32/16-24-49/checkpoints/1-29-58.3333.pth",
+        "/home/annamari/tankstorage/ProtoPNet-Mammogram/runs/main/bagnet/2024-07-12/MIAS-bagnet17-preprocessed-benign_vs_malignant/150-150-data-augmentation@data.set.image_properties.augmentations.train=repeated_shape_and_color_26/16-18-29/checkpoints/1-50-96.0986.pth",
         map_location=device,
     )
 
@@ -286,10 +289,20 @@ def main_plot(cfg: Config):
 # for i, (images, target, filename) in enumerate(val_loader):
     for _, (images, target) in enumerate(loader):
 
+        print(type(images))
+
         # list of tensors -> tensor of tensors of [B x C x W x H]
         images = torch.stack(images, dim=0)
 
         image = images.numpy()
+       
+        # TODO: read w and h from config instead
+        perm = image.reshape(224, 224) * 255
+        perm = perm.astype(np.uint8)
+
+        im = Image.fromarray(perm)
+        im.save(f"/home/annamari/tankstorage/ProtoPNet-Mammogram/xai_mam/models/BagNet/scripts/heatmaps/mias/original_{filenumber}.png")
+
 
         target_num = target.detach().cpu().numpy()[0]
 
@@ -299,71 +312,53 @@ def main_plot(cfg: Config):
         pr = output.detach().cpu().numpy()[0].argmax()
         pred = np.append([], int(pr))
 
+        # heatmap of the target class:
         heatmap_0 = generate_heatmap_pytorch(
         cfg, model, image, [target_num], patch_size, padding="replication"
     )
-        print("SIZE:")
-        print(heatmap_0.shape)
-        
+
+        # heatmap of the predicted class:
+        # the heatmaps above can be the same
         heatmap_1 = generate_heatmap_pytorch(
         cfg, model, image, [pr], patch_size, padding="replication"
     )
-        heatmap_2 = generate_heatmap_pytorch(
-        cfg, model, image, [pr], patch_size, padding="replication"
-    )
 
-    # plot heatmap
+
+    # plot heatmaps
         fig = plt.figure(figsize=(8, 4))
 
         original_image = image[0].transpose([1, 2, 0])
 
-        ax = plt.subplot(311)
+        ax = plt.subplot(211)
 
         plot_heatmap_protopnet_style(
         heatmap_0,
         original_image,
         ax,
         filenumber,
+        pr,
         target_num,
-        pr,
-        pr,
+        target_num,
         80,
         False,
     )
         plt.axis("off")
 
-        ax = plt.subplot(312)
+        ax = plt.subplot(212)
 
         plot_heatmap_protopnet_style(
         heatmap_1,
         original_image,
         ax,
         filenumber,
-        target_num,
         pr,
         target_num,
+        pr,
         80,
         False,
     )
         plt.axis("off")
 
-        ax = plt.subplot(313)
-
-        plot_heatmap_protopnet_style(
-        heatmap_2,
-        original_image,
-        ax,
-        filenumber,
-        target_num,
-        target_num,
-        target_num,
-        80,
-        False,
-    )
-        plt.axis("off")
-
-    # plt.show()
-    # plt.savefig(f'{i}.png')
         plt.savefig(
         f"./heatmaps/mias/{filenumber}_plot_{target_num}_{pr}.png"
     )
