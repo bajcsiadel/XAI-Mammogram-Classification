@@ -1,4 +1,3 @@
-import copy
 import datetime
 import time
 from functools import partial
@@ -117,8 +116,8 @@ class ExplainableTrainer(ProtoPNetTrainer):
 
         return {
             "cross_entropy": cross_entropy,
-            "cluster_cost": cluster_cost,
-            "separation_cost": separation_cost,
+            "clustering": cluster_cost,
+            "separation": separation_cost,
             "l1": l1,
             "l2": l2,
             "total": loss,
@@ -282,7 +281,7 @@ class ExplainableTrainer(ProtoPNetTrainer):
                         f"{self._loss.separation_type}"
                     )
 
-        return torch.Tensor([0.0])
+        return torch.Tensor([0.0]).to(self._gpu.device_instance)
 
     def _train_and_eval(
         self,
@@ -306,11 +305,7 @@ class ExplainableTrainer(ProtoPNetTrainer):
         n_examples = 0
         n_correct = 0
         n_batches = 0
-        total_cross_entropy = 0
-        total_cluster_cost = 0
-        # separation cost is meaningful only for class_specific
-        total_separation_cost = 0
-        total_loss = 0
+        totals = None
 
         true_labels = np.array([])
         predicted_labels = np.array([])
@@ -343,10 +338,11 @@ class ExplainableTrainer(ProtoPNetTrainer):
                 )
 
                 n_batches += 1
-                total_cross_entropy += loss_values["cross_entropy"].item()
-                total_cluster_cost += loss_values["cluster_cost"].item()
-                total_separation_cost += loss_values["separation_cost"].item()
-                total_loss += loss_values["total"].item()
+                if totals is None:
+                    totals = {k: v.item() for k, v in loss_values.items()}
+                else:
+                    for k, v in loss_values.items():
+                        totals[k] += v.item()
 
             predicted_labels = np.append(predicted_labels, predicted.cpu().numpy())
 
@@ -358,11 +354,6 @@ class ExplainableTrainer(ProtoPNetTrainer):
         end = time.time()
 
         total_time = end - start
-        cross_entropy = total_cross_entropy / n_batches
-        cluster_cost = total_cluster_cost / n_batches
-        separation_cost = (
-            total_separation_cost / n_batches if self.model.class_specific else None
-        )
         accuracy = n_correct / n_examples
         micro_f1 = f1_score(true_labels, predicted_labels, average="micro")
         macro_f1 = f1_score(true_labels, predicted_labels, average="macro")
@@ -372,49 +363,34 @@ class ExplainableTrainer(ProtoPNetTrainer):
         with torch.no_grad():
             p_avg_pair_dist = torch.mean(list_of_distances(p, p)).item()
 
-        loss_coefficients = [
-            self._loss.coefficients.get("cross_entropy", 1),
-            self._loss.coefficients.get("clustering", 8e-1),
-            self._loss.coefficients.get("separation", -8e-2),
-            self._loss.coefficients.get("l1", 1e-4),
-        ]
-        loss_parts = np.multiply([
-            cross_entropy,
-            cluster_cost,
-            separation_cost,
-            l1_norm,
-        ], loss_coefficients)
-
         with self.logger.increase_indent_context():
-            self.logger.info(f"{'time: ':<13}{total_time}")
-            self.logger.info(
-                f"{'cross ent: ':<13}{cross_entropy} "
-                f"(x {loss_coefficients[0]} = {loss_parts[0]})"
-            )
-            self.logger.info(
-                f"{'cluster: ':<13}{cluster_cost}"
-                f"(x {loss_coefficients[1]} = {loss_parts[1]})"
-            )
-            if self.model.class_specific:
+            self.logger.info(f"{'time: ':<14}{datetime.timedelta(seconds=int(total_time))}")
+            self.logger.info(f"{'accu: ':<14}{accuracy:.2%}")
+            self.logger.info(f"{'micro f1: ':<14}{micro_f1:.2%}")
+            self.logger.info(f"{'macro f1: ':<14}{macro_f1:.2%}")
+            self.logger.info("-" * 15)
+            loss_parts = {}
+            for k, v in totals.items():
+                coefficient = self._loss.coefficients.get(k) if k != "total" else 1
+                if coefficient is None:
+                    del totals[k]
+                    continue
+                average_loss = v / n_batches
+                loss_parts[k] = coefficient * average_loss
+                totals[k] = average_loss
                 self.logger.info(
-                    f"{'separation: ':<13}{separation_cost}"
-                    f"(x {loss_coefficients[2]} = {loss_parts[2]})"
+                    f"{k:<14}{average_loss:<8.4f} "
+                    f"(x {coefficient} = {loss_parts[k]:.4f})"
                 )
-            self.logger.info(f"{'accu: ':<13}{accuracy:.2%}")
-            self.logger.info(f"{'micro f1: ':<13}{micro_f1:.2%}")
-            self.logger.info(f"{'macro f1: ':<13}{macro_f1:.2%}")
-            self.logger.info(
-                f"{'l1: ':<13}{l1_norm} "
-                f"(x {loss_coefficients[3]} = {loss_parts[3]})"
-            )
-            self.logger.info(f"{'p dist pair: ':<13}{p_avg_pair_dist}")
+            self.logger.info("-" * 15)
+            self.logger.info(f"{'p dist pair: ':<14}{p_avg_pair_dist}")
 
         self.logger.csv_log_values(
             "train_model",
             total_time,
-            cross_entropy,
-            cluster_cost,
-            separation_cost,
+            totals["cross_entropy"],
+            totals["clustering"],
+            totals["separation"],
             accuracy,
             micro_f1,
             macro_f1,
@@ -428,20 +404,10 @@ class ExplainableTrainer(ProtoPNetTrainer):
             self.logger.tensorboard.add_scalars(
                 "accuracy", {f"accuracy/{phase}": accuracy}, epoch
             )
-            write_loss = {
-                "cross_entropy":
-                    loss_parts[0],
-                "cluster_cost":
-                    loss_parts[1],
-                "l1": loss_parts[3],
-                "loss": total_loss / n_batches,
-            }
 
-            if self.model.class_specific:
-                write_loss["separation_cost"] = loss_parts[2]
-            self.logger.tensorboard.add_scalars(f"loss/{phase}", write_loss, epoch)
+            self.logger.tensorboard.add_scalars(f"loss/{phase}", loss_parts, epoch)
             self.logger.tensorboard.add_scalars(
-                "loss", {f"loss/{phase}": write_loss["loss"]}, epoch
+                "loss", {f"loss/{phase}": loss_parts["total"]}, epoch
             )
 
             if "lr" in kwargs:
