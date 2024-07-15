@@ -207,7 +207,7 @@ def generate_heatmap_pytorch(
         patches = patches.unfold(1, patchsize, 1).unfold(2, patchsize, 1)
 
         patches = patches.contiguous().view(
-            (-1, config.data.set.image_properties.color_channels, patchsize, patchsize)
+            (-1, config.data.set.image_properties.n_color_channels, patchsize, patchsize)
         )
 
         # compute logits for each patch
@@ -242,9 +242,9 @@ def main_plot(cfg: Config):
 
     print(cfg)
         
-    device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
+    device = torch.device("cuda:1" if torch.cuda.is_available() else "cpu")
     model = expl.bagnet17(
-        2, None, color_channels=1, pretrained=True
+        2, None, n_color_channels=1, pretrained=True
     )
 
     # loc = 'cuda:{}'.format(0)
@@ -302,6 +302,9 @@ def main_plot(cfg: Config):
         heatmap_0 = generate_heatmap_pytorch(
         cfg, model, image, [target_num], patch_size, padding="replication"
     )
+        print("SIZE:")
+        print(heatmap_0.shape)
+        
         heatmap_1 = generate_heatmap_pytorch(
         cfg, model, image, [pr], patch_size, padding="replication"
     )
