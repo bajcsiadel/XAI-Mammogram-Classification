@@ -250,4 +250,7 @@ class BaseTrainer(ABC):
         self.logger.info(
             f"test ended in {datetime.timedelta(seconds=int(time.time() - start))}"
         )
+        self.logger.csv_log_index(
+            "train_model", (self._fold, self._epoch, "test")
+        )
         return test_accuracy
