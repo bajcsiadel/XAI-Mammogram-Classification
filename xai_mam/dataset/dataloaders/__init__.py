@@ -1,4 +1,5 @@
 import copy
+import pathlib
 
 import albumentations as A
 import cv2
@@ -223,13 +224,7 @@ class CustomVisionDataset(datasets.VisionDataset):
             image_files.sort()
             # read and transform images
             self.__transform.transforms = [A.NoOp()]
-            transformer = self.__compose_transform(A.NoOp())
-            self.__images = [
-                transformer(  # transform image
-                    image=np.load(current_file)["image"]  # read image
-                )["image"]
-                for current_file in tqdm(image_files, desc="Loading images")
-            ]
+            self.__images = image_files
         else:
             self.__images: list[np.ndarray | torch.Tensor] = [
                 self.get_original(i)[0]
@@ -391,20 +386,34 @@ class CustomVisionDataset(datasets.VisionDataset):
         :param index: Index of the sample
         :return: the image and its label at a given index
         """
-        sample = self.__meta_information.iloc[index]
+        if (
+            "_CustomVisionDataset__images" in self.__dict__
+            and len(self.__images) > index
+            and isinstance(self.__images[0], pathlib.Path)
+        ):
+            image_path = self.__images[index]
+            original_stem = "_".join(image_path.stem.split("_")[:-1])
+            original_filename = original_stem.split("-")
+            suffix = int(original_filename[-1]) if len(original_filename) > 1 else 1
+            sample = self.__meta_information[
+                (self.__meta_information.index.get_level_values(1) == original_filename[0]) &
+                (self.__meta_information[("mammogram_properties", "image_number")] == suffix)
+            ].iloc[0]
+        else:
+            sample = self.__meta_information.iloc[index]
 
-        # Define name suffix in case of lesion classification
-        suffix = (
-            f"-{sample[('mammogram_properties', 'image_number')]}"
-            if self.__classification == "benign_vs_malignant"
-            else ""
-        )
-        # Load the image
-        image_path = (
-            self.__dataset_meta.image_dir
-            / f"{sample.name[1]}{suffix}"
-              f"{self.__dataset_meta.image_properties.extension}"
-        )
+            # Define name suffix in case of lesion classification
+            suffix = (
+                f"-{sample[('mammogram_properties', 'image_number')]}"
+                if self.__classification == "benign_vs_malignant"
+                else ""
+            )
+            # Load the image
+            image_path = (
+                self.__dataset_meta.image_dir
+                / f"{sample.name[1]}{suffix}"
+                  f"{self.__dataset_meta.image_properties.extension}"
+            )
 
         image = (
             np.load(image_path, allow_pickle=True)["image"]
@@ -501,6 +510,11 @@ class CustomVisionDataset(datasets.VisionDataset):
             image = self.__transform_image(sample_index)
         else:
             image = self.__images[index]
+
+            if isinstance(image, pathlib.Path):
+                image = self.get_original(index)[0]
+            if isinstance(image, np.ndarray):
+                image = self.__compose_transform(A.NoOp())(image=image)["image"]
 
         target = self.__raw_targets[index]
         target = self.__class_to_number[target]

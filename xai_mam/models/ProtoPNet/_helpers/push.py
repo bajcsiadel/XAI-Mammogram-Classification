@@ -21,6 +21,7 @@ def push_prototypes(
     save_prototype_class_identity=True,  # which class the prototype image comes from
     prototype_activation_function_in_np=None,
     device="cpu",
+    fold="",
 ):
     prototype_network_parallel.eval()
     logger.info("push")
@@ -56,7 +57,7 @@ def push_prototypes(
         proto_rf_boxes = np.full(shape=[n_prototypes, 5], fill_value=-1)
         proto_bound_boxes = np.full(shape=[n_prototypes, 5], fill_value=-1)
 
-    proto_epoch_dir = logger.image_location / f"epoch-{epoch_number}"
+    proto_epoch_dir = logger.image_location / f"{fold}-epoch-{epoch_number}"
     proto_epoch_dir.mkdir(parents=True, exist_ok=True)
 
     search_batch_size = dataloader.batch_size

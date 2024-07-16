@@ -651,6 +651,7 @@ class ExplainableTrainer(ProtoPNetTrainer):
                     save_prototype_class_identity=True,
                     logger=self.logger,
                     device=self._gpu.device_instance,
+                    fold=self._fold,
                 )
 
                 self.logger.csv_log_index(
