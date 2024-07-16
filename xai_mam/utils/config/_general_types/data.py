@@ -85,6 +85,9 @@ class Augmentations:
             match self.transforms[0]:
                 case RepeatedAugmentation() | A.Compose():
                     for transform in self.transforms:
+                        if hasattr(transform, "n_repeat"):
+                            for _ in range(transform.n_repeat - 1):
+                                yield transform
                         yield transform
                 case _:
                     yield A.Compose(transforms=[A.Sequential(self.transforms)])

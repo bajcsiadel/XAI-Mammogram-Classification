@@ -25,11 +25,11 @@ from omegaconf import OmegaConf
 from omegaconf import errors as conf_errors
 from tqdm import tqdm
 
-from xai_mam.utils.config.types.data import (
+from xai_mam.utils.config.resolvers import add_all_custom_resolvers
+from xai_mam.utils.config.types import (
     AugmentationGroupsConfig,
     DatasetConfig,
 )
-from xai_mam.utils.config.resolvers import add_all_custom_resolvers
 from xai_mam.utils.log import ScriptLogger
 
 
@@ -47,7 +47,7 @@ class Config:
 
     def __post_init__(self):
         if not self.output_dir.is_absolute():
-            self.output_dir = self.data.set.image_dir / self.output_dir
+            self.output_dir = self.data.set.image_dir.parent / self.output_dir
 
         self.output_dir.mkdir(exist_ok=True)
 
@@ -74,12 +74,17 @@ def augment_images(cfg: Config):
 
         dataset = hydra.utils.instantiate(cfg.dataset)
 
-        for index, _ in tqdm(
+        augmentor = cfg.augmentations.train.to_instance()
+
+        for index, row in tqdm(
             dataset.metadata.iterrows(), desc="Images", total=len(dataset), unit="image"
         ):
+            suffix = ""
+            if cfg.data.set.target.name == "benign_vs_malignant":
+                suffix = f"-{row[('mammogram_properties', 'image_number')]}"
             image_path = (
                 cfg.data.set.image_dir
-                / f"{index[1]}{cfg.data.set.image_properties.extension}"
+                / f"{index[1]}{suffix}{cfg.data.set.image_properties.extension}"
             )
             image = (
                 np.load(image_path, allow_pickle=True)["image"]
@@ -92,7 +97,7 @@ def augment_images(cfg: Config):
             )
             shutil.copy(
                 image_path,
-                cfg.output_dir / image_path.with_stem(f"{image_path.stem}_{0:02}").name,
+                augmented_image_path,
             )
             augmented_data.loc[len(augmented_data)] = [
                 index[1],
@@ -101,32 +106,27 @@ def augment_images(cfg: Config):
                 "original",
             ]
             count = 1
-            for transform in cfg.augmentations.train.get_transforms():
-                augmented_images = transform(image=image)
-                if type(augmented_images) is dict:
-                    augmented_images = [augmented_images]
+            for transform in augmentor.get_transforms():
+                new_image = transform(image=image)["image"]
+                augmented_image_path = (
+                    cfg.output_dir
+                    / image_path.with_stem(f"{image_path.stem}_{count:02}").name
+                )
 
-                for augmented_image in augmented_images:
-                    new_image = augmented_image["image"]
-                    augmented_image_path = (
-                        cfg.output_dir
-                        / image_path.with_stem(f"{image_path.stem}" f"_{count:02}").name
-                    )
+                augmented_data.loc[len(augmented_data)] = [
+                    index[1],
+                    augmented_image_path,
+                    image_path,
+                    transform,
+                ]
 
-                    augmented_data.loc[len(augmented_data)] = [
-                        index[1],
-                        augmented_image_path,
-                        image_path,
-                        transform,
-                    ]
-
-                    # if augmented_image_path.suffix == ".npz":
-                    np.savez(augmented_image_path, image=new_image)
-                    # else:
-                    cv2.imwrite(
-                        str(augmented_image_path.with_suffix(".png")), new_image
-                    )
-                    count += 1
+                # if augmented_image_path.suffix == ".npz":
+                np.savez(augmented_image_path, image=new_image)
+                # else:
+                cv2.imwrite(
+                    str(augmented_image_path.with_suffix(".png")), new_image
+                )
+                count += 1
         augmented_data.to_csv(cfg.output_dir / "augmented_data.csv", index=False)
     except conf_errors.MissingMandatoryValue as e:
         logger.info(f"Dataset: {cfg['data']['set'].name}")
