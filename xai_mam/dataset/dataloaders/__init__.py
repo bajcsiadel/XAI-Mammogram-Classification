@@ -69,9 +69,6 @@ class CustomVisionDataset(datasets.VisionDataset):
         debug: bool = False,
         indices: typing.Sequence[int] | None = None,
     ):
-        if transform is None:
-            transform = conf_typ.Augmentations()
-
         if normalize:
             # normalize transform will be applied after ToFloat,
             # which already converts the images between 0 and 1
@@ -158,15 +155,18 @@ class CustomVisionDataset(datasets.VisionDataset):
         self.__dataset_meta.number_of_classes = len(self.__classes)
         self.__class_to_number = {cls: i for i, cls in enumerate(self.__classes)}
 
+        if transform is not None:
+            self.__transform = transform
+        else:
+            self.__transform = conf_typ.Augmentations()
+        self.__target_transform = target_transform
+
         self.__raw_targets = self.__meta_information[
             (self.__classification, "label")
-        ].to_numpy().repeat(transform.multiplier)
+        ].to_numpy().repeat(self.__transform.multiplier)
         self.__raw_groups = self.__meta_information.index.get_level_values(
             "patient_id"
-        ).to_numpy().repeat(transform.multiplier)
-
-        self.__transform = transform
-        self.__target_transform = target_transform
+        ).to_numpy().repeat(self.__transform.multiplier)
 
         self.__dataset_meta.input_size = (
             dataset_meta.image_properties.height,
@@ -178,50 +178,56 @@ class CustomVisionDataset(datasets.VisionDataset):
         )
         self.reset_used_transforms()
 
-        # read the images
-        hydra_config_choices = HydraConfig.get().runtime.choices
-        matching_keys = (
-            list(hydra_config_choices.keys())
-            | custom_pipe.where(lambda key: key.startswith("data/augmentation"))
-            | custom_pipe.to_list
-        )
-        if len(matching_keys) == 1:
-            augment_location = dataset_meta.image_dir.parent
-            augment_location /= (
-                f"{subset}-"
-                f"{HydraConfig.get().runtime.choices[matching_keys[0]]}"
+        # define augmentation location
+        augment_location = None
+        if self.__transform.offline and self.__transform.multiplier > 1:
+            hydra_config_choices = HydraConfig.get().runtime.choices
+            matching_keys = (
+                list(hydra_config_choices.keys())
+                | custom_pipe.where(lambda key: key.startswith("data/augmentation"))
+                | custom_pipe.to_list
             )
-        elif len(matching_keys) > 1:
-            for s in [subset, "train"]:
-                matching_subset = list(
-                    matching_keys
-                    | custom_pipe.where(lambda key: s in key)
+            if len(matching_keys) == 1:
+                augment_location = dataset_meta.image_dir.parent
+                augment_location /= (
+                    f"{subset}-"
+                    f"{HydraConfig.get().runtime.choices[matching_keys[0]]}"
                 )
-                if len(matching_subset) == 1:
-                    break
-            if len(matching_subset) == 0:
-                raise ValueError(
-                    "No matching augmentations found for the subset"
+            elif len(matching_keys) > 1:
+                for s in [subset, "train"]:
+                    matching_subset = list(
+                        matching_keys
+                        | custom_pipe.where(lambda key: s in key)
+                    )
+                    if len(matching_subset) == 1:
+                        break
+                if len(matching_subset) == 0:
+                    raise ValueError(
+                        "No matching augmentations found for the subset"
+                    )
+                if len(matching_subset) > 1:
+                    raise ValueError(
+                        "Multiple matching augmentations found for the subset"
+                    )
+                augment_location = dataset_meta.image_dir.parent
+                augment_location /= (
+                    f"{subset}-"
+                    f"{HydraConfig.get().runtime.choices[matching_subset[0]]}"
                 )
-            if len(matching_subset) > 1:
-                raise ValueError(
-                    "Multiple matching augmentations found for the subset"
-                )
-            augment_location = dataset_meta.image_dir.parent
-            augment_location /= (
-                f"{subset}-"
-                f"{HydraConfig.get().runtime.choices[matching_keys[0]]}"
-            )
-        else:
-            augment_location = None
 
         if (
             self.__transform.offline and augment_location is not None
             and augment_location.exists()
             and len(image_files := list(augment_location.glob("*.npz"))) != 0
         ):
+            image_files.sort()
+            # read and transform images
+            self.__transform.transforms = [A.NoOp()]
+            transformer = self.__compose_transform(A.NoOp())
             self.__images = [
-                np.load(current_file)["image"]
+                transformer(  # transform image
+                    image=np.load(current_file)["image"]  # read image
+                )["image"]
                 for current_file in tqdm(image_files, desc="Loading images")
             ]
         else:
@@ -231,7 +237,7 @@ class CustomVisionDataset(datasets.VisionDataset):
                     range(len(self.__meta_information)), desc="Loading images",
                 )
             ]
-            if self.__transform.offline:
+            if self.__transform.offline and transform is not None:
                 with tqdm(
                     total=len(self.__images) * self.__transform.multiplier,
                     desc="Applying transformations",
@@ -267,7 +273,7 @@ class CustomVisionDataset(datasets.VisionDataset):
         ]
 
     def __compose_transform(
-        self, transform: A.Compose | RepeatedAugmentation
+        self, transform: A.Compose | RepeatedAugmentation | A.BasicTransform
     ) -> A.Compose:
         """
         Creating transforms. Surround the transforms with the necessary
