@@ -14,6 +14,7 @@ from icecream import ic
 from sklearn.model_selection import train_test_split
 from torch.utils.data import DataLoader, SubsetRandomSampler
 from torchvision import datasets
+from tqdm import tqdm
 
 import xai_mam.utils.config.types as conf_typ
 from xai_mam.dataset.metadata import DataFilter
@@ -177,21 +178,27 @@ class CustomVisionDataset(datasets.VisionDataset):
         self.reset_used_transforms()
 
         # read the images
+
         self.__images: list[np.ndarray | torch.Tensor] = [
             self.get_original(i)[0]
-            for i in range(len(self.__meta_information))
+            for i in tqdm(range(len(self.__meta_information)), desc="Loading images")
         ]
         if self.__transform.offline:
-            for i in range(len(self.__meta_information)):
-                # for every image we insert the results of augmentation
-                # therefore the original images shift every time by
-                # self.__transform.multiplier
-                original_image = self.__images[i * self.__transform.multiplier].copy()
-                self.__images[i * self.__transform.multiplier] = self.__transform_image(
-                    i, original_image
-                )
-                for _ in range(self.__transform.multiplier - 1):
-                    self.__images.insert(i, self.__transform_image(i, original_image))
+            with tqdm(
+                total=len(self.__images) * self.__transform.multiplier, 
+                desc="Applying transformations",
+            ) as progress_bar:
+                for i in range(len(self.__meta_information)):
+                    # for every image we insert the results of augmentation
+                    # therefore the original images shift every time by
+                    # self.__transform.multiplier
+                    original_image = self.__images[i * self.__transform.multiplier].copy()
+                    self.__images[i * self.__transform.multiplier] = self.__transform_image(
+                        i, original_image
+                    )
+                    for _ in range(self.__transform.multiplier - 1):
+                        self.__images.insert(i, self.__transform_image(i, original_image))
+                        progress_bar.update()
             # we do not need to reset the transformations because they
             # will not be called again
 
