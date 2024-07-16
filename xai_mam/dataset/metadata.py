@@ -2,6 +2,7 @@ import abc
 import dataclasses as dc
 import typing as typ
 
+import pandas as pd
 import pipe
 
 from xai_mam.utils import helpers
@@ -29,9 +30,7 @@ class DataFilter(helpers.PartiallyFrozenDataClass, abc.ABC):
                 case float():
                     self.scope += str(self.value).replace(".", "_")
                 case list():
-                    raise ValueError(
-                        "DataFilter: List values are not supported for 'VALUE' field"
-                    )
+                    self.scope += ",".join(map(str, self.value)).replace(".", "_")
                 case _:
                     self.scope += str(self.value)
         self.scope += f"/{self.__class__.__name__}"
@@ -59,13 +58,12 @@ class DataFilter(helpers.PartiallyFrozenDataClass, abc.ABC):
 
 
 class ExactDataFilter(DataFilter):
-    def __call__(self, data):
+    def __call__(self, data: pd.DataFrame) -> pd.DataFrame:
         """
-        Apply the filter to the given data
+        Apply the filter to the given data.
+
         :param data:
-        :type data: pandas.DataFrame
         :return: the filtered data
-        :rtype: pandas.DataFrame
         :raises ValueError: if the given data does not
         contain the field specified in the filter
         """
@@ -74,4 +72,28 @@ class ExactDataFilter(DataFilter):
                 f"The given data does not contain the field {self.field_in_df!r}"
             )
 
+        if type(self.value) is list:
+            return data[data[self.field_in_df].isin(self.value)]
+
         return data[data[self.field_in_df] == self.value]
+
+
+class ExcludeDataFilter(DataFilter):
+    def __call__(self, data: pd.DataFrame) -> pd.DataFrame:
+        """
+        Apply the filter to the given data.
+
+        :param data:
+        :return: the filtered data
+        :raises ValueError: if the given data does not
+        contain the field specified in the filter
+        """
+        if self.field_in_df not in data.columns:
+            raise ValueError(
+                f"The given data does not contain the field {self.field_in_df!r}"
+            )
+
+        if type(self.value) is list:
+            return data[~data[self.field_in_df].isin(self.value)]
+
+        return data[data[self.field_in_df] != self.value]

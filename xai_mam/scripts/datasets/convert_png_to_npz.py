@@ -21,8 +21,8 @@ from dotenv import load_dotenv
 from omegaconf import errors as conf_errors
 from tqdm import tqdm
 
-from xai_mam.utils.config._general_types import DatasetConfig
 from xai_mam.utils.config.resolvers import add_all_custom_resolvers
+from xai_mam.utils.config.types import DatasetConfig
 from xai_mam.utils.log import ScriptLogger
 
 

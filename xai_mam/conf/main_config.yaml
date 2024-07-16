@@ -64,16 +64,22 @@ hydra:
     config:
       override_dirname:
         exclude_keys:
-          - gpu.device_ids
+          - cross_validation
+          - cross_validation.stratified
+          - cross_validation.grouped
           - data.datamodule.debug
+          - data/filters
           - data/set
           - data/set/state
           - data/set/target
           - data.set.image_properties.height
           - data.set.image_properties.width
+          - gpu.device_ids
           - model
           - model/network
           - model/backbone_only
+          - data/augmentation@data.set.image_properties.augmentations.train
+          - data/augmentation@data.set.image_properties.augmentations.validation
   job_logging:
     root:
       level: INFO

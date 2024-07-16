@@ -4,7 +4,7 @@ import hydra
 from hydra.core.config_store import ConfigStore
 from icecream import ic
 
-from xai_mam.utils.config._general_types import (
+from xai_mam.utils.config.types import (
     CrossValidationParameters,
     DataConfig,
     Gpu,
