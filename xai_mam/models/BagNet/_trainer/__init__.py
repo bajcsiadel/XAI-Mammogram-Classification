@@ -13,7 +13,7 @@ from xai_mam.dataset.dataloaders import CustomDataModule
 from xai_mam.models.BagNet._model import BagNetBase
 # from xai_mam.models.BagNet.config import BagNetLoss
 from xai_mam.models._base_classes import BaseTrainer
-from xai_mam.utils.config._general_types import Phase, ModelParameters, Gpu
+from xai_mam.utils.config.types import Gpu, ModelParameters, Phase
 from xai_mam.utils.log import TrainLogger
 
 
@@ -132,6 +132,8 @@ class BagNetTrainer(BaseTrainer):
                 # move data to the same device as model
                 images = images.to(self._gpu.device_instance, non_blocking=True)
                 target = target.to(self._gpu.device_instance, non_blocking=True)
+                a, b = np.unique(target.cpu().numpy(), return_counts=True)
+                self.logger.debug(f"batch sample distribution\n\t{a}\n\t{b}")
 
                 # compute output
                 output = self.parallel_model(images)
@@ -226,7 +228,7 @@ class BagNetTrainer(BaseTrainer):
 
         for epoch in np.arange(self._phases["main"].epochs) + 1:
             self._epoch += 1
-            self.logger.info(f"epoch: \t{epoch}")
+            self.logger.info(f"epoch: \t{epoch} / {self._phases['main'].epochs}")
             self.logger.increase_indent()
 
             self.train(train_loader, optimizer, epoch)

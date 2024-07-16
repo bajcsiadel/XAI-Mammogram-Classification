@@ -127,6 +127,8 @@ class BackboneTrainer(ProtoPNetTrainer):
         for image, label in dataloader:
             input_ = image.to(self._gpu.device_instance)
             target_ = label.to(self._gpu.device_instance)
+            a, b = np.unique(target_.cpu().numpy(), return_counts=True)
+            self.logger.debug(f"batch sample distribution\n\t{a}\n\t{b}")
             true_labels = np.append(true_labels, label.numpy())
             with grad_req:
                 # nn.Module has implemented __call__() function
@@ -236,7 +238,7 @@ class BackboneTrainer(ProtoPNetTrainer):
 
         for epoch in np.arange(self._phases["joint"].epochs) + 1:
             self._epoch += 1
-            self.logger.info(f"epoch: \t{epoch} ({self._epoch})")
+            self.logger.info(f"epoch: \t{epoch} / {self._epoch}")
             if self._epoch > 1:
                 joint_lr_scheduler.step()
 

@@ -2,23 +2,27 @@ import copy
 
 import albumentations as A
 import cv2
+import hydra
 import numpy as np
 import omegaconf
 import pandas as pd
-import pipe
 import torch
 import typing
 from albumentations.pytorch import ToTensorV2
+from hydra.core.hydra_config import HydraConfig
 from icecream import ic
 from sklearn.model_selection import train_test_split
 from torch.utils.data import DataLoader, SubsetRandomSampler
 from torchvision import datasets
+from tqdm import tqdm
 
 import xai_mam.utils.config.types as conf_typ
 from xai_mam.dataset.metadata import DataFilter
+from xai_mam.utils import custom_pipe
 from xai_mam.utils.config.script_main import Config
 from xai_mam.utils.helpers import RepeatedAugmentation
 from xai_mam.utils.split_data import stratified_grouped_train_test_split
+from xai_mam.utils.split_data.cross_validation import BalancedKFold
 
 
 def _target_transform(target: int) -> torch.Tensor:
@@ -116,7 +120,9 @@ class CustomVisionDataset(datasets.VisionDataset):
             for data_filter in data_filters:
                 if isinstance(data_filter, omegaconf.DictConfig):
                     data_filter = omegaconf.OmegaConf.to_object(data_filter)
-                self.__meta_information = data_filter(self.__meta_information)
+                self.__meta_information = hydra.utils.instantiate(data_filter)(
+                    self.__meta_information
+                )
 
             assert len(self.__meta_information) > 0, "no data left after filtering"
 
@@ -125,7 +131,7 @@ class CustomVisionDataset(datasets.VisionDataset):
         ), "metadata does not have split information"
         cls_types = list(
             self.__meta_information.columns.get_level_values(0).tolist()
-            | pipe.where(lambda column: "_vs_" in column)
+            | custom_pipe.where(lambda column: "_vs_" in column)
         )
         assert len(cls_types) > 0, (
             f"No classification types found in "
@@ -173,23 +179,78 @@ class CustomVisionDataset(datasets.VisionDataset):
         self.reset_used_transforms()
 
         # read the images
-        self.__images: list[np.ndarray | torch.Tensor] = [
-            self.get_original(i)[0]
-            for i in range(len(self.__meta_information))
-        ]
-        if self.__transform.offline:
-            for i in range(len(self.__meta_information)):
-                # for every image we insert the results of augmentation
-                # therefore the original images shift every time by
-                # self.__transform.multiplier
-                original_image = self.__images[i * self.__transform.multiplier].copy()
-                self.__images[i * self.__transform.multiplier] = self.__transform_image(
-                    i, original_image
+        hydra_config_choices = HydraConfig.get().runtime.choices
+        matching_keys = (
+            list(hydra_config_choices.keys())
+            | custom_pipe.where(lambda key: key.startswith("data/augmentation"))
+            | custom_pipe.to_list
+        )
+        if len(matching_keys) == 1:
+            augment_location = dataset_meta.image_dir.parent
+            augment_location /= (
+                f"{subset}-"
+                f"{HydraConfig.get().runtime.choices[matching_keys[0]]}"
+            )
+        elif len(matching_keys) > 1:
+            for s in [subset, "train"]:
+                matching_subset = list(
+                    matching_keys
+                    | custom_pipe.where(lambda key: s in key)
                 )
-                for _ in range(self.__transform.multiplier - 1):
-                    self.__images.insert(i, self.__transform_image(i, original_image))
-            # we do not need to reset the transformations because they
-            # will not be called again
+                if len(matching_subset) == 1:
+                    break
+            if len(matching_subset) == 0:
+                raise ValueError(
+                    "No matching augmentations found for the subset"
+                )
+            if len(matching_subset) > 1:
+                raise ValueError(
+                    "Multiple matching augmentations found for the subset"
+                )
+            augment_location = dataset_meta.image_dir.parent
+            augment_location /= (
+                f"{subset}-"
+                f"{HydraConfig.get().runtime.choices[matching_keys[0]]}"
+            )
+        else:
+            augment_location = None
+
+        if (
+            self.__transform.offline and augment_location is not None
+            and augment_location.exists()
+            and len(image_files := list(augment_location.glob("*.npz"))) != 0
+        ):
+            self.__images = [
+                np.load(current_file)["image"]
+                for current_file in tqdm(image_files, desc="Loading images")
+            ]
+        else:
+            self.__images: list[np.ndarray | torch.Tensor] = [
+                self.get_original(i)[0]
+                for i in tqdm(
+                    range(len(self.__meta_information)), desc="Loading images",
+                )
+            ]
+            if self.__transform.offline:
+                with tqdm(
+                    total=len(self.__images) * self.__transform.multiplier,
+                    desc="Applying transformations",
+                ) as progress_bar:
+                    for i in range(len(self.__meta_information)):
+                        # for every image we insert the results of augmentation
+                        # therefore the original images shift every time by
+                        # self.__transform.multiplier
+                        original_image = self.__images[i * self.__transform.multiplier].copy()
+                        self.__images[i * self.__transform.multiplier] = self.__transform_image(
+                            i, original_image
+                        )
+                        for _ in range(1, self.__transform.multiplier):
+                            self.__images.insert(
+                                i, self.__transform_image(i, original_image)
+                            )
+                            progress_bar.update()
+                    # we do not need to reset the transformations because they
+                    # will not be called again
 
         if indices is None:
             self.__indices = np.arange(len(self.__images))
@@ -359,7 +420,7 @@ class CustomVisionDataset(datasets.VisionDataset):
 
         return image, target
 
-    def __transform_image(self, index: int, image: np.ndarray = None) -> torch.Tensor:
+    def __transform_image(self, index: int, image: np.ndarray = None) -> np.ndarray:
         """
         Apply the transformations to the image.
 
@@ -497,7 +558,7 @@ class CustomDataModule:
         self.__push_data = CustomVisionDataset(
             **dataset_params,
             normalize=False,
-            subset="train",
+            subset="all",
         )
         # self.__test_data = CustomVisionDataset(
         #     **dataset_params,
@@ -517,6 +578,13 @@ class CustomDataModule:
         self.__validation_data = None
 
         self.__train_data.indices = train_indices
+
+        # generate a balanced subset of the push data
+        self.__push_data.indices = next(
+            BalancedKFold(
+                n_splits=10, shuffle=True, random_state=seed
+            ).split(self.__push_data.indices, y=self.__push_data.targets)
+        )[0]
 
         self.__n_workers = n_workers
         self.__debug = debug

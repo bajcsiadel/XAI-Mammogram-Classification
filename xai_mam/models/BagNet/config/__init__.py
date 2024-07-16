@@ -1,8 +1,7 @@
 import dataclasses as dc
 
 from xai_mam.models.BagNet import all_models
-from xai_mam.utils.config._general_types import ModelParameters, Network
-from xai_mam.utils.config.types import Loss
+from xai_mam.utils.config.types import Loss, ModelParameters, Network
 
 
 @dc.dataclass

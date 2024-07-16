@@ -3,12 +3,7 @@ defaults:
   - _hydra_config
   - _self_
   - data/set: MIAS
-
-hydra:
-  run:
-    dir: ${run_location:}/${data.set.name}/${data.set.state}
-  sweep:
-    subdir: ${data.set.name}/${data.set.state}
+  - data/augmentation@augmentations.train: repeated_shape_33
 
 dataset:
   _target_: xai_mam.dataset.dataloaders.CustomVisionDataset
@@ -17,43 +12,10 @@ dataset:
   subset: train
   normalize: false
 
-augmentations:
-  train:
-    transforms:
-      - _target_: xai_mam.utils.helpers.RepeatedAugmentation
-        transforms:
-          - _target_: albumentations.Rotate
-            limit: 10
-            border_mode: 0
-            crop_border: true
-            p: 1.0
-        n: 10
-      - _target_: xai_mam.utils.helpers.RepeatedAugmentation
-        transforms:
-          - _target_: xai_mam.utils.helpers.Shear
-            limit: 10
-            crop_border: true
-            p: 1.0
-        n: 10
-      - _target_: xai_mam.utils.helpers.RepeatedAugmentation
-        transforms:
-          - _target_: albumentations.Perspective
-            scale:
-              - 0.2
-              - 0.2
-            p: 1.0
-        n: 10
-      - _target_: xai_mam.utils.helpers.RepeatedAugmentation
-        transforms:
-          - _target_: albumentations.HorizontalFlip
-            p: 1.0
-        n: 1
-#      - _target_: xai_mam.utils.helpers.RepeatedAugmentation
-#        transforms:
-#          - _target_: albumentations.VerticalFlip
-#            p: 1.0
-#        n: 1
-  validation:
-    transforms: []
+output_dir: "all-repeated_shape_33"
 
-output_dir: "augmented"
+hydra:
+  run:
+    dir: ${run_location:}/${data.set.name}/${data.set.state}
+  sweep:
+    subdir: ${data.set.name}/${data.set.state}
