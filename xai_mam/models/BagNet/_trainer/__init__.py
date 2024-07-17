@@ -51,12 +51,10 @@ class BagNetTrainer(BaseTrainer):
             model,
             phases,
             params,
+            loss,
             gpu,
             logger,
         )
-
-        self._loss = loss
-
         self.__criterion = torch.nn.CrossEntropyLoss().to(gpu.device_instance)
 
         self.logger.info("batch size:")
@@ -118,6 +116,11 @@ class BagNetTrainer(BaseTrainer):
         top1 = AverageMeter("Acc@1", ":6.2f", Summary.AVERAGE)
         top5 = AverageMeter("Acc@5", ":6.2f", Summary.AVERAGE)
 
+        totals = None
+        n_batches = 0
+        true_labels = np.array([])
+        predicted_labels = np.array([])
+
         start = time.time()
         grad_req = torch.enable_grad() if optimizer is not None else torch.no_grad()
 
@@ -126,27 +129,40 @@ class BagNetTrainer(BaseTrainer):
                 # measure data loading time
                 data_time.update(time.time() - start)
 
+                true_labels = np.append(true_labels, target.numpy())
+
                 # move data to the same device as model
                 images = images.to(self._gpu.device_instance, non_blocking=True)
                 target = target.to(self._gpu.device_instance, non_blocking=True)
+
                 a, b = np.unique(target.cpu().numpy(), return_counts=True)
                 self.logger.debug(f"batch sample distribution\n\t{a}\n\t{b}")
 
                 # compute output
                 output = self.parallel_model(images)
-                loss_values = self.compute_loss(predicted=output, target=target)
+                loss_values = self._backpropagation(
+                    optimizer,
+                    predicted=output,
+                    target=target,
+                )
+                _, predicted = torch.max(output.data, 1)
+
+                predicted_labels = np.append(
+                    predicted_labels, predicted.cpu().numpy()
+                )
 
                 # measure accuracy and record loss
+                n_batches += 1
+                if totals is None:
+                    totals = {k: v.item() for k, v in loss_values.items()}
+                else:
+                    for k, v in loss_values.items():
+                        totals[k] += v.item()
+
                 acc1, acc5 = _accuracy(output, target, topk=(1, 1))
                 losses.update(loss_values["total"].item(), images.size(0))
                 top1.update(acc1[0], images.size(0))
                 top5.update(acc5[0], images.size(0))
-
-                # compute gradient and do SGD step
-                if optimizer is not None:
-                    optimizer.zero_grad()
-                    loss_values["total"].backward()
-                    optimizer.step()
 
                 # measure elapsed time
                 batch_time.update(time.time() - start)
@@ -157,6 +173,18 @@ class BagNetTrainer(BaseTrainer):
                 self.logger.info(top1)
                 self.logger.info(top5)
                 self.logger.info(batch_time)
+                self.logger.info("-" * 15)
+                metrics = self.compute_metrics(true_labels, predicted_labels, log=True)
+                self.logger.info("-" * 15)
+                loss_parts = self.compute_loss_parts(totals, n_batches, log=True)
+
+            self.logger.csv_log_values(
+                "train_model",
+                batch_time.sum,
+                totals["cross_entropy"],
+                totals["total"],
+                *metrics.values(),
+            )
 
             if epoch is not None:
                 phase = "train" if optimizer is not None else "eval"
@@ -172,14 +200,10 @@ class BagNetTrainer(BaseTrainer):
                 self.logger.tensorboard.add_scalars(
                     "accuracy_top5", {f"accuracy_top5/{phase}": top5.avg}
                 )
-                write_loss = {
-                    "cross_entropy": losses.value,
-                    "loss": loss_values["total"].item(),
-                }
 
-                self.logger.tensorboard.add_scalars(f"loss/{phase}", write_loss, epoch)
+                self.logger.tensorboard.add_scalars(f"loss/{phase}", loss_parts, epoch)
                 self.logger.tensorboard.add_scalars(
-                    "loss", {f"loss/{phase}": write_loss["loss"]}, epoch
+                    "loss", {f"loss/{phase}": loss_parts["total"]}, epoch
                 )
         return top1.avg
 

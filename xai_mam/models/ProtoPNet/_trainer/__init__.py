@@ -23,6 +23,7 @@ class ProtoPNetTrainer(BaseTrainer):
     :param model: model to train
     :param phases: phases of the train process
     :param params: parameters of the model
+    :param loss: parameters of the loss
     :param gpu: gpu properties
     :param logger:
     """
@@ -36,6 +37,7 @@ class ProtoPNetTrainer(BaseTrainer):
         model: ProtoPNetBase,
         phases: dict[str, Phase],
         params: ModelParameters,
+        loss,
         gpu: Gpu,
         logger: TrainLogger,
     ):
@@ -47,6 +49,7 @@ class ProtoPNetTrainer(BaseTrainer):
             model,
             phases,
             params,
+            loss,
             gpu,
             logger,
         )

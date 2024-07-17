@@ -52,6 +52,7 @@ class BackboneTrainer(ProtoPNetTrainer):
             model,
             phases,
             params,
+            loss,
             gpu,
             logger,
         )
@@ -116,7 +117,7 @@ class BackboneTrainer(ProtoPNetTrainer):
         n_examples = 0
         n_correct = 0
         n_batches = 0
-        total_cross_entropy = 0
+        totals = None
 
         true_labels = np.array([])
         predicted_labels = np.array([])
@@ -145,7 +146,11 @@ class BackboneTrainer(ProtoPNetTrainer):
                 )
 
                 n_batches += 1
-                total_cross_entropy += loss_values["cross_entropy"].item()
+                if totals is None:
+                    totals = {k: v.item() for k, v in loss_values.items()}
+                else:
+                    for k, v in loss_values.items():
+                        totals[k] += v.item()
 
             predicted_labels = np.append(predicted_labels, predicted.cpu().numpy())
 
@@ -157,28 +162,24 @@ class BackboneTrainer(ProtoPNetTrainer):
         end = time.time()
 
         total_time = end - start
-        cross_entropy = total_cross_entropy / n_batches
         accuracy = n_correct / n_examples
-        micro_f1 = f1_score(true_labels, predicted_labels, average="micro")
-        macro_f1 = f1_score(true_labels, predicted_labels, average="macro")
         l1_norm = self.model.last_layer.weight.norm(p=1).item()
 
         with self.logger.increase_indent_context():
             self.logger.info(f"{'time: ':<13}{total_time}")
-            self.logger.info(f"{'cross ent: ':<13}{cross_entropy}")
             self.logger.info(f"{'accu: ':<13}{accuracy:.2%}")
-            self.logger.info(f"{'micro f1: ':<13}{micro_f1:.2%}")
-            self.logger.info(f"{'macro f1: ':<13}{macro_f1:.2%}")
+            self.logger.info("-" * 15)
+            metrics = self.compute_metrics(true_labels, predicted_labels, log=True)
+            self.logger.info("-" * 15)
+            loss_parts = self.compute_loss_parts(totals, n_batches, log=True)
             self.logger.info(f"{'l1: ':<13}{l1_norm}")
 
         if hasattr(self.logger, "csv_log_values"):
             self.logger.csv_log_values(
                 "train_model",
                 total_time,
-                cross_entropy,
-                accuracy,
-                micro_f1,
-                macro_f1,
+                totals["cross_entropy"],
+                *metrics.values(),
                 l1_norm,
             )
 
@@ -189,15 +190,9 @@ class BackboneTrainer(ProtoPNetTrainer):
                     "accuracy", {f"accuracy/{phase}": accuracy}, epoch
                 )
 
-                write_loss = {
-                    f"cross_entropy": cross_entropy
-                    * self._loss.coefficients.get("cross_entropy", 1),
-                    f"l1": l1_norm * self._loss.coefficients.get("l1", 1e-4),
-                    "loss": loss_values["total"].item(),
-                }
-                self.logger.tensorboard.add_scalars(f"loss/{phase}", write_loss, epoch)
+                self.logger.tensorboard.add_scalars(f"loss/{phase}", loss_parts, epoch)
                 self.logger.tensorboard.add_scalars(
-                    "loss", {f"loss/{phase}": write_loss["loss"]}, epoch
+                    "loss", {f"loss/{phase}": loss_parts["total"]}, epoch
                 )
 
                 if "lr" in kwargs:
@@ -238,7 +233,7 @@ class BackboneTrainer(ProtoPNetTrainer):
 
         for epoch in np.arange(self._phases["joint"].epochs) + 1:
             self._epoch += 1
-            self.logger.info(f"epoch: \t{epoch} / {self._epoch}")
+            self.logger.info(f"epoch: \t{epoch} / {self._phases['joint'].epochs}")
             if self._epoch > 1:
                 joint_lr_scheduler.step()
 

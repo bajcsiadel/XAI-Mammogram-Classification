@@ -66,6 +66,8 @@ class ProtoPNetBackbone(ProtoPNetBase, Backbone):
             "time",
             "cross entropy",
             "accuracy",
+            "precision",
+            "recall",
             "micro_f1",
             "macro_f1",
             "l1",

@@ -5,7 +5,6 @@ from functools import partial
 import hydra.utils
 import numpy as np
 import torch
-from sklearn.metrics import f1_score
 from torch import nn
 from torch.optim import Optimizer
 from torch.utils.data import SubsetRandomSampler, DataLoader
@@ -15,7 +14,7 @@ from xai_mam.models.ProtoPNet._helpers import list_of_distances, push
 from xai_mam.models.ProtoPNet._trainer import ProtoPNetTrainer
 from xai_mam.models.ProtoPNet.config.explainable import ProtoPNetExplainableLoss, \
     ProtoPNetExplainableParameters
-from xai_mam.utils.config.types import Gpu, ModelParameters, Phase
+from xai_mam.utils.config.types import Gpu, Phase
 from xai_mam.utils.log import TrainLogger
 from xai_mam.utils.preprocess import preprocess
 
@@ -57,6 +56,7 @@ class ExplainableTrainer(ProtoPNetTrainer):
             model,
             phases,
             params,
+            loss,
             gpu,
             logger,
         )
@@ -355,8 +355,6 @@ class ExplainableTrainer(ProtoPNetTrainer):
 
         total_time = end - start
         accuracy = n_correct / n_examples
-        micro_f1 = f1_score(true_labels, predicted_labels, average="micro")
-        macro_f1 = f1_score(true_labels, predicted_labels, average="macro")
         l1_norm = self.model.last_layer.weight.norm(p=1).item()
 
         p = self.model.prototype_vectors.view(self.model.n_prototypes, -1).cpu()
@@ -364,24 +362,13 @@ class ExplainableTrainer(ProtoPNetTrainer):
             p_avg_pair_dist = torch.mean(list_of_distances(p, p)).item()
 
         with self.logger.increase_indent_context():
-            self.logger.info(f"{'time: ':<14}{datetime.timedelta(seconds=int(total_time))}")
+            self.logger.info(
+                f"{'time: ':<14}{datetime.timedelta(seconds=int(total_time))}"
+            )
             self.logger.info(f"{'accu: ':<14}{accuracy:.2%}")
-            self.logger.info(f"{'micro f1: ':<14}{micro_f1:.2%}")
-            self.logger.info(f"{'macro f1: ':<14}{macro_f1:.2%}")
+            metrics = self.compute_metrics(true_labels, predicted_labels, log=True)
             self.logger.info("-" * 15)
-            loss_parts = {}
-            for k, v in totals.items():
-                coefficient = self._loss.coefficients.get(k) if k != "total" else 1
-                if coefficient is None:
-                    del totals[k]
-                    continue
-                average_loss = v / n_batches
-                loss_parts[k] = coefficient * average_loss
-                totals[k] = average_loss
-                self.logger.info(
-                    f"{k:<14}{average_loss:<8.4f} "
-                    f"(x {coefficient} = {loss_parts[k]:.4f})"
-                )
+            loss_parts = self.compute_loss_parts(totals, n_batches, log=True)
             self.logger.info("-" * 15)
             self.logger.info(f"{'p dist pair: ':<14}{p_avg_pair_dist}")
 
@@ -391,9 +378,7 @@ class ExplainableTrainer(ProtoPNetTrainer):
             totals["cross_entropy"],
             totals["clustering"],
             totals["separation"],
-            accuracy,
-            micro_f1,
-            macro_f1,
+            *metrics.values(),
             l1_norm,
             p_avg_pair_dist,
         )
