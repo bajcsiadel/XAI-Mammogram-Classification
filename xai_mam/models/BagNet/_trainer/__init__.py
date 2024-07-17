@@ -1,17 +1,14 @@
 import time
-from abc import abstractmethod
 from enum import Enum
 
 import hydra
 import numpy as np
 import torch
-import torchvision
 from torch.optim import Optimizer
 from torch.utils.data import SubsetRandomSampler, DataLoader
 
 from xai_mam.dataset.dataloaders import CustomDataModule
 from xai_mam.models.BagNet._model import BagNetBase
-# from xai_mam.models.BagNet.config import BagNetLoss
 from xai_mam.models._base_classes import BaseTrainer
 from xai_mam.utils.config.types import Gpu, ModelParameters, Phase
 from xai_mam.utils.log import TrainLogger
@@ -42,7 +39,7 @@ class BagNetTrainer(BaseTrainer):
         model: BagNetBase,
         phases: dict[str, Phase],
         params: ModelParameters,
-        loss, #: BagNetLoss,
+        loss,  # xai_mam.models.BagNet.config.BagNetLoss,
         gpu: Gpu,
         logger: TrainLogger,
     ):
@@ -194,11 +191,12 @@ class BagNetTrainer(BaseTrainer):
 
         :return: the optimizer along with the learning scheduler
         """
-        optimizer = torch.optim.SGD(
+        optimizer = hydra.utils.instantiate(
+            self._phases["main"].optimizer,
             self.model.parameters(),
             self._phases["main"].learning_rates["params"],
             momentum=0.9,
-            weight_decay=1e-4,
+            weight_decay=self._phases["main"].weight_decay,
         )
         lr_scheduler = hydra.utils.instantiate(
             self._phases["main"].scheduler, optimizer=optimizer
@@ -222,7 +220,12 @@ class BagNetTrainer(BaseTrainer):
         )
 
         if self._fold == 1:
-            self.log_image_examples(train_loader)
+            self.logger.log_image_examples(
+                self.model,
+                train_loader.dataset,
+                "train",
+                device=self._gpu.device_instance,
+            )
 
         optimizer, lr_scheduler = self._get_train_optimizer()
 
@@ -250,22 +253,6 @@ class BagNetTrainer(BaseTrainer):
             self.logger.decrease_indent()
 
         self.test()
-
-    def log_image_examples(self, dataloader):
-        """
-        Log some images to the Tensorboard.
-
-        :param dataloader:
-        :type dataloader: torch.utils.data.dataloader.DataLoader
-        """
-        first_batch_images = next(iter(dataloader))[0]
-        self.logger.tensorboard.add_image(
-            f"{self._data_module.dataset.name} examples",
-            torchvision.utils.make_grid(first_batch_images),
-        )
-        self.logger.tensorboard.add_graph(
-            self.model, first_batch_images.to(self._gpu.device_instance)
-        )
 
 
 class Summary(Enum):
