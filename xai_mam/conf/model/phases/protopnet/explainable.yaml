@@ -39,7 +39,7 @@ params:
   _target_: xai_mam.models.ProtoPNet.config.explainable.ProtoPNetExplainableParameters
   push:
     _target_: xai_mam.models.ProtoPNet.config.explainable.PushSettings
-    batch_size: 128
+    batch_size: 2
     start: 2
     interval: 5
   class_specific: true
