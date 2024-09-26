@@ -142,11 +142,12 @@ class BaseTrainer(ABC):
         return name
 
     @abstractmethod
-    def execute(self, **kwargs):
+    def execute(self, **kwargs) -> float:
         """
         Perform the specified phases to train the model.
 
         :param kwargs: keyword arguments
+        :returns: test accuracy of the model
         """
         ...
 
@@ -246,6 +247,10 @@ class BaseTrainer(ABC):
         :return: accuracy of the model on the test set
         """
         test_loader = self._data_module.test_dataloader(128)
+        
+        self.logger.csv_log_index(
+            "train_model", (self._fold, self._epoch, "test")
+        )
 
         self.logger.info("start testing")
         start = time.time()
@@ -253,9 +258,6 @@ class BaseTrainer(ABC):
         self.logger.info(f"test accuracy: {test_accuracy:.2%}")
         self.logger.info(
             f"test ended in {datetime.timedelta(seconds=int(time.time() - start))}"
-        )
-        self.logger.csv_log_index(
-            "train_model", (self._fold, self._epoch, "test")
         )
         return test_accuracy
 

@@ -704,11 +704,12 @@ class ExplainableTrainer(ProtoPNetTrainer):
             # set back to train in joint mode
             self._joint()
 
-    def execute(self, **kwargs):
+    def execute(self, **kwargs) -> float:
         """
         Perform the specified phases to train the model.
 
         :param kwargs: keyword arguments
+        :returns: test accuracy of the model
         """
         for phase in [self.warm, self.joint]:
             start_phase = time.time()
@@ -718,4 +719,4 @@ class ExplainableTrainer(ProtoPNetTrainer):
                 f"{datetime.timedelta(seconds=int(time.time() - start_phase))}"
             )
 
-        self.test()
+        return self.test()

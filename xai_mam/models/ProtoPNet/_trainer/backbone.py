@@ -271,11 +271,12 @@ class BackboneTrainer(ProtoPNetTrainer):
                 accu=accu,
             )
 
-    def execute(self, **kwargs):
+    def execute(self, **kwargs) -> float:
         """
         Perform the specified phases to train the model.
 
         :param kwargs: keyword arguments
+        :returns: test accuracy of the model
         """
         self.joint()
-        self.test()
+        return self.test()

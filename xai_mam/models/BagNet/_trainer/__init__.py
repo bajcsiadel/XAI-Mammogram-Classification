@@ -228,11 +228,12 @@ class BagNetTrainer(BaseTrainer):
 
         return optimizer, lr_scheduler
 
-    def execute(self, **kwargs):
+    def execute(self, **kwargs) -> float:
         """
         Perform the specified phases to train the model.
 
         :param kwargs: keyword arguments
+        :returns: test accuracy of the model
         """
         train_loader = self._data_module.train_dataloader(
             sampler=self._train_sampler,
@@ -276,7 +277,7 @@ class BagNetTrainer(BaseTrainer):
             )
             self.logger.decrease_indent()
 
-        self.test()
+        return self.test()
 
 
 class Summary(Enum):
