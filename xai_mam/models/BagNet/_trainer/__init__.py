@@ -27,6 +27,8 @@ class BagNetTrainer(BaseTrainer):
     :param params: parameters of the model
     :param loss: loss parameters
     :param gpu: gpu properties
+    :param model_initialization_parameters: parameters used to create the model.
+        It is saved into the state for reproduction.
     :param logger:
     """
 
@@ -41,6 +43,7 @@ class BagNetTrainer(BaseTrainer):
         params: ModelParameters,
         loss,  # xai_mam.models.BagNet.config.BagNetLoss,
         gpu: Gpu,
+        model_initialization_parameters: dict,
         logger: TrainLogger,
     ):
         super().__init__(
@@ -53,6 +56,7 @@ class BagNetTrainer(BaseTrainer):
             params,
             loss,
             gpu,
+            model_initialization_parameters,
             logger,
         )
         self.__criterion = torch.nn.CrossEntropyLoss().to(gpu.device_instance)
@@ -266,7 +270,8 @@ class BagNetTrainer(BaseTrainer):
 
             self.logger.save_model_w_condition(
                 state={
-                    "state_dict": self.model.state_dict(),
+                    "model_initialization_parameters": self._model_initialization_parameters,
+                    "model": self.model.state_dict(),
                     "optimizer": optimizer.state_dict(),
                     "scheduler": lr_scheduler.state_dict(),
                     "epoch": epoch,

@@ -32,6 +32,8 @@ class ExplainableTrainer(ProtoPNetTrainer):
     :param params: parameters of the model
     :param loss: loss parameters
     :param gpu: gpu properties
+    :param model_initialization_parameters: parameters used to create the model.
+        It is saved into the state for reproduction.
     :param logger:
     """
 
@@ -46,6 +48,7 @@ class ExplainableTrainer(ProtoPNetTrainer):
         params: ProtoPNetExplainableParameters,
         loss: ProtoPNetExplainableLoss,
         gpu: Gpu,
+        model_initialization_parameters: dict,
         logger: TrainLogger,
     ):
         super().__init__(
@@ -58,6 +61,7 @@ class ExplainableTrainer(ProtoPNetTrainer):
             params,
             loss,
             gpu,
+            model_initialization_parameters,
             logger,
         )
 
@@ -532,7 +536,8 @@ class ExplainableTrainer(ProtoPNetTrainer):
             self.logger.save_model_w_condition(
                 model_name=self.model_name(f"{epoch}-warm"),
                 state={
-                    "state_dict": self.model.state_dict(),
+                    "model_initialization_parameters": self._model_initialization_parameters,
+                    "model": self.model.state_dict(),
                     "optimizer": warm_optimizer.state_dict(),
                     "epoch": self._epoch,
                     "accu": accu,
@@ -611,7 +616,8 @@ class ExplainableTrainer(ProtoPNetTrainer):
             self.logger.save_model_w_condition(
                 model_name=self.model_name(f"{self._epoch}-no_push"),
                 state={
-                    "state_dict": self.model.state_dict(),
+                    "model_initialization_parameters": self._model_initialization_parameters,
+                    "model": self.model.state_dict(),
                     "optimizer": joint_optimizer.state_dict(),
                     "scheduler": joint_lr_scheduler.state_dict(),
                     "epoch": self._epoch,
@@ -648,7 +654,10 @@ class ExplainableTrainer(ProtoPNetTrainer):
                 self.logger.save_model_w_condition(
                     model_name=self.model_name(f"{self._epoch}-push"),
                     state={
-                        "state_dict": self.model.state_dict(),
+                        "model_initialization_parameters": self._model_initialization_parameters,
+                        "model": self.model.state_dict(),
+                        "optimizer": joint_optimizer.state_dict(),
+                        "scheduler": joint_lr_scheduler.state_dict(),
                         "accu": accu,
                     },
                     accu=accu,
@@ -694,7 +703,8 @@ class ExplainableTrainer(ProtoPNetTrainer):
                     self.logger.save_model_w_condition(
                         model_name=self.model_name(f"{self._epoch}-{i}-push"),
                         state={
-                            "state_dict": self.model.state_dict(),
+                            "model_initialization_parameters": self._model_initialization_parameters,
+                            "model": self.model.state_dict(),
                             "optimizer": self.__last_layer_optimizer.state_dict(),
                             "accu": accu,
                         },

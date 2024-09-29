@@ -3,6 +3,7 @@ import torch
 from xai_mam.models.BagNet._model.backbone import BagNetBackbone
 from xai_mam.models.BagNet._model.explainable import all_models
 from xai_mam.models.BagNet._trainer import BagNetTrainer
+from xai_mam.models.utils.helpers import load_model
 
 
 def construct_model(
@@ -52,6 +53,20 @@ def construct_model(
         )
 
 
+def load_bagnet_model(model_location, logger):
+    """
+    Load a BagNet model from a file.
+
+    :param model_location: location of the file in which the trained model is saved.
+    :type model_location: pathlib.Path
+    :param logger:
+    :type logger: xai_mam.utils.log.TrainLogger
+    :return: model instance
+    :rtype: (xai_mam.models.BagNet._model.BagNetBase, dict)
+    """
+    return load_model(model_location, construct_model, logger)
+
+
 def construct_trainer(
     *,
     data_module,
@@ -98,31 +113,28 @@ def construct_trainer(
         )
     if model_config is not None:
         n_classes = data_module.dataset.number_of_classes
+        model_initialization_parameters = {
+            "base_architecture": model_config.network.name,
+            "pretrained": model_config.network.pretrained,
+            "n_color_channels": data_module.dataset.image_properties.n_color_channels,
+            "n_classes": n_classes,
+            "backbone_only": model_config.backbone_only,
+        }
         model = construct_model(
             logger=logger,
-            base_architecture=model_config.network.name,
-            pretrained=model_config.network.pretrained,
-            n_color_channels=data_module.dataset.image_properties.n_color_channels,
-            n_classes=n_classes,
-            backbone_only=model_config.backbone_only,
+            **model_initialization_parameters,
         )
         if phases is None:
             phases = model_config.phases
         if params is None:
             params = model_config.params
     else:  # model_location is not None
-        if not model_location.exists():
-            raise FileNotFoundError(f"Model file not found at {model_location}")
         if phases is None or params is None:
             raise ValueError(
                 f"If model is loaded from file 'phases' "
                 f"and 'params' should be passed."
             )
-        # TODO: correct it. checkpoint contains:
-        # model.state_dict()
-        # optimizer.state_dict()
-        # scheduler.state_dict()
-        model = torch.load(model_location)
+        model, model_initialization_parameters = load_bagnet_model(model_location, logger)
 
     trainer_class = BagNetTrainer
 
@@ -136,5 +148,6 @@ def construct_trainer(
         params=params,
         loss=params.loss,
         gpu=gpu,
+        model_initialization_parameters=model_initialization_parameters,
         logger=logger,
     )

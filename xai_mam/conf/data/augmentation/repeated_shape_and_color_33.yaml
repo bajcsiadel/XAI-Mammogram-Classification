@@ -3,8 +3,8 @@ transforms:
     transforms:
       - _target_: albumentations.Rotate
         limit: 20
-#        border_mode: 0
-#        crop_border: true
+        border_mode: 0
+        crop_border: true
         p: 1.0
       - _target_: albumentations.OneOf
         transforms:
@@ -19,13 +19,13 @@ transforms:
         p: 0.95
       - _target_: albumentations.GaussNoise
         var_limit: 0.1
-        p: 0.5
+        p: 0.25
     n: 9
   - _target_: xai_mam.utils.helpers.RepeatedAugmentation
     transforms:
       - _target_: xai_mam.utils.helpers.Shear
         limit: 20
-#        crop_border: true
+        crop_border: true
         p: 1.0
       - _target_: albumentations.OneOf
         transforms:
@@ -40,7 +40,7 @@ transforms:
         p: 0.95
       - _target_: albumentations.GaussNoise
         var_limit: 0.1
-        p: 0.5
+        p: 0.25
     n: 9
   - _target_: xai_mam.utils.helpers.RepeatedAugmentation
     transforms:
@@ -62,7 +62,7 @@ transforms:
         p: 0.95
       - _target_: albumentations.GaussNoise
         var_limit: 0.1
-        p: 0.5
+        p: 0.25
     n: 9
   - _target_: xai_mam.utils.helpers.RepeatedAugmentation
     transforms:
@@ -81,7 +81,7 @@ transforms:
         p: 1.0
       - _target_: albumentations.GaussNoise
         var_limit: 0.1
-        p: 0.5
+        p: 0.25
     n: 3
   - _target_: xai_mam.utils.helpers.RepeatedAugmentation
     transforms:
@@ -100,7 +100,7 @@ transforms:
         p: 1.0
       - _target_: albumentations.GaussNoise
         var_limit: 0.1
-        p: 0.5
+        p: 0.25
     n: 3
 exclude_identity_transform: false
 online: false

@@ -29,10 +29,8 @@ from xai_mam.utils.config.types import FilePrefixes, Outputs
 
 # fmt off
 class SpecialCharacters(StrEnum):
-    tick = "\u2714"  # noqa
+    tick = "\u2714"
     cross = "\u2718"
-
-
 # fmt on
 
 
@@ -48,7 +46,12 @@ class ScriptLogger(logging.Logger):
     special_characters = SpecialCharacters
 
     def __init__(self, name: str, log_location: Path | str | None = None):
-        super().__init__(name)
+        level = "DEBUG" if (HydraConfig.get().verbose == True
+                            or HydraConfig.get().verbose == name
+                            or (type(HydraConfig.get().verbose) == "list"
+                                and name in HydraConfig.get().verbose)) else "NOTSET"
+
+        super().__init__(name, level)
         self.parent = logging.root
 
         self._log_location = Path(log_location or HydraConfig.get().runtime.output_dir)
@@ -276,7 +279,10 @@ class TrainLogger(ScriptLogger):
 
         self.__logs = dict()
 
-        self.__outputs = omegaconf.OmegaConf.to_object(outputs)
+        if isinstance(outputs, Outputs):
+            self.__outputs = outputs
+        else:
+            self.__outputs = omegaconf.OmegaConf.to_object(outputs)
 
         # Ensure the directories exist
         self.metadata_location.mkdir(parents=True, exist_ok=True)

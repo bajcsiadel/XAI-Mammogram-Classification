@@ -25,6 +25,8 @@ class ProtoPNetTrainer(BaseTrainer):
     :param params: parameters of the model
     :param loss: parameters of the loss
     :param gpu: gpu properties
+    :param model_initialization_parameters: parameters used to create the model.
+        It is saved into the state for reproduction.
     :param logger:
     """
 
@@ -39,6 +41,7 @@ class ProtoPNetTrainer(BaseTrainer):
         params: ModelParameters,
         loss,
         gpu: Gpu,
+        model_initialization_parameters: dict,
         logger: TrainLogger,
     ):
         super().__init__(
@@ -51,6 +54,7 @@ class ProtoPNetTrainer(BaseTrainer):
             params,
             loss,
             gpu,
+            model_initialization_parameters,
             logger,
         )
 

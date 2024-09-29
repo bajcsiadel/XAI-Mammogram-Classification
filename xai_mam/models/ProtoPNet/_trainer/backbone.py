@@ -28,6 +28,8 @@ class BackboneTrainer(ProtoPNetTrainer):
     :param params: parameters of the model
     :param loss: loss parameters
     :param gpu: gpu properties
+    :param model_initialization_parameters: parameters used to create the model.
+        It is saved into the state for reproduction.
     :param logger:
     """
 
@@ -42,6 +44,7 @@ class BackboneTrainer(ProtoPNetTrainer):
         params: ModelParameters,
         loss: ProtoPNetLoss,
         gpu: Gpu,
+        model_initialization_parameters: dict,
         logger: TrainLogger,
     ):
         super().__init__(
@@ -54,6 +57,7 @@ class BackboneTrainer(ProtoPNetTrainer):
             params,
             loss,
             gpu,
+            model_initialization_parameters,
             logger,
         )
 

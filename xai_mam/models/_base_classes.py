@@ -53,6 +53,8 @@ class BaseTrainer(ABC):
     :param phases: phases of the train process
     :param params: parameters of the model
     :param gpu: gpu properties
+    :param model_initialization_parameters: parameters used to create the model.
+        It is saved into the state for reproduction.
     :param logger: logging object
     """
 
@@ -67,6 +69,7 @@ class BaseTrainer(ABC):
         params: ModelParameters,
         loss: Loss,
         gpu: Gpu,
+        model_initialization_parameters: dict,
         logger: TrainLogger,
     ):
         if not gpu.disabled:
@@ -89,6 +92,8 @@ class BaseTrainer(ABC):
         self._epoch = 0
 
         self.logger = logger
+
+        self._model_initialization_parameters = model_initialization_parameters
 
         if fold == 1:
             logger.info("")
