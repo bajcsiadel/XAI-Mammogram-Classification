@@ -637,7 +637,7 @@ class ExplainableTrainer(ProtoPNetTrainer):
                     # normalize
                     prototype_layer_stride=1,
                     # if not None, prototypes will be saved here
-                    epoch_number=epoch,
+                    epoch_number=self._epoch,
                     # if not provided, prototypes saved previously will be overwritten
                     save_prototype_class_identity=True,
                     logger=self.logger,

@@ -1,0 +1,31 @@
+defaults:
+  - _script_config_validation  # defined in xai_mam/models/xai_mam/scripts/run_pruning.py
+  - _hydra_config
+  - _self_
+
+result_dir: /Users/norberttamas/Desktop/Adel/Projects/xai_mam-Mammogram/runs/main/test
+model_path: /home/adel.bajcsi/Projects/ProtoPNet-Mammogram/runs/main/protopnet/2024-09-29/MIAS-resnet50-original-benign_vs_malignant/224-224-CV.folds=5,augmentations.train=repeated_shape_26,add_on_layer.activation=B,prototypes.per_class=10,push.interval=15,push.start=10,finetune.E=20,joint.BC.train=64,joint.E=150,joint.scheduler.step_size=30,warm.E=10/16-14-02/checkpoints/1-140-11-push-0.6114.pth
+image_list_file: ../../../../example.csv
+class_specific: true
+
+outputs:
+  dirs:
+    missed: missed
+    correct: correct
+  file_prefixes:
+    heatmap: heatmap
+    max_activation_patch: max-activation-patch
+    max_activation_patch_heatmap: max-activation-heatmap
+    max_activation_bounding_box: max-activation-bb
+  to_save:
+    heatmaps: true
+    max_activation_patch: true
+    max_activation_patch_heatmap: true
+    max_activation_bounding_box: true
+
+hydra:
+  run:
+    dir: ${run_location:}
+  sweep:
+    subdir: ${now:%Y-%m-%d}/${now:%H-%M-%S}
+  verbose: false

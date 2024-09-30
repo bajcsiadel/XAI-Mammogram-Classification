@@ -155,6 +155,14 @@ class ProtoPNetBase(Model, ABC):
         """
         ...
 
+    @property
+    def image_shape(self) -> tuple:
+        """
+        Get the shape of the input image.
+        :return:
+        """
+        return self._image_shape
+
     def __repr__(self):
         """
         Get the representation of the model (layers and parameters).

@@ -110,6 +110,45 @@ class ScriptLogger(logging.Logger):
     def log_location(self):
         return self._log_location
 
+    @property
+    def image_location(self) -> Path:
+        return self._log_location / "imgs"
+
+    def save_image(
+        self,
+        image_name: Path | str,
+        image: np.ndarray,
+        image_location: Path | str = None,
+    ):
+        """
+        Save the image.
+
+        :param image_name: name of the output image
+        :param image: content of the image to save
+        :param image_location: location where the image is saved. Defaults to ``None``.
+        """
+        if image_location is None:
+            image_location = self.image_location
+
+        if type(image_name) is str or (
+            type(image_name) is Path and not image_name.is_absolute()
+        ):
+            image_name = image_location / image_name
+
+        if image.max() > 1:
+            image = image / 255.0
+        if image.shape[-1] == 1 or len(image.shape) == 2:
+            plt.imsave(
+                fname=image_name,
+                arr=image.squeeze(axis=2),
+                cmap="gray",
+            )
+        else:
+            plt.imsave(
+                fname=image_name,
+                arr=image,
+            )
+
     def _log(
         self,
         level: int,
@@ -495,41 +534,6 @@ class TrainLogger(ScriptLogger):
             with self.increase_indent_context():
                 self.info(f"above {target_accu:.2%}")
             self.save_model(f"{model_name}-{accu:.4f}", state, model_location)
-
-    def save_image(
-        self,
-        image_name: Path | str,
-        image: np.ndarray,
-        image_location: Path | str = None,
-    ):
-        """
-        Save the image.
-
-        :param image_name: name of the output image
-        :param image: content of the image to save
-        :param image_location: location where the image is saved. Defaults to ``None``.
-        """
-        if image_location is None:
-            image_location = self.image_location
-
-        if type(image_name) is str or (
-            type(image_name) is Path and not image_name.is_absolute()
-        ):
-            image_name = image_location / image_name
-
-        if image.max() > 1:
-            image = image / 255.0
-        if image.shape[-1] == 1:
-            plt.imsave(
-                fname=image_name,
-                arr=image.squeeze(axis=2),
-                cmap="gray",
-            )
-        else:
-            plt.imsave(
-                fname=image_name,
-                arr=image,
-            )
 
     def log_image_examples(
         self,
