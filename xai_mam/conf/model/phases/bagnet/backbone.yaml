@@ -7,8 +7,7 @@ phases:
     learning_rates:
       params: 0.001
     optimizer:
-      _target_: torch.optim.SGD
-      momentum: 0.9
+      _target_: torch.optim.Adam
     weight_decay: 1e-4
     scheduler:
       _target_: torch.optim.lr_scheduler.StepLR

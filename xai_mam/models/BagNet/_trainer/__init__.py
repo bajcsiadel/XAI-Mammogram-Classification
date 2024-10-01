@@ -223,7 +223,6 @@ class BagNetTrainer(BaseTrainer):
             self._phases["main"].optimizer,
             self.model.parameters(),
             self._phases["main"].learning_rates["params"],
-            momentum=0.9,
             weight_decay=self._phases["main"].weight_decay,
         )
         lr_scheduler = hydra.utils.instantiate(
