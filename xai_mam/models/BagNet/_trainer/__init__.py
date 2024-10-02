@@ -117,8 +117,8 @@ class BagNetTrainer(BaseTrainer):
         batch_time = AverageMeter("Time", ":6.3f", Summary.NONE)
         data_time = AverageMeter("Data", ":6.3f", Summary.NONE)
         losses = AverageMeter("Loss", ":.4e", Summary.NONE)
-        top1 = AverageMeter("Acc@1", ":6.2f", Summary.AVERAGE)
-        top5 = AverageMeter("Acc@5", ":6.2f", Summary.AVERAGE)
+        top1 = AverageMeter("Acc@1", ":6.2%", Summary.AVERAGE)
+        top5 = AverageMeter("Acc@5", ":6.2%", Summary.AVERAGE)
 
         totals = None
         n_batches = 0
@@ -165,8 +165,8 @@ class BagNetTrainer(BaseTrainer):
 
                 acc1, acc5 = _accuracy(output, target, topk=(1, 1))
                 losses.update(loss_values["total"].item(), images.size(0))
-                top1.update(acc1[0], images.size(0))
-                top5.update(acc5[0], images.size(0))
+                top1.update(acc1, images.size(0))
+                top5.update(acc5, images.size(0))
 
                 # measure elapsed time
                 batch_time.update(time.time() - start)
@@ -342,8 +342,15 @@ class AverageMeter(object):
         return fmtstr.format(**self.__dict__)
 
 
-def _accuracy(output, target, topk=(1,)):
-    """Computes the accuracy over the k top predictions for the specified values of k"""
+def _accuracy(output, target, topk=(1,)) -> list[float]:
+    """
+    Computes the accuracy over the k top predictions for the specified values of k.
+
+    :param output: predicted values
+    :param target: ground truth values
+    :param topk: top k values to compute accuracy
+    :return: list of accuracies for the specified top k values
+    """
     with torch.no_grad():
         maxk = max(topk)
         batch_size = target.size(0)
@@ -356,5 +363,5 @@ def _accuracy(output, target, topk=(1,)):
         res = []
         for k in topk:
             correct_k = correct[:k].reshape(-1).float().sum(0, keepdim=True)
-            res.append(correct_k.mul_(100.0 / batch_size))
+            res.append(correct_k.div_(batch_size).item())
         return res
