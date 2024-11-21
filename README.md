@@ -17,7 +17,7 @@
     ```
    
 ## Data
-The experiments included two datasets: the Mammographic Image Analysis Society (MIAS) [^Suckling-1994,^MIAS-link] database and the Digital Database for Screening Mammography (DDSM)[^Heath-1998,^Heath-2001,^DDSM-link] database.
+The experiments included two datasets: the Mammographic Image Analysis Society (MIAS) [^Suckling-1994][^MIAS-link] database and the Digital Database for Screening Mammography (DDSM)[^Heath-1998][^Heath-2001][^DDSM-link] database.
 
 ## Included models
 
