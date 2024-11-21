@@ -64,6 +64,7 @@ class CrossValidationParameters:
 class Optimizer:
     _target_: str = "torch.optim.Adam"
     _args_: list = dc.field(default_factory=list)
+    _kwargs_: dict = dc.field(default_factory=dict)
 
     __target_values = ["torch.optim.Adam", "torch.optim.SGD"]
 
