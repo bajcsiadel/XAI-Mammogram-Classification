@@ -4,7 +4,7 @@ import typing as typ
 import hydra
 from hydra.core.config_store import ConfigStore
 
-from xai_mam.utils.config._general_types import BatchSize
+from xai_mam.utils.config._general_types import BatchSize, Instantiable
 
 __all__ = [
     "Network",
@@ -61,10 +61,8 @@ class CrossValidationParameters:
 
 
 @dc.dataclass
-class Optimizer:
+class Optimizer(Instantiable):
     _target_: str = "torch.optim.Adam"
-    _args_: list = dc.field(default_factory=list)
-    _kwargs_: dict = dc.field(default_factory=dict)
 
     __target_values = ["torch.optim.Adam", "torch.optim.SGD"]
 

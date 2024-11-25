@@ -209,7 +209,7 @@ class BagNetTrainer(BaseTrainer):
                 self.logger.tensorboard.add_scalars(
                     "loss", {f"loss/{phase}": loss_parts["total"]}, epoch
                 )
-        return top1.avg
+        return top1.avg / 100
 
     def _get_train_optimizer(self) -> tuple[
         Optimizer, torch.optim.lr_scheduler.LRScheduler
@@ -219,8 +219,7 @@ class BagNetTrainer(BaseTrainer):
 
         :return: the optimizer along with the learning scheduler
         """
-        optimizer = hydra.utils.instantiate(
-            self._phases["main"].optimizer,
+        optimizer = self._phases["main"].optimizer.instantiate(
             self.model.parameters(),
             self._phases["main"].learning_rates["params"],
             weight_decay=self._phases["main"].weight_decay,
