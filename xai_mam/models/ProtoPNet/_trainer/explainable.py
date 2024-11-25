@@ -421,8 +421,7 @@ class ExplainableTrainer(ProtoPNetTrainer):
                 "lr": self._phases["warm"].learning_rates["prototype_vectors"],
             },
         ]
-        return hydra.utils.instantiate(
-            self._phases["warm"].optimizer,
+        return self._phases["warm"].optimizer.instantiate(
             warm_optimizer_specs,
         )
 
@@ -438,8 +437,7 @@ class ExplainableTrainer(ProtoPNetTrainer):
                 "lr": self._phases["finetune"].learning_rates["classification"],
             }
         ]
-        return hydra.utils.instantiate(
-            self._phases["finetune"].optimizer,
+        return self._phases["finetune"].optimizer.instantiate(
             last_layer_optimizer_specs,
         )
 

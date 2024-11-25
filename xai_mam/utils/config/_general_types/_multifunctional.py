@@ -87,8 +87,5 @@ class Instantiable:
 
     def instantiate(self, *args, **kwargs):
         optimizer = copy.deepcopy(self.__dict__)
-        if "_kwargs_" in optimizer:
-            optimizer_kwargs = optimizer.pop("_kwargs_")
-        else:
-            optimizer_kwargs = {}
+        optimizer_kwargs = optimizer.pop("_kwargs_")
         return hydra.utils.instantiate(optimizer, *args, **optimizer_kwargs, **kwargs)

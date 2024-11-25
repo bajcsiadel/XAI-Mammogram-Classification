@@ -1,9 +1,7 @@
-import datetime
 import time
 
 import numpy as np
 import torch
-from sklearn.metrics import f1_score
 from torch import nn
 from torch.optim import Optimizer
 from torch.utils.data import SubsetRandomSampler, DataLoader
