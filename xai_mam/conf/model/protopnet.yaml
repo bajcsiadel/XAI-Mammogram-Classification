@@ -25,4 +25,4 @@ network:
   add_on_layer_properties:
     _target_: xai_mam.models.ProtoPNet.config.AddOnLayerProperties
     type: bottleneck  # regular | bottleneck | pool
-    activation: A     # A | B
+    activation: B     # A | B
