@@ -8,6 +8,7 @@ from xai_mam.models.ProtoPNet._model.explainable import ProtoPNet
 from xai_mam.models.ProtoPNet._trainer.backbone import BackboneTrainer
 from xai_mam.models.ProtoPNet._trainer.explainable import ExplainableTrainer
 from xai_mam.models.utils.backbone_features import all_features
+from xai_mam.models.utils.helpers import load_model
 
 
 def construct_model(
@@ -102,6 +103,20 @@ def construct_model(
         )
 
 
+def load_protopnet_model(model_location, logger):
+    """
+    Load a ProtoPNet model from a file.
+
+    :param model_location: location of the file in which the trained model is saved.
+    :type model_location: pathlib.Path
+    :param logger:
+    :type logger: xai_mam.utils.log.TrainLogger
+    :return: model instance
+    :rtype: (xai_mam.models.ProtoPNet._model.ProtoPNetBase, dict)
+    """
+    return load_model(model_location, construct_model, logger)
+
+
 def construct_trainer(
     *,
     data_module,
@@ -149,33 +164,37 @@ def construct_trainer(
     if model_config is not None:
         n_classes = data_module.dataset.number_of_classes
         image_shape = data_module.dataset.input_size
+        model_initialization_parameters = {
+            "base_architecture": model_config.network.name,
+            "pretrained": model_config.network.pretrained,
+            "n_color_channels": data_module.dataset.image_properties.n_color_channels,
+            "img_shape": image_shape,
+            "prototype_shape": model_config.params.prototypes.shape,
+            "n_classes": n_classes,
+            "prototype_activation_function": model_config.params.prototypes.activation_fn,
+            "add_on_layers_type": model_config.network.add_on_layer_properties.type,
+            "add_on_layers_activation": model_config.network.add_on_layer_properties.activation,
+            "backbone_only": model_config.backbone_only,
+            "positive_weights_in_classifier": False,
+        }
         model = construct_model(
             logger=logger,
-            base_architecture=model_config.network.name,
-            pretrained=model_config.network.pretrained,
-            n_color_channels=data_module.dataset.image_properties.n_color_channels,
-            img_shape=image_shape,
-            prototype_shape=model_config.params.prototypes.shape,
-            n_classes=n_classes,
-            prototype_activation_function=model_config.params.prototypes.activation_fn,
-            add_on_layers_type=model_config.network.add_on_layer_properties.type,
-            add_on_layers_activation=model_config.network.add_on_layer_properties.activation,
-            backbone_only=model_config.backbone_only,
-            positive_weights_in_classifier=False,
+            **model_initialization_parameters,
         )
         if phases is None:
             phases = model_config.phases
         if params is None:
             params = model_config.params
     else:  # model_location is not None
-        if not model_location.exists():
-            raise FileNotFoundError(f"Model file not found at {model_location}")
         if phases is None or params is None:
             raise ValueError(
-                f"If model is loaded from file 'phases' "
+                f"If model is loaded from file then 'phases' "
                 f"and 'params' should be passed."
             )
-        model = torch.load(model_location)
+        model, model_initialization_parameters = load_protopnet_model(
+            model_location,
+            logger
+        )
 
     if model.backbone_only:
         trainer_class = BackboneTrainer
@@ -193,4 +212,5 @@ def construct_trainer(
         loss=params.loss,
         gpu=gpu,
         logger=logger,
+        model_initialization_parameters=model_initialization_parameters,
     )

@@ -127,6 +127,8 @@ class ProtoPNet(ProtoPNetBase, Explainable):
             "cluster_loss",
             "separation_loss",
             "accuracy",
+            "precision",
+            "recall",
             "micro_f1",
             "macro_f1",
             "l1",

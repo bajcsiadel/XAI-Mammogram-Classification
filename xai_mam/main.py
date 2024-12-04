@@ -148,6 +148,8 @@ def run_experiment(cfg: main_cfg.Config, logger: TrainLogger):
     logger.info("start training")
     start_training = time.time()
 
+    test_accuracies = []
+
     for fold, (train_sampler, validation_sampler) in data_module.folds:
         if cfg.cross_validation.folds > 1:
             logger.info(f"fold #{fold}")
@@ -173,7 +175,7 @@ def run_experiment(cfg: main_cfg.Config, logger: TrainLogger):
             validation_sampler=validation_sampler,
         )
 
-        trainer.execute()
+        test_accuracies.append(trainer.execute())
 
         del trainer
 
@@ -183,6 +185,11 @@ def run_experiment(cfg: main_cfg.Config, logger: TrainLogger):
         )
         logger.info(f"finished training fold {fold}")
         logger.decrease_indent()
+
+    logger.info(
+        f"Test accuracies across {cfg.cross_validation.folds} folds: {test_accuracies}"
+    )
+    logger.info(f"{np.mean(test_accuracies)} \\pm {np.std(test_accuracies)}")
 
     logger.info(
         f"training time: "

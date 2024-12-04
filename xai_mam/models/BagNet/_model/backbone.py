@@ -27,18 +27,6 @@ class BagNetBackbone(BagNetBase, Backbone):
     ):
         super(BagNetBackbone, self).__init__(n_classes, logger, n_color_channels)
 
-        self.logger.create_csv_log(
-            "train_model",
-            ("fold", "epoch", "phase"),
-            "time",
-            "cross entropy",
-            "accuracy",
-            "micro_f1",
-            "macro_f1",
-            "l1",
-            exist_ok=True,
-        )
-
         resnet50 = resnet_features.all_features["resnet50"]
         # loads state dict if pretrained is True
         self.features = resnet50.construct(n_color_channels, pretrained)

@@ -1,3 +1,6 @@
+"""
+Pure a trained ProtoPNet model by pruning prototypes.
+"""
 import dataclasses as dc
 import datetime
 import pickle

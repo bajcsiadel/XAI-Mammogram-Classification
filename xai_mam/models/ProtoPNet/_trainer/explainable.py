@@ -5,7 +5,6 @@ from functools import partial
 import hydra.utils
 import numpy as np
 import torch
-from sklearn.metrics import f1_score
 from torch import nn
 from torch.optim import Optimizer
 from torch.utils.data import SubsetRandomSampler, DataLoader
@@ -15,7 +14,7 @@ from xai_mam.models.ProtoPNet._helpers import list_of_distances, push
 from xai_mam.models.ProtoPNet._trainer import ProtoPNetTrainer
 from xai_mam.models.ProtoPNet.config.explainable import ProtoPNetExplainableLoss, \
     ProtoPNetExplainableParameters
-from xai_mam.utils.config.types import Gpu, ModelParameters, Phase
+from xai_mam.utils.config.types import Gpu, Phase
 from xai_mam.utils.log import TrainLogger
 from xai_mam.utils.preprocess import preprocess
 
@@ -33,6 +32,8 @@ class ExplainableTrainer(ProtoPNetTrainer):
     :param params: parameters of the model
     :param loss: loss parameters
     :param gpu: gpu properties
+    :param model_initialization_parameters: parameters used to create the model.
+        It is saved into the state for reproduction.
     :param logger:
     """
 
@@ -47,6 +48,7 @@ class ExplainableTrainer(ProtoPNetTrainer):
         params: ProtoPNetExplainableParameters,
         loss: ProtoPNetExplainableLoss,
         gpu: Gpu,
+        model_initialization_parameters: dict,
         logger: TrainLogger,
     ):
         super().__init__(
@@ -57,7 +59,9 @@ class ExplainableTrainer(ProtoPNetTrainer):
             model,
             phases,
             params,
+            loss,
             gpu,
+            model_initialization_parameters,
             logger,
         )
 
@@ -355,8 +359,6 @@ class ExplainableTrainer(ProtoPNetTrainer):
 
         total_time = end - start
         accuracy = n_correct / n_examples
-        micro_f1 = f1_score(true_labels, predicted_labels, average="micro")
-        macro_f1 = f1_score(true_labels, predicted_labels, average="macro")
         l1_norm = self.model.last_layer.weight.norm(p=1).item()
 
         p = self.model.prototype_vectors.view(self.model.n_prototypes, -1).cpu()
@@ -364,24 +366,13 @@ class ExplainableTrainer(ProtoPNetTrainer):
             p_avg_pair_dist = torch.mean(list_of_distances(p, p)).item()
 
         with self.logger.increase_indent_context():
-            self.logger.info(f"{'time: ':<14}{datetime.timedelta(seconds=int(total_time))}")
+            self.logger.info(
+                f"{'time: ':<14}{datetime.timedelta(seconds=int(total_time))}"
+            )
             self.logger.info(f"{'accu: ':<14}{accuracy:.2%}")
-            self.logger.info(f"{'micro f1: ':<14}{micro_f1:.2%}")
-            self.logger.info(f"{'macro f1: ':<14}{macro_f1:.2%}")
+            metrics = self.compute_metrics(true_labels, predicted_labels, log=True)
             self.logger.info("-" * 15)
-            loss_parts = {}
-            for k, v in totals.items():
-                coefficient = self._loss.coefficients.get(k) if k != "total" else 1
-                if coefficient is None:
-                    del totals[k]
-                    continue
-                average_loss = v / n_batches
-                loss_parts[k] = coefficient * average_loss
-                totals[k] = average_loss
-                self.logger.info(
-                    f"{k:<14}{average_loss:<8.4f} "
-                    f"(x {coefficient} = {loss_parts[k]:.4f})"
-                )
+            loss_parts = self.compute_loss_parts(totals, n_batches, log=True)
             self.logger.info("-" * 15)
             self.logger.info(f"{'p dist pair: ':<14}{p_avg_pair_dist}")
 
@@ -391,9 +382,7 @@ class ExplainableTrainer(ProtoPNetTrainer):
             totals["cross_entropy"],
             totals["clustering"],
             totals["separation"],
-            accuracy,
-            micro_f1,
-            macro_f1,
+            *metrics.values(),
             l1_norm,
             p_avg_pair_dist,
         )
@@ -432,8 +421,7 @@ class ExplainableTrainer(ProtoPNetTrainer):
                 "lr": self._phases["warm"].learning_rates["prototype_vectors"],
             },
         ]
-        return hydra.utils.instantiate(
-            self._phases["warm"].optimizer,
+        return self._phases["warm"].optimizer.instantiate(
             warm_optimizer_specs,
         )
 
@@ -449,8 +437,7 @@ class ExplainableTrainer(ProtoPNetTrainer):
                 "lr": self._phases["finetune"].learning_rates["classification"],
             }
         ]
-        return hydra.utils.instantiate(
-            self._phases["finetune"].optimizer,
+        return self._phases["finetune"].optimizer.instantiate(
             last_layer_optimizer_specs,
         )
 
@@ -547,7 +534,8 @@ class ExplainableTrainer(ProtoPNetTrainer):
             self.logger.save_model_w_condition(
                 model_name=self.model_name(f"{epoch}-warm"),
                 state={
-                    "state_dict": self.model.state_dict(),
+                    "model_initialization_parameters": self._model_initialization_parameters,
+                    "model": self.model.state_dict(),
                     "optimizer": warm_optimizer.state_dict(),
                     "epoch": self._epoch,
                     "accu": accu,
@@ -626,7 +614,8 @@ class ExplainableTrainer(ProtoPNetTrainer):
             self.logger.save_model_w_condition(
                 model_name=self.model_name(f"{self._epoch}-no_push"),
                 state={
-                    "state_dict": self.model.state_dict(),
+                    "model_initialization_parameters": self._model_initialization_parameters,
+                    "model": self.model.state_dict(),
                     "optimizer": joint_optimizer.state_dict(),
                     "scheduler": joint_lr_scheduler.state_dict(),
                     "epoch": self._epoch,
@@ -646,7 +635,7 @@ class ExplainableTrainer(ProtoPNetTrainer):
                     # normalize
                     prototype_layer_stride=1,
                     # if not None, prototypes will be saved here
-                    epoch_number=epoch,
+                    epoch_number=self._epoch,
                     # if not provided, prototypes saved previously will be overwritten
                     save_prototype_class_identity=True,
                     logger=self.logger,
@@ -663,7 +652,10 @@ class ExplainableTrainer(ProtoPNetTrainer):
                 self.logger.save_model_w_condition(
                     model_name=self.model_name(f"{self._epoch}-push"),
                     state={
-                        "state_dict": self.model.state_dict(),
+                        "model_initialization_parameters": self._model_initialization_parameters,
+                        "model": self.model.state_dict(),
+                        "optimizer": joint_optimizer.state_dict(),
+                        "scheduler": joint_lr_scheduler.state_dict(),
                         "accu": accu,
                     },
                     accu=accu,
@@ -709,7 +701,8 @@ class ExplainableTrainer(ProtoPNetTrainer):
                     self.logger.save_model_w_condition(
                         model_name=self.model_name(f"{self._epoch}-{i}-push"),
                         state={
-                            "state_dict": self.model.state_dict(),
+                            "model_initialization_parameters": self._model_initialization_parameters,
+                            "model": self.model.state_dict(),
                             "optimizer": self.__last_layer_optimizer.state_dict(),
                             "accu": accu,
                         },
@@ -719,11 +712,12 @@ class ExplainableTrainer(ProtoPNetTrainer):
             # set back to train in joint mode
             self._joint()
 
-    def execute(self, **kwargs):
+    def execute(self, **kwargs) -> float:
         """
         Perform the specified phases to train the model.
 
         :param kwargs: keyword arguments
+        :returns: test accuracy of the model
         """
         for phase in [self.warm, self.joint]:
             start_phase = time.time()
@@ -733,4 +727,4 @@ class ExplainableTrainer(ProtoPNetTrainer):
                 f"{datetime.timedelta(seconds=int(time.time() - start_phase))}"
             )
 
-        self.test()
+        return self.test()

@@ -17,6 +17,20 @@ class BagNetBase(Model, ABC):
         self.out_channels = n_classes
         self.logger = logger
 
+        self.logger.create_csv_log(
+            "train_model",
+            ("fold", "epoch", "phase"),
+            "time",
+            "cross entropy",
+            "loss",
+            "accuracy",
+            "precision",
+            "recall",
+            "micro_f1",
+            "macro_f1",
+            exist_ok=True,
+        )
+
     @abstractmethod
     def forward(self, x):
         ...

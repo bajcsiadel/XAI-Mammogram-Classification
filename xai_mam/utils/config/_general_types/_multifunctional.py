@@ -2,9 +2,10 @@ import copy
 import dataclasses as dc
 import platform
 
+import hydra
 import torch
 
-__all__ = ["BatchSize", "Gpu"]
+__all__ = ["BatchSize", "Gpu", "Instantiable"]
 
 
 @dc.dataclass
@@ -73,3 +74,18 @@ class Gpu:
         :return:
         """
         return copy.deepcopy(self.__device_instance)
+
+
+@dc.dataclass
+class Instantiable:
+    _target_: str = "???"
+    _args_: list = dc.field(default_factory=list)
+    _kwargs_: dict = dc.field(default_factory=dict)
+    _recursive_: bool = True
+    _convert_: str = "none"
+    _partial_: bool = False
+
+    def instantiate(self, *args, **kwargs):
+        optimizer = copy.deepcopy(self.__dict__)
+        optimizer_kwargs = optimizer.pop("_kwargs_")
+        return hydra.utils.instantiate(optimizer, *args, **optimizer_kwargs, **kwargs)

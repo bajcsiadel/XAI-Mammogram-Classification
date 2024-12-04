@@ -6,6 +6,32 @@ from torch.utils import model_zoo
 from xai_mam.utils.environment import get_env
 
 
+def load_model(model_location, construct_model, logger):
+    """
+    Load a model from a file.
+
+    :param model_location: location of the file in which the trained model is saved.
+    :type model_location: pathlib.Path
+    :param construct_model: function to construct the model
+    :type construct_model: typing.Callable
+    :param logger:
+    :type logger: xai_mam.utils.log.TrainLogger
+    :return: model instance
+    :rtype: (xai_mam.models._base_classes.Model, dict)
+    """
+    if not model_location.exists():
+        raise FileNotFoundError(f"Model file not found at {model_location}")
+    saved_state = torch.load(model_location)["state_dict"]
+    model_initialization_params = saved_state["model_initialization_parameters"]
+    model = construct_model(
+        logger=logger,
+        **model_initialization_params
+    )
+    model.load_state_dict(saved_state["model"])
+
+    return model, model_initialization_params
+
+
 def get_state_dict(
     model_url: str,
     n_color_channels: int = 3,

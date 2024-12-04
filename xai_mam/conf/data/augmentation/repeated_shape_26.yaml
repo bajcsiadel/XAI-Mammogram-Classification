@@ -1,0 +1,33 @@
+transforms:
+  - _target_: xai_mam.utils.helpers.RepeatedAugmentation
+    transforms:
+      - _target_: albumentations.Rotate
+        limit: 20
+        p: 1.0
+    n: 8
+  - _target_: xai_mam.utils.helpers.RepeatedAugmentation
+    transforms:
+      - _target_: xai_mam.utils.helpers.Shear
+        limit: 20
+        p: 1.0
+    n: 8
+  - _target_: xai_mam.utils.helpers.RepeatedAugmentation
+    transforms:
+      - _target_: albumentations.Perspective
+        scale:
+          - 0.2
+          - 0.2
+        p: 1.0
+    n: 8
+  - _target_: xai_mam.utils.helpers.RepeatedAugmentation
+    transforms:
+      - _target_: albumentations.HorizontalFlip
+        p: 1.0
+    n: 1
+  - _target_: xai_mam.utils.helpers.RepeatedAugmentation
+    transforms:
+      - _target_: albumentations.VerticalFlip
+        p: 1.0
+    n: 1
+exclude_identity_transform: true
+online: false

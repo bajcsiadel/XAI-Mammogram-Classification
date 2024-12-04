@@ -29,10 +29,8 @@ from xai_mam.utils.config.types import FilePrefixes, Outputs
 
 # fmt off
 class SpecialCharacters(StrEnum):
-    tick = "\u2714"  # noqa
+    tick = "\u2714"
     cross = "\u2718"
-
-
 # fmt on
 
 
@@ -48,7 +46,12 @@ class ScriptLogger(logging.Logger):
     special_characters = SpecialCharacters
 
     def __init__(self, name: str, log_location: Path | str | None = None):
-        super().__init__(name)
+        level = "DEBUG" if (HydraConfig.get().verbose == True
+                            or HydraConfig.get().verbose == name
+                            or (type(HydraConfig.get().verbose) == "list"
+                                and name in HydraConfig.get().verbose)) else "NOTSET"
+
+        super().__init__(name, level)
         self.parent = logging.root
 
         self._log_location = Path(log_location or HydraConfig.get().runtime.output_dir)
@@ -106,6 +109,45 @@ class ScriptLogger(logging.Logger):
     @property
     def log_location(self):
         return self._log_location
+
+    @property
+    def image_location(self) -> Path:
+        return self._log_location / "imgs"
+
+    def save_image(
+        self,
+        image_name: Path | str,
+        image: np.ndarray,
+        image_location: Path | str = None,
+    ):
+        """
+        Save the image.
+
+        :param image_name: name of the output image
+        :param image: content of the image to save
+        :param image_location: location where the image is saved. Defaults to ``None``.
+        """
+        if image_location is None:
+            image_location = self.image_location
+
+        if type(image_name) is str or (
+            type(image_name) is Path and not image_name.is_absolute()
+        ):
+            image_name = image_location / image_name
+
+        if image.max() > 1:
+            image = image / 255.0
+        if image.shape[-1] == 1 or len(image.shape) == 2:
+            plt.imsave(
+                fname=image_name,
+                arr=image.squeeze(axis=2),
+                cmap="gray",
+            )
+        else:
+            plt.imsave(
+                fname=image_name,
+                arr=image,
+            )
 
     def _log(
         self,
@@ -276,7 +318,10 @@ class TrainLogger(ScriptLogger):
 
         self.__logs = dict()
 
-        self.__outputs = omegaconf.OmegaConf.to_object(outputs)
+        if isinstance(outputs, Outputs):
+            self.__outputs = outputs
+        else:
+            self.__outputs = omegaconf.OmegaConf.to_object(outputs)
 
         # Ensure the directories exist
         self.metadata_location.mkdir(parents=True, exist_ok=True)
@@ -489,41 +534,6 @@ class TrainLogger(ScriptLogger):
             with self.increase_indent_context():
                 self.info(f"above {target_accu:.2%}")
             self.save_model(f"{model_name}-{accu:.4f}", state, model_location)
-
-    def save_image(
-        self,
-        image_name: Path | str,
-        image: np.ndarray,
-        image_location: Path | str = None,
-    ):
-        """
-        Save the image.
-
-        :param image_name: name of the output image
-        :param image: content of the image to save
-        :param image_location: location where the image is saved. Defaults to ``None``.
-        """
-        if image_location is None:
-            image_location = self.image_location
-
-        if type(image_name) is str or (
-            type(image_name) is Path and not image_name.is_absolute()
-        ):
-            image_name = image_location / image_name
-
-        if image.max() > 1:
-            image = image / 255.0
-        if image.shape[-1] == 1:
-            plt.imsave(
-                fname=image_name,
-                arr=image.squeeze(axis=2),
-                cmap="gray",
-            )
-        else:
-            plt.imsave(
-                fname=image_name,
-                arr=image,
-            )
 
     def log_image_examples(
         self,

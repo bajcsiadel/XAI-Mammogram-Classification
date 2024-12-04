@@ -3,14 +3,16 @@ import time
 from abc import ABC, abstractmethod
 from typing import final
 
+import numpy as np
 import torch
+from sklearn import metrics
 from torch import nn
 from torch.optim import Optimizer
 from torch.utils.data import DataLoader, SubsetRandomSampler
 from torchinfo import summary
 
 from xai_mam.dataset.dataloaders import CustomDataModule
-from xai_mam.utils.config.types import Gpu, ModelParameters, Phase
+from xai_mam.utils.config.types import Gpu, Loss, ModelParameters, Phase
 from xai_mam.utils.log import TrainLogger
 
 
@@ -51,6 +53,8 @@ class BaseTrainer(ABC):
     :param phases: phases of the train process
     :param params: parameters of the model
     :param gpu: gpu properties
+    :param model_initialization_parameters: parameters used to create the model.
+        It is saved into the state for reproduction.
     :param logger: logging object
     """
 
@@ -63,7 +67,9 @@ class BaseTrainer(ABC):
         model: nn.Module,
         phases: dict[str, Phase],
         params: ModelParameters,
+        loss: Loss,
         gpu: Gpu,
+        model_initialization_parameters: dict,
         logger: TrainLogger,
     ):
         if not gpu.disabled:
@@ -76,6 +82,7 @@ class BaseTrainer(ABC):
         self._gpu = gpu
         self._phases = phases
         self._params = params
+        self._loss = loss
 
         self._data_module = data_module
         self._train_sampler = train_sampler
@@ -85,6 +92,8 @@ class BaseTrainer(ABC):
         self._epoch = 0
 
         self.logger = logger
+
+        self._model_initialization_parameters = model_initialization_parameters
 
         if fold == 1:
             logger.info("")
@@ -138,11 +147,12 @@ class BaseTrainer(ABC):
         return name
 
     @abstractmethod
-    def execute(self, **kwargs):
+    def execute(self, **kwargs) -> float:
         """
         Perform the specified phases to train the model.
 
         :param kwargs: keyword arguments
+        :returns: test accuracy of the model
         """
         ...
 
@@ -242,6 +252,10 @@ class BaseTrainer(ABC):
         :return: accuracy of the model on the test set
         """
         test_loader = self._data_module.test_dataloader(128)
+        
+        self.logger.csv_log_index(
+            "train_model", (self._fold, self._epoch, "test")
+        )
 
         self.logger.info("start testing")
         start = time.time()
@@ -250,7 +264,60 @@ class BaseTrainer(ABC):
         self.logger.info(
             f"test ended in {datetime.timedelta(seconds=int(time.time() - start))}"
         )
-        self.logger.csv_log_index(
-            "train_model", (self._fold, self._epoch, "test")
-        )
         return test_accuracy
+
+    def compute_metrics(
+        self, expected: np.ndarray, predicted: np.ndarray, log: bool = False
+    ) -> dict:
+        """
+        Compute the metrics of the model.
+
+        :param expected: true labels of the samples
+        :param predicted: predicted labels of the samples
+        :param log: if ``True``, then log the metrics. Defaults to ``False``.
+        :return: metrics of the model.
+        """
+        if len(np.unique(expected)) > 2:
+            average = "samples"
+        else:
+            average = "binary"
+        m = {
+            "accuracy": metrics.accuracy_score(expected, predicted),
+            "precision": metrics.precision_score(expected, predicted, average=average),
+            "recall": metrics.recall_score(expected, predicted, average=average),
+            "macro_f1": metrics.f1_score(expected, predicted, average="macro"),
+            "micro_f1": metrics.f1_score(expected, predicted, average="micro"),
+        }
+
+        if log:
+            for metric_name, metric_value in m.items():
+                self.logger.info(f"{metric_name:<9} {metric_value:.2%}")
+
+        return m
+
+    def compute_loss_parts(
+        self, totals: dict[str, float], n_batches: int, log: bool = False
+    ) -> dict[str, float]:
+        """
+        Log the losses of the model.
+
+        :param totals: dict containing the total loss and its components
+        :param n_batches: number of batches
+        :param log: if ``True``, then log the losses. Defaults to ``False``.
+        :return: loss parts of the model multiplied with the coefficient.
+        """
+        loss_parts = {}
+        for k, v in totals.items():
+            coefficient = self._loss.coefficients.get(k) if k != "total" else 1
+            if coefficient is None:
+                del totals[k]
+                continue
+            average_loss = v / n_batches
+            loss_parts[k] = coefficient * average_loss
+            totals[k] = average_loss
+            if log:
+                self.logger.info(
+                    f"{k:<14}{average_loss:<8.4f} "
+                    f"(x {coefficient} = {loss_parts[k]:.4f})"
+                )
+        return loss_parts

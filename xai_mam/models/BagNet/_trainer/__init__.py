@@ -1,17 +1,14 @@
 import time
-from abc import abstractmethod
 from enum import Enum
 
 import hydra
 import numpy as np
 import torch
-import torchvision
 from torch.optim import Optimizer
 from torch.utils.data import SubsetRandomSampler, DataLoader
 
 from xai_mam.dataset.dataloaders import CustomDataModule
 from xai_mam.models.BagNet._model import BagNetBase
-# from xai_mam.models.BagNet.config import BagNetLoss
 from xai_mam.models._base_classes import BaseTrainer
 from xai_mam.utils.config.types import Gpu, ModelParameters, Phase
 from xai_mam.utils.log import TrainLogger
@@ -30,6 +27,8 @@ class BagNetTrainer(BaseTrainer):
     :param params: parameters of the model
     :param loss: loss parameters
     :param gpu: gpu properties
+    :param model_initialization_parameters: parameters used to create the model.
+        It is saved into the state for reproduction.
     :param logger:
     """
 
@@ -42,8 +41,9 @@ class BagNetTrainer(BaseTrainer):
         model: BagNetBase,
         phases: dict[str, Phase],
         params: ModelParameters,
-        loss, #: BagNetLoss,
+        loss,  # xai_mam.models.BagNet.config.BagNetLoss,
         gpu: Gpu,
+        model_initialization_parameters: dict,
         logger: TrainLogger,
     ):
         super().__init__(
@@ -54,12 +54,11 @@ class BagNetTrainer(BaseTrainer):
             model,
             phases,
             params,
+            loss,
             gpu,
+            model_initialization_parameters,
             logger,
         )
-
-        self._loss = loss
-
         self.__criterion = torch.nn.CrossEntropyLoss().to(gpu.device_instance)
 
         self.logger.info("batch size:")
@@ -118,8 +117,13 @@ class BagNetTrainer(BaseTrainer):
         batch_time = AverageMeter("Time", ":6.3f", Summary.NONE)
         data_time = AverageMeter("Data", ":6.3f", Summary.NONE)
         losses = AverageMeter("Loss", ":.4e", Summary.NONE)
-        top1 = AverageMeter("Acc@1", ":6.2f", Summary.AVERAGE)
-        top5 = AverageMeter("Acc@5", ":6.2f", Summary.AVERAGE)
+        top1 = AverageMeter("Acc@1", ":6.2%", Summary.AVERAGE)
+        top5 = AverageMeter("Acc@5", ":6.2%", Summary.AVERAGE)
+
+        totals = None
+        n_batches = 0
+        true_labels = np.array([])
+        predicted_labels = np.array([])
 
         start = time.time()
         grad_req = torch.enable_grad() if optimizer is not None else torch.no_grad()
@@ -129,27 +133,40 @@ class BagNetTrainer(BaseTrainer):
                 # measure data loading time
                 data_time.update(time.time() - start)
 
+                true_labels = np.append(true_labels, target.numpy())
+
                 # move data to the same device as model
                 images = images.to(self._gpu.device_instance, non_blocking=True)
                 target = target.to(self._gpu.device_instance, non_blocking=True)
+
                 a, b = np.unique(target.cpu().numpy(), return_counts=True)
                 self.logger.debug(f"batch sample distribution\n\t{a}\n\t{b}")
 
                 # compute output
                 output = self.parallel_model(images)
-                loss_values = self.compute_loss(predicted=output, target=target)
+                loss_values = self._backpropagation(
+                    optimizer,
+                    predicted=output,
+                    target=target,
+                )
+                _, predicted = torch.max(output.data, 1)
+
+                predicted_labels = np.append(
+                    predicted_labels, predicted.cpu().numpy()
+                )
 
                 # measure accuracy and record loss
+                n_batches += 1
+                if totals is None:
+                    totals = {k: v.item() for k, v in loss_values.items()}
+                else:
+                    for k, v in loss_values.items():
+                        totals[k] += v.item()
+
                 acc1, acc5 = _accuracy(output, target, topk=(1, 1))
                 losses.update(loss_values["total"].item(), images.size(0))
-                top1.update(acc1[0], images.size(0))
-                top5.update(acc5[0], images.size(0))
-
-                # compute gradient and do SGD step
-                if optimizer is not None:
-                    optimizer.zero_grad()
-                    loss_values["total"].backward()
-                    optimizer.step()
+                top1.update(acc1, images.size(0))
+                top5.update(acc5, images.size(0))
 
                 # measure elapsed time
                 batch_time.update(time.time() - start)
@@ -160,6 +177,18 @@ class BagNetTrainer(BaseTrainer):
                 self.logger.info(top1)
                 self.logger.info(top5)
                 self.logger.info(batch_time)
+                self.logger.info("-" * 15)
+                metrics = self.compute_metrics(true_labels, predicted_labels, log=True)
+                self.logger.info("-" * 15)
+                loss_parts = self.compute_loss_parts(totals, n_batches, log=True)
+
+            self.logger.csv_log_values(
+                "train_model",
+                batch_time.sum,
+                totals["cross_entropy"],
+                totals["total"],
+                *metrics.values(),
+            )
 
             if epoch is not None:
                 phase = "train" if optimizer is not None else "eval"
@@ -175,16 +204,12 @@ class BagNetTrainer(BaseTrainer):
                 self.logger.tensorboard.add_scalars(
                     "accuracy_top5", {f"accuracy_top5/{phase}": top5.avg}
                 )
-                write_loss = {
-                    "cross_entropy": losses.value,
-                    "loss": loss_values["total"].item(),
-                }
 
-                self.logger.tensorboard.add_scalars(f"loss/{phase}", write_loss, epoch)
+                self.logger.tensorboard.add_scalars(f"loss/{phase}", loss_parts, epoch)
                 self.logger.tensorboard.add_scalars(
-                    "loss", {f"loss/{phase}": write_loss["loss"]}, epoch
+                    "loss", {f"loss/{phase}": loss_parts["total"]}, epoch
                 )
-        return top1.avg
+        return top1.avg / 100
 
     def _get_train_optimizer(self) -> tuple[
         Optimizer, torch.optim.lr_scheduler.LRScheduler
@@ -194,11 +219,10 @@ class BagNetTrainer(BaseTrainer):
 
         :return: the optimizer along with the learning scheduler
         """
-        optimizer = torch.optim.SGD(
+        optimizer = self._phases["main"].optimizer.instantiate(
             self.model.parameters(),
             self._phases["main"].learning_rates["params"],
-            momentum=0.9,
-            weight_decay=1e-4,
+            weight_decay=self._phases["main"].weight_decay,
         )
         lr_scheduler = hydra.utils.instantiate(
             self._phases["main"].scheduler, optimizer=optimizer
@@ -206,11 +230,12 @@ class BagNetTrainer(BaseTrainer):
 
         return optimizer, lr_scheduler
 
-    def execute(self, **kwargs):
+    def execute(self, **kwargs) -> float:
         """
         Perform the specified phases to train the model.
 
         :param kwargs: keyword arguments
+        :returns: test accuracy of the model
         """
         train_loader = self._data_module.train_dataloader(
             sampler=self._train_sampler,
@@ -222,7 +247,12 @@ class BagNetTrainer(BaseTrainer):
         )
 
         if self._fold == 1:
-            self.log_image_examples(train_loader)
+            self.logger.log_image_examples(
+                self.model,
+                train_loader.dataset,
+                "train",
+                device=self._gpu.device_instance,
+            )
 
         optimizer, lr_scheduler = self._get_train_optimizer()
 
@@ -238,7 +268,8 @@ class BagNetTrainer(BaseTrainer):
 
             self.logger.save_model_w_condition(
                 state={
-                    "state_dict": self.model.state_dict(),
+                    "model_initialization_parameters": self._model_initialization_parameters,
+                    "model": self.model.state_dict(),
                     "optimizer": optimizer.state_dict(),
                     "scheduler": lr_scheduler.state_dict(),
                     "epoch": epoch,
@@ -249,23 +280,7 @@ class BagNetTrainer(BaseTrainer):
             )
             self.logger.decrease_indent()
 
-        self.test()
-
-    def log_image_examples(self, dataloader):
-        """
-        Log some images to the Tensorboard.
-
-        :param dataloader:
-        :type dataloader: torch.utils.data.dataloader.DataLoader
-        """
-        first_batch_images = next(iter(dataloader))[0]
-        self.logger.tensorboard.add_image(
-            f"{self._data_module.dataset.name} examples",
-            torchvision.utils.make_grid(first_batch_images),
-        )
-        self.logger.tensorboard.add_graph(
-            self.model, first_batch_images.to(self._gpu.device_instance)
-        )
+        return self.test()
 
 
 class Summary(Enum):
@@ -326,8 +341,15 @@ class AverageMeter(object):
         return fmtstr.format(**self.__dict__)
 
 
-def _accuracy(output, target, topk=(1,)):
-    """Computes the accuracy over the k top predictions for the specified values of k"""
+def _accuracy(output, target, topk=(1,)) -> list[float]:
+    """
+    Computes the accuracy over the k top predictions for the specified values of k.
+
+    :param output: predicted values
+    :param target: ground truth values
+    :param topk: top k values to compute accuracy
+    :return: list of accuracies for the specified top k values
+    """
     with torch.no_grad():
         maxk = max(topk)
         batch_size = target.size(0)
@@ -340,5 +362,5 @@ def _accuracy(output, target, topk=(1,)):
         res = []
         for k in topk:
             correct_k = correct[:k].reshape(-1).float().sum(0, keepdim=True)
-            res.append(correct_k.mul_(100.0 / batch_size))
+            res.append(correct_k.div_(batch_size).item())
         return res

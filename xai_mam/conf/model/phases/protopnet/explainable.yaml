@@ -3,7 +3,7 @@ phases:
     batch_size:
       train: 256
       validation: 128
-    epochs: 4
+    epochs: 10
     learning_rates:
       add_on_layers: 3e-3
       prototype_vectors: 3e-3
@@ -12,9 +12,9 @@ phases:
     weight_decay: 1e-3
   joint:
     batch_size:
-      train: 256
+      train: 64
       validation: 128
-    epochs: 10
+    epochs: 120
     learning_rates:
       features: 1e-4
       add_on_layers: 3e-3
@@ -23,13 +23,13 @@ phases:
       _target_: torch.optim.Adam
     scheduler:
       _target_: torch.optim.lr_scheduler.StepLR
-      step_size: 5
+      step_size: 30
       gamma: 0.1
   finetune:
     batch_size:
       train: 256
       validation: 128
-    epochs: 4
+    epochs: 20
     learning_rates:
       classification: 1e-4
     optimizer:
@@ -39,9 +39,9 @@ params:
   _target_: xai_mam.models.ProtoPNet.config.explainable.ProtoPNetExplainableParameters
   push:
     _target_: xai_mam.models.ProtoPNet.config.explainable.PushSettings
-    batch_size: 128
-    start: 2
-    interval: 5
+    batch_size: 2
+    start: 10
+    interval: 15
   class_specific: true
   loss:
     _target_: xai_mam.models.ProtoPNet.config.explainable.ProtoPNetExplainableLoss

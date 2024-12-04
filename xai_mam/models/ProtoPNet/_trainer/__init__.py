@@ -23,7 +23,10 @@ class ProtoPNetTrainer(BaseTrainer):
     :param model: model to train
     :param phases: phases of the train process
     :param params: parameters of the model
+    :param loss: parameters of the loss
     :param gpu: gpu properties
+    :param model_initialization_parameters: parameters used to create the model.
+        It is saved into the state for reproduction.
     :param logger:
     """
 
@@ -36,7 +39,9 @@ class ProtoPNetTrainer(BaseTrainer):
         model: ProtoPNetBase,
         phases: dict[str, Phase],
         params: ModelParameters,
+        loss,
         gpu: Gpu,
+        model_initialization_parameters: dict,
         logger: TrainLogger,
     ):
         super().__init__(
@@ -47,7 +52,9 @@ class ProtoPNetTrainer(BaseTrainer):
             model,
             phases,
             params,
+            loss,
             gpu,
+            model_initialization_parameters,
             logger,
         )
 
@@ -109,8 +116,7 @@ class ProtoPNetTrainer(BaseTrainer):
                 },
             ]
 
-        joint_optimizer = hydra.utils.instantiate(
-            self._phases["joint"].optimizer,
+        joint_optimizer = self._phases["joint"].optimizer.instantiate(
             joint_optimizer_specs,
         )
         joint_lr_scheduler = hydra.utils.instantiate(

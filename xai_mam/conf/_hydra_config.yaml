@@ -19,3 +19,6 @@ hydra:
       handlers:
         - console
         - file
+#  verbose: false  # true -- sets all loggers to DEBUG
+                   # NAME -- sets the logger NAME to DEBUG
+                   # [NAME1, NAME2] -- sets the loggers with the specified names to DEBUG
