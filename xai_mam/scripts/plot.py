@@ -15,7 +15,8 @@ parser = argparse.ArgumentParser(
     "the training process of the ProtoPNet model",
 )
 parser.add_argument(
-    "output_file",
+    "--output-file",
+    dest="output_file",
     type=pathlib.Path,
     help="Path to the output file recorded during training. "
     "Specify absolute path or relative to `runs/` directory",
@@ -25,6 +26,12 @@ parser.add_argument(
     "--save",
     action="store_true",
     help="Save the generated plot near the specified output file",
+)
+parser.add_argument(
+    "--show-guide-lines",
+    dest="show_guide_lines",
+    action="store_true",
+    help="Show guide lines for warm and push epochs",
 )
 
 
@@ -70,10 +77,10 @@ train_data = train_data[
 train_data["phase"] = train_data["phase"].apply(lambda value: value.split(" ")[-1])
 
 ax = sns.lineplot(
-    train_data, x=train_data["epoch"], y=train_data["accuracy"], hue=train_data["phase"]
+    train_data, x="epoch", y="accuracy", hue="phase"
 )
 
-if "only" not in str(output_file):
+if "only" not in str(output_file) and args.show_guide_lines:
     print(f"Number of warm epochs: {warm_epochs}")
     print(f"Push epochs: {push_epochs}")
 
@@ -94,7 +101,6 @@ if "only" not in str(output_file):
         line.set_label("push")
 
 # show legend with the updated labels (defined by the axvline)
-plt.legend()
 plt.tight_layout()
 
 if args.save:

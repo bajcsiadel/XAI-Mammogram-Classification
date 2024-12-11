@@ -1,6 +1,9 @@
 import dataclasses as dc
 
-__all__ = ["Outputs"]
+__all__ = [
+    "FilePrefixes",
+    "Outputs",
+]
 
 
 @dc.dataclass

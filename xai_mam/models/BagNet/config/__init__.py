@@ -1,8 +1,7 @@
 import dataclasses as dc
 
 from xai_mam.models.BagNet import all_models
-from xai_mam.utils.config._general_types import ModelParameters, Network
-from xai_mam.utils.config.types import Loss
+from xai_mam.utils.config.types import Loss, ModelParameters, Network
 
 
 @dc.dataclass
@@ -18,9 +17,11 @@ class BagNetNetwork(Network):
         match key:
             case "name":
                 if value not in self._network_values:
-                    raise ValueError(f"Model {value!r} not supported for explainable "
-                                     f"BagNet. Choose one of "
-                                     f"{', '.join(self._network_values)}.")
+                    raise ValueError(
+                        f"Model {value!r} not supported for explainable "
+                        f"BagNet. Choose one of "
+                        f"{', '.join(self._network_values)}."
+                    )
 
         super().__setattr__(key, value)
 

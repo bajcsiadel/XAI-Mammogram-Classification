@@ -1,0 +1,5 @@
+- _target_: xai_mam.dataset.metadata.ExcludeDataFilter
+  field:
+    - mammogram_properties
+    - abnormality
+  value: CALC

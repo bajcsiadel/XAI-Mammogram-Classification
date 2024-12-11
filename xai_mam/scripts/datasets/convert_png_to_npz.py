@@ -13,33 +13,27 @@ configuration of the script.
 """
 import dataclasses as dc
 import os
-import sys
 
 import cv2
 import hydra
 import numpy as np
-from omegaconf import errors as conf_errors
 from dotenv import load_dotenv
+from omegaconf import errors as conf_errors
 from tqdm import tqdm
 
-load_dotenv()
-sys.path.append(os.getenv("PROJECT_ROOT"))
-
-
-from xai_mam.utils.config import config_store_
-from xai_mam.utils.config._general_types import Dataset
 from xai_mam.utils.config.resolvers import add_all_custom_resolvers
+from xai_mam.utils.config.types import DatasetConfig
 from xai_mam.utils.log import ScriptLogger
 
 
 @dc.dataclass
-class Data:
-    set: Dataset
+class DataConfig:
+    set: DatasetConfig
 
 
 @dc.dataclass
 class Config:
-    data: Data
+    data: DataConfig
 
 
 @hydra.main(
@@ -75,9 +69,10 @@ def convert_images(cfg: Config):
         logger.exception(e)
 
 
+load_dotenv()
 add_all_custom_resolvers()
+config_store_ = DatasetConfig.init_store()
 config_store_.store(name="_config_validation", node=Config)
-config_store_.store(name="_data_validation", group="data", node=Data)
-config_store_.store(name="_data_set_validation", group="data/set", node=Dataset)
+config_store_.store(name="_data_set_validation", group="data/set", node=DatasetConfig)
 
 convert_images()

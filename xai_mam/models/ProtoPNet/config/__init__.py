@@ -51,7 +51,7 @@ class AddOnLayerProperties:
     activation: str = "B"
 
     # possible values
-    __type_values = ["regular", "bottleneck"]
+    __type_values = ["regular", "bottleneck", "pool"]
     __activation_values = ["A", "B"]
 
     def __setattr__(self, key, value):

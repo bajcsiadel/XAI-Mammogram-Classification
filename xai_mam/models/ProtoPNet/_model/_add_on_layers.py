@@ -131,6 +131,31 @@ class Regular(_AddOnLayers, ABC):
         self.add_module("sigmoid", nn.Sigmoid())
 
 
+class Pool(_AddOnLayers, ABC):
+    """
+    A simple add-on layer consisting of adaptive average pooling.
+
+    :param in_channels: number of input channels
+    :type in_channels: int
+    :param out_channels: number of output channels
+    :type out_channels: int
+    :param activation_type: type of activation between the convolutional layers
+    :type activation_type: str
+    """
+
+    def __init__(self, in_channels, out_channels, activation_type="A"):
+        super(Pool, self).__init__(
+            in_channels,
+            out_channels,
+            activation_type,
+        )
+
+        self.add_module(
+            "avgpool",
+            nn.AdaptiveAvgPool2d((1, 1)),
+        )
+
+
 class _ActivationType:
     """
     Base class for the activation types.
@@ -378,17 +403,51 @@ class RegularB(Regular):
         super(RegularB, self).__init__(in_channels, out_channels, "B")
 
 
+class PoolA(Pool):
+    """
+    Class representing the average pool add-on layer with activation type A.
+
+    :param in_channels: number of input channels
+    :type in_channels: int
+    :param out_channels: number of output channels
+    :type out_channels: int
+    """
+
+    def __init__(self, in_channels, out_channels):
+        super(PoolA, self).__init__(in_channels, out_channels, "A")
+
+
+class PoolB(Pool):
+    """
+    Class representing the average pool add-on layer with activation type B.
+
+    :param in_channels: number of input channels
+    :type in_channels: int
+    :param out_channels: number of output channels
+    :type out_channels: int
+    """
+
+    def __init__(self, in_channels, out_channels):
+        super(PoolB, self).__init__(in_channels, out_channels, "B")
+
+
 if __name__ == "__main__":
-    a = BottleneckA(64, 32)
+    a = BottleneckA(256, 32)
     print(a)
-    b = BottleneckB(64, 32)
+    b = BottleneckB(256, 32)
     print(b)
-    a = RegularA(64, 32)
+    a = RegularA(256, 32)
     print(a)
-    b = RegularB(64, 32)
+    b = RegularB(256, 32)
+    print(b)
+    a = PoolA(256, 32)
+    print(a)
+    b = PoolB(256, 32)
     print(b)
 
-    print(AddOnLayers.with_type("bottleneck", 64, 32, "A"))
-    print(AddOnLayers.with_type("bottleneck", 64, 32, "B"))
-    print(AddOnLayers.with_type("regular", 64, 32, "A"))
-    print(AddOnLayers.with_type("regular", 64, 32, "B"))
+    print(AddOnLayers.with_type("bottleneck", 256, 32, "A"))
+    print(AddOnLayers.with_type("bottleneck", 256, 32, "B"))
+    print(AddOnLayers.with_type("regular", 256, 32, "A"))
+    print(AddOnLayers.with_type("regular", 256, 32, "B"))
+    print(AddOnLayers.with_type("pool", 256, 32, "A"))
+    print(AddOnLayers.with_type("pool", 256, 32, "B"))

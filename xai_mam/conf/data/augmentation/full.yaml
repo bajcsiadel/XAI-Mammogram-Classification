@@ -1,4 +1,0 @@
-# @package data.set.image_properties.augmentations
-train:
-  - _target_: albumentations.VerticalFlip
-    p: 0.5

@@ -1,14 +1,16 @@
 phases:
   main:
     batch_size:
-      train: 32
-      validation: 32
-    epochs: 120
+      train: 64
+      validation: 64
+    epochs: 50
     learning_rates:
       params: 0.003
+    optimizer:
+      _target_: torch.optim.Adam
     scheduler:
       _target_: torch.optim.lr_scheduler.StepLR
-      step_size: 30
+      step_size: 25
       gamma: 0.8
 
 params:

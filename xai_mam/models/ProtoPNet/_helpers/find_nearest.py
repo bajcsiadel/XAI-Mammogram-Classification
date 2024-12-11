@@ -142,10 +142,10 @@ def find_k_nearest_patches_to_prototypes(
                     closest_patch = search_batch_input[
                         img_idx,
                         :,
-                        closest_patch_indices_in_img[1] : closest_patch_indices_in_img[
+                        closest_patch_indices_in_img[1]:closest_patch_indices_in_img[
                             2
                         ],
-                        closest_patch_indices_in_img[3] : closest_patch_indices_in_img[
+                        closest_patch_indices_in_img[3]:closest_patch_indices_in_img[
                             4
                         ],
                     ]
@@ -270,8 +270,8 @@ def find_k_nearest_patches_to_prototypes(
                     )
                     # save the receptive field patch with heatmap
                     overlayed_patch = overlayed_original_img[
-                        patch.patch_indices[0] : patch.patch_indices[1],
-                        patch.patch_indices[2] : patch.patch_indices[3],
+                        patch.patch_indices[0]:patch.patch_indices[1],
+                        patch.patch_indices[2]:patch.patch_indices[3],
                         :,
                     ]
                     logger.save_image(
@@ -285,8 +285,8 @@ def find_k_nearest_patches_to_prototypes(
                     upsampled_act_pattern
                 )
                 high_act_patch = patch.original_img[
-                    high_act_patch_indices[0] : high_act_patch_indices[1],
-                    high_act_patch_indices[2] : high_act_patch_indices[3],
+                    high_act_patch_indices[0]:high_act_patch_indices[1],
+                    high_act_patch_indices[2]:high_act_patch_indices[3],
                     :,
                 ]
                 np.save(

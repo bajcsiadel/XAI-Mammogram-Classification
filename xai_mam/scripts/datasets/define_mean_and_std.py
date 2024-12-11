@@ -19,7 +19,6 @@ configuration of the script.
 """
 import dataclasses as dc
 import os
-import sys
 import typing as typ
 
 import hydra
@@ -29,25 +28,21 @@ from omegaconf import OmegaConf
 from omegaconf import errors as conf_errors
 from torch.utils.data import DataLoader
 
-load_dotenv()
-sys.path.append(os.getenv("PROJECT_ROOT"))
-
 from xai_mam.dataset.dataloaders import my_collate_function
 from xai_mam.utils import custom_pipe
-from xai_mam.utils.config import config_store_
-from xai_mam.utils.config._general_types.data import Dataset
 from xai_mam.utils.config.resolvers import add_all_custom_resolvers
+from xai_mam.utils.config.types.data import DatasetConfig
 from xai_mam.utils.log import ScriptLogger
 
 
 @dc.dataclass
-class Data:
-    set: Dataset
+class DataConfig:
+    set: DatasetConfig
 
 
 @dc.dataclass
 class Config:
-    data: Data
+    data: DataConfig
     dataset: dict[str, typ.Any]
 
 
@@ -97,8 +92,8 @@ def compute_mean_and_std_of_dataset(cfg: Config):
 
         average_image_size = np.zeros((2,))
 
-        fst_moment = np.zeros((cfg.data.set.image_properties.color_channels,))
-        snd_moment = np.zeros((cfg.data.set.image_properties.color_channels,))
+        fst_moment = np.zeros((cfg.data.set.image_properties.n_color_channels,))
+        snd_moment = np.zeros((cfg.data.set.image_properties.n_color_channels,))
         cnt = 0
 
         for images, _ in loader:
@@ -142,8 +137,9 @@ def compute_mean_and_std_of_dataset(cfg: Config):
         logger.exception(e)
 
 
+load_dotenv()
 add_all_custom_resolvers()
+config_store_ = DatasetConfig.init_store()
 config_store_.store(name="_config_validation", node=Config)
-config_store_.store(name="_data_validation", group="data", node=Data)
-config_store_.store(name="_data_set_validation", group="data/set", node=Dataset)
+config_store_.store(name="_data_validation", group="data", node=DataConfig)
 compute_mean_and_std_of_dataset()

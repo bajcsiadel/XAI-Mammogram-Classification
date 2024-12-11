@@ -11,9 +11,9 @@ class BagNetBase(Model, ABC):
     :type logger: ProtoPNet.utils.log.Log
     """
 
-    def __init__(self, n_classes, logger, color_channels=3):
+    def __init__(self, n_classes, logger, n_color_channels=3):
         super().__init__()
-        self.in_channels = color_channels
+        self.in_channels = n_color_channels
         self.out_channels = n_classes
         self.logger = logger
 

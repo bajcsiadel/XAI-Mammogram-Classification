@@ -6,8 +6,15 @@ import hydra
 import numpy as np
 import torch
 import torchvision
+from torch.optim import Optimizer
+from torch.utils.data import SubsetRandomSampler, DataLoader
 
+from xai_mam.dataset.dataloaders import CustomDataModule
+from xai_mam.models.BagNet._model import BagNetBase
+# from xai_mam.models.BagNet.config import BagNetLoss
 from xai_mam.models._base_classes import BaseTrainer
+from xai_mam.utils.config.types import Gpu, ModelParameters, Phase
+from xai_mam.utils.log import TrainLogger
 
 
 class BagNetTrainer(BaseTrainer):
@@ -15,39 +22,29 @@ class BagNetTrainer(BaseTrainer):
     Abstract base class for BagNet trainer.
 
     :param fold: current fold number
-    :type fold: int
     :param data_module:
-    :type data_module: ProtoPNet.dataset.dataloaders.CustomDataModule
     :param train_sampler:
-    :type train_sampler: torch.utils.data.SubsetRandomSampler | None
     :param validation_sampler:
-    :type validation_sampler: torch.utils.data.SubsetRandomSampler | None
     :param model: model to train
-    :type model: ProtoPNet.models.BagNet._model.BagNetBase
     :param phases: phases of the train process
-    :type phases: dict[str, ProtoPNet.utils.config._general_types.network.Phase]
     :param params: parameters of the model
-    :type params: ProtoPNet.utils.config._general_types.ModelParameters
     :param loss: loss parameters
-    :type loss: ProtoPNet.models.ProtoPNet.config.ProtoPNetLoss
     :param gpu: gpu properties
-    :type gpu: ProtoPNet.utils.config.types.Gpu
     :param logger:
-    :type logger: ProtoPNet.utils.log.Log
     """
 
     def __init__(
         self,
-        fold,
-        data_module,
-        train_sampler,
-        validation_sampler,
-        model,
-        phases,
-        params,
-        loss,
-        gpu,
-        logger,
+        fold: int | None,
+        data_module: CustomDataModule,
+        train_sampler: SubsetRandomSampler | None,
+        validation_sampler: SubsetRandomSampler | None,
+        model: BagNetBase,
+        phases: dict[str, Phase],
+        params: ModelParameters,
+        loss, #: BagNetLoss,
+        gpu: Gpu,
+        logger: TrainLogger,
     ):
         super().__init__(
             fold,
@@ -57,43 +54,32 @@ class BagNetTrainer(BaseTrainer):
             model,
             phases,
             params,
-            loss,
             gpu,
             logger,
         )
 
-        self.__criterion = torch.nn.CrossEntropyLoss().to(gpu.device)
+        self._loss = loss
+
+        self.__criterion = torch.nn.CrossEntropyLoss().to(gpu.device_instance)
 
         self.logger.info("batch size:")
         with self.logger.increase_indent_context():
             self.logger.info(f"train: {self._phases['main'].batch_size.train}")
-            self.logger.info(f"validation: {self._phases['main'].batch_size.validation}")
+            self.logger.info(
+                f"validation: {self._phases['main'].batch_size.validation}"
+            )
 
-    def model_name(self, name):
-        """
-        Concatenate fold number to the output model name.
-
-        :param name: name of the file
-        :type name: str
-        :return: name containing the fold number
-        :rtype: str
-        """
-        if self._fold is not None:
-            name = f"{self._fold}-{name}"
-        return name
-
-    def _compute_cross_entropy(self, predicted, expected, **kwargs):
+    def _compute_cross_entropy(
+        self, predicted: torch.Tensor, expected: torch.Tensor, **kwargs
+    ) -> torch.Tensor:
         """
         Compute the cross entropy loss for the model.
 
         :param predicted: the predicted labels
-        :type predicted: torch.Tensor
         :param expected: the expected labels (ground truth)
-        :type expected: torch.Tensor
         :param kwargs: other parameters. If binary cross entropy is needed,
             then ``n_classes`` should be specified.
         :return: cross entropy loss
-        :rtype: torch.Tensor
         """
         if self._loss.binary_cross_entropy:
             one_hot_target = torch.nn.functional.one_hot(expected, kwargs["n_classes"])
@@ -103,26 +89,31 @@ class BagNetTrainer(BaseTrainer):
 
         return torch.nn.functional.cross_entropy(predicted, expected)
 
-    def compute_loss(self, **kwargs):
-        cross_entropy = self.__criterion(kwargs["predicted"], kwargs["target"])
-        return {
-            "cross_entropy": cross_entropy,
-            "total": cross_entropy
-        }
-
-    def _train_and_eval(self, dataloader, epoch=None, optimizer=None, **kwargs):
+    def compute_loss(self, **kwargs) -> dict[str, torch.Tensor]:
         """
-        Execute train/test steps of the model.
+        Compute the total loss of the model.
+
+        :param kwargs: parameters needed to compute the loss components
+        :return:
+        """
+        cross_entropy = self.__criterion(kwargs["predicted"], kwargs["target"])
+        return {"cross_entropy": cross_entropy, "total": cross_entropy}
+
+    def _train_and_eval(
+        self,
+        dataloader: DataLoader,
+        optimizer: Optimizer = None,
+        epoch: int = None,
+        **kwargs,
+    ):
+        """
+        Execute train/eval steps of the model.
 
         :param dataloader:
-        :type dataloader: torch.utils.data.dataloader.DataLoader
-        :param epoch: current step needed for Tensorboard logging. Defaults to ``None``.
-        :type epoch: int | None
         :param optimizer: Defaults to ``None``.
-        :type optimizer: torch.optim.Optimizer
+        :param epoch: current step needed for Tensorboard logging. Defaults to ``None``.
         :param kwargs: other parameters
         :return: accuracy achieved in the current step
-        :rtype: float
         """
         batch_time = AverageMeter("Time", ":6.3f", Summary.NONE)
         data_time = AverageMeter("Data", ":6.3f", Summary.NONE)
@@ -134,13 +125,15 @@ class BagNetTrainer(BaseTrainer):
         grad_req = torch.enable_grad() if optimizer is not None else torch.no_grad()
 
         with grad_req:
-            for i, (images, target) in enumerate(dataloader):
+            for _, (images, target) in enumerate(dataloader):
                 # measure data loading time
                 data_time.update(time.time() - start)
 
                 # move data to the same device as model
-                images = images.to(self._gpu.device, non_blocking=True)
-                target = target.to(self._gpu.device, non_blocking=True)
+                images = images.to(self._gpu.device_instance, non_blocking=True)
+                target = target.to(self._gpu.device_instance, non_blocking=True)
+                a, b = np.unique(target.cpu().numpy(), return_counts=True)
+                self.logger.debug(f"batch sample distribution\n\t{a}\n\t{b}")
 
                 # compute output
                 output = self.parallel_model(images)
@@ -170,11 +163,15 @@ class BagNetTrainer(BaseTrainer):
 
             if epoch is not None:
                 phase = "train" if optimizer is not None else "eval"
-                self.logger.tensorboard.add_scalar(f"accuracy_top1/{phase}", top1.avg, epoch)
+                self.logger.tensorboard.add_scalar(
+                    f"accuracy_top1/{phase}", top1.avg, epoch
+                )
                 self.logger.tensorboard.add_scalars(
                     "accuracy_top1", {f"accuracy_top1/{phase}": top1.avg}
                 )
-                self.logger.tensorboard.add_scalar(f"accuracy_top5/{phase}", top5.avg, epoch)
+                self.logger.tensorboard.add_scalar(
+                    f"accuracy_top5/{phase}", top5.avg, epoch
+                )
                 self.logger.tensorboard.add_scalars(
                     "accuracy_top5", {f"accuracy_top5/{phase}": top5.avg}
                 )
@@ -189,12 +186,13 @@ class BagNetTrainer(BaseTrainer):
                 )
         return top1.avg
 
-    def _get_train_optimizer(self):
+    def _get_train_optimizer(self) -> tuple[
+        Optimizer, torch.optim.lr_scheduler.LRScheduler
+    ]:
         """
         Get the optimizer and learning rate scheduler used in the main phase.
 
         :return: the optimizer along with the learning scheduler
-        :rtype: tuple[torch.optim.Optimizer, torch.optim.lr_scheduler.LRScheduler]
         """
         optimizer = torch.optim.SGD(
             self.model.parameters(),
@@ -209,6 +207,11 @@ class BagNetTrainer(BaseTrainer):
         return optimizer, lr_scheduler
 
     def execute(self, **kwargs):
+        """
+        Perform the specified phases to train the model.
+
+        :param kwargs: keyword arguments
+        """
         train_loader = self._data_module.train_dataloader(
             sampler=self._train_sampler,
             batch_size=self._phases["main"].batch_size.train,
@@ -225,10 +228,10 @@ class BagNetTrainer(BaseTrainer):
 
         for epoch in np.arange(self._phases["main"].epochs) + 1:
             self._epoch += 1
-            self.logger.info(f"epoch: \t{epoch}")
+            self.logger.info(f"epoch: \t{epoch} / {self._phases['main'].epochs}")
             self.logger.increase_indent()
 
-            self.train(train_loader, epoch, optimizer)
+            self.train(train_loader, optimizer, epoch)
             accu = self.eval(validation_loader, epoch)
 
             lr_scheduler.step()
@@ -246,6 +249,8 @@ class BagNetTrainer(BaseTrainer):
             )
             self.logger.decrease_indent()
 
+        self.test()
+
     def log_image_examples(self, dataloader):
         """
         Log some images to the Tensorboard.
@@ -259,7 +264,7 @@ class BagNetTrainer(BaseTrainer):
             torchvision.utils.make_grid(first_batch_images),
         )
         self.logger.tensorboard.add_graph(
-            self.model, first_batch_images.to(self._gpu.device)
+            self.model, first_batch_images.to(self._gpu.device_instance)
         )
 
 
