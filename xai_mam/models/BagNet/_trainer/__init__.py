@@ -209,7 +209,7 @@ class BagNetTrainer(BaseTrainer):
                 self.logger.tensorboard.add_scalars(
                     "loss", {f"loss/{phase}": loss_parts["total"]}, epoch
                 )
-        return top1.avg / 100
+        return top1.avg
 
     def _get_train_optimizer(self) -> tuple[
         Optimizer, torch.optim.lr_scheduler.LRScheduler
